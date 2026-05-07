@@ -1,14 +1,21 @@
 import React from 'react'
 import { STATUS_CONFIG } from '../constants.js'
+import { useTheme } from '../App.jsx'
 
-export default function Sidebar({ view, setView, empresas }) {
+function statusStyle(cfg, theme) {
+  return theme === 'dark'
+    ? { color: cfg.darkColor, bg: cfg.darkBg }
+    : { color: cfg.color, bg: cfg.bg }
+}
+
+export default function Sidebar({ view, setView, empresas, theme, onToggleTheme }) {
   const total = empresas.length
   const novos = empresas.filter(e => e.status_prospeccao === 'novo').length
   const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '⬡' },
-    { id: 'leads', label: 'Leads', icon: '◈', badge: total },
+    { id: 'dashboard', label: 'Dashboard', icon: IconGrid },
+    { id: 'leads', label: 'Leads', icon: IconList, badge: total },
   ]
 
   return (
@@ -21,90 +28,136 @@ export default function Sidebar({ view, setView, empresas }) {
       flexShrink: 0,
     }}>
       {/* Logo */}
-      <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: 'var(--text)' }}>
-          PROSP<span style={{ color: 'var(--accent)' }}>.</span>CRM
+      <div style={{ padding: '22px 20px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.3px', color: 'var(--text)' }}>
+          Prosp<span style={{ color: 'var(--accent)' }}>CRM</span>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
           José Justo
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ padding: '12px 10px', flex: 1 }}>
-        {navItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setView(item.id)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 10,
-              padding: '9px 12px',
-              borderRadius: 8,
-              border: 'none',
-              background: view === item.id ? 'var(--bg4)' : 'transparent',
-              color: view === item.id ? 'var(--text)' : 'var(--text2)',
-              fontSize: 13,
-              fontWeight: view === item.id ? 500 : 400,
-              cursor: 'pointer',
-              marginBottom: 2,
-              transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 15 }}>{item.icon}</span>
-              {item.label}
-            </span>
-            {item.badge != null && (
-              <span style={{
-                background: view === item.id ? 'var(--accent)' : 'var(--border2)',
-                color: view === item.id ? '#fff' : 'var(--text2)',
-                borderRadius: 20,
-                padding: '1px 7px',
-                fontSize: 11,
-                fontFamily: 'var(--font-mono)',
-              }}>
-                {item.badge}
+      <nav style={{ padding: '10px 10px', flex: 1 }}>
+        {navItems.map(item => {
+          const Icon = item.icon
+          const active = view === item.id
+          return (
+            <button
+              key={item.id}
+              onClick={() => setView(item.id)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '8px 10px',
+                borderRadius: 7,
+                border: 'none',
+                background: active ? 'var(--bg3)' : 'transparent',
+                color: active ? 'var(--text)' : 'var(--text3)',
+                fontSize: 13,
+                fontWeight: active ? 500 : 400,
+                cursor: 'pointer',
+                marginBottom: 2,
+                transition: 'all 0.12s',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Icon size={15} color={active ? 'var(--accent)' : 'var(--text3)'} />
+                {item.label}
               </span>
-            )}
-          </button>
-        ))}
+              {item.badge != null && (
+                <span style={{
+                  background: active ? 'var(--accent)' : 'var(--bg4)',
+                  color: active ? '#fff' : 'var(--text3)',
+                  borderRadius: 20,
+                  padding: '1px 7px',
+                  fontSize: 11,
+                }}>
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          )
+        })}
 
-        {/* Status rápidos */}
-        <div style={{ marginTop: 20, padding: '0 4px' }}>
-          <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>
-            Status
+        {/* Status por contagem */}
+        <div style={{ marginTop: 20, padding: '0 2px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, paddingLeft: 8 }}>
+            Por status
           </div>
           {Object.entries(STATUS_CONFIG).slice(0, 6).map(([key, cfg]) => {
             const count = empresas.filter(e => e.status_prospeccao === key).length
             if (count === 0) return null
             return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', marginBottom: 2 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)' }}>
+              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', borderRadius: 6, marginBottom: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text2)' }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
                   {cfg.label}
                 </div>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>{count}</span>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{count}</span>
               </div>
             )
           })}
         </div>
       </nav>
 
-      {/* Footer stats */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+      {/* Footer */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--text3)' }}>Novos hoje</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)' }}>{novos}</span>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>Novos hoje</span>
+          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>{novos}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, color: 'var(--text3)' }}>Fechados</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--green)' }}>{fechados}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>Fechados</span>
+          <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>{fechados}</span>
         </div>
+
+        {/* Toggle tema */}
+        <button
+          onClick={onToggleTheme}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            padding: '7px 10px',
+            borderRadius: 7,
+            border: '1px solid var(--border)',
+            background: 'var(--bg3)',
+            color: 'var(--text3)',
+            fontSize: 12,
+            cursor: 'pointer',
+            transition: 'all 0.12s',
+          }}
+        >
+          {theme === 'light' ? '🌙 Modo escuro' : '☀️ Modo claro'}
+        </button>
       </div>
     </aside>
+  )
+}
+
+function IconGrid({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
+      <rect x="9" y="1" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
+      <rect x="1" y="9" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
+      <rect x="9" y="9" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
+    </svg>
+  )
+}
+
+function IconList({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="3" width="14" height="2" rx="1" fill={color} opacity="0.9" />
+      <rect x="1" y="7" width="14" height="2" rx="1" fill={color} opacity="0.9" />
+      <rect x="1" y="11" width="14" height="2" rx="1" fill={color} opacity="0.9" />
+    </svg>
   )
 }
