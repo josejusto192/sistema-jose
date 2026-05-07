@@ -1,8 +1,7 @@
 import React, { useState } from 'react'
-import { STATUS_CONFIG, CANAL_CONFIG } from '../constants.js'
+import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { format } from 'date-fns'
-import { supabase } from '../supabase.js'
 
 function Field({ label, value, mono }) {
   if (!value) return null
@@ -23,7 +22,9 @@ function Section({ title, children }) {
   )
 }
 
-export default function LeadDetail({ lead, onBack, onUpdate }) {
+const CANAL_ICONS = { whatsapp: '📱', instagram: '📸', email: '📧', ligacao: '📞' }
+
+export default function LeadDetail({ lead, onBack, onUpdate, onSaveContrato }) {
   const theme = useTheme()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
   const [canal, setCanal] = useState(lead.canal_envio || '')
@@ -34,19 +35,19 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
   const [notas, setNotas] = useState(() => {
     try { return JSON.parse(lead.observacoes_json || '[]') } catch { return [] }
   })
+  const [scriptsCopied, setScriptsCopied] = useState({})
+  const [scriptsOpen, setScriptsOpen] = useState(false)
 
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.novo
   const badgeStyle = theme === 'dark'
     ? { background: cfg.darkBg, color: cfg.darkColor }
     : { background: cfg.bg, color: cfg.color }
 
+  const nomeDisplay = lead.nome_fantasia || lead.razao_social || 'Lead'
+
   async function save() {
     setSaving(true)
-    const updates = {
-      status_prospeccao: status,
-      canal_envio: canal,
-      observacoes: obs,
-    }
+    const updates = { status_prospeccao: status, canal_envio: canal, observacoes: obs }
     if (status !== lead.status_prospeccao && !lead.data_envio) {
       updates.data_envio = new Date().toISOString()
     }
@@ -65,6 +66,16 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
     onUpdate(lead.id, { observacoes_json: JSON.stringify(updated) })
   }
 
+  function copyScript(script) {
+    const texto = script.texto
+      .replace(/\[Nome\]/g, nomeDisplay)
+      .replace(/\[Empresa\]/g, nomeDisplay)
+    navigator.clipboard.writeText(texto).then(() => {
+      setScriptsCopied(prev => ({ ...prev, [script.id]: true }))
+      setTimeout(() => setScriptsCopied(prev => ({ ...prev, [script.id]: false })), 2000)
+    })
+  }
+
   const cnpjFormatado = lead.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   const telefoneLink = lead.telefone ? `https://wa.me/55${lead.telefone.replace(/\D/g, '')}` : null
 
@@ -72,16 +83,13 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       {/* Header */}
       <div style={{ padding: '18px 32px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg2)', zIndex: 10 }}>
-        <button
-          onClick={onBack}
-          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-        >
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
           ← Voltar para leads
         </button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>
-              {lead.nome_fantasia || lead.razao_social}
+              {nomeDisplay}
             </h1>
             {lead.nome_fantasia && (
               <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{lead.razao_social}</div>
@@ -96,31 +104,14 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
               {lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>{lead.matriz_filial}</span>}
             </div>
           </div>
-
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             {lead.telefone && (
-              <a
-                href={telefoneLink}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                  background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 8,
-                  color: 'var(--green)', fontSize: 12, fontWeight: 500, textDecoration: 'none',
-                }}
-              >
+              <a href={telefoneLink} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 8, color: 'var(--green)', fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>
                 📱 WhatsApp
               </a>
             )}
             {lead.email && (
-              <a
-                href={`mailto:${lead.email}`}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                  background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8,
-                  color: 'var(--text2)', fontSize: 12, textDecoration: 'none',
-                }}
-              >
+              <a href={`mailto:${lead.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 12, textDecoration: 'none' }}>
                 📧 E-mail
               </a>
             )}
@@ -170,12 +161,8 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
               <Field label="CEP" value={lead.cep} mono />
             </div>
             {lead.latitude && lead.longitude && (
-              <a
-                href={`https://maps.google.com/?q=${lead.latitude},${lead.longitude}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}
-              >
+              <a href={`https://maps.google.com/?q=${lead.latitude},${lead.longitude}`} target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
                 📍 Ver no Maps
               </a>
             )}
@@ -199,7 +186,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
                       <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{s.nome}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{s.qualificacao_socio} · {s.faixa_etaria_descricao}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                       {s.data_entrada_sociedade ? format(new Date(s.data_entrada_sociedade), 'dd/MM/yyyy') : ''}
                     </div>
                   </div>
@@ -207,27 +194,60 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
               </div>
             </Section>
           )}
+
+          {/* Scripts de abordagem */}
+          <div className="card" style={{ marginBottom: 12, overflow: 'hidden' }}>
+            <button
+              onClick={() => setScriptsOpen(o => !o)}
+              style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Scripts de abordagem</span>
+              <span style={{ fontSize: 12, color: 'var(--text3)', transition: 'transform 0.2s', display: 'inline-block', transform: scriptsOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+            </button>
+            {scriptsOpen && (
+              <div style={{ padding: '0 18px 16px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12, marginTop: 12 }}>
+                  Clique em copiar — [Nome] e [Empresa] são substituídos automaticamente por <strong>{nomeDisplay}</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {SCRIPTS.map(script => (
+                    <div key={script.id} style={{ background: 'var(--bg3)', borderRadius: 8, overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>{CANAL_ICONS[script.canal] || '💬'}</span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)' }}>{script.titulo}</span>
+                        </div>
+                        <button
+                          onClick={() => copyScript(script)}
+                          style={{
+                            padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', fontWeight: 500,
+                            background: scriptsCopied[script.id] ? 'var(--green-bg)' : 'var(--accent)',
+                            color: scriptsCopied[script.id] ? 'var(--green)' : '#fff',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {scriptsCopied[script.id] ? '✓ Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                      <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text3)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                        {script.texto.replace(/\[Nome\]/g, nomeDisplay).replace(/\[Empresa\]/g, nomeDisplay)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Coluna direita — CRM */}
         <div>
           <div className="card" style={{ padding: '16px 18px', marginBottom: 12, position: 'sticky', top: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-              CRM
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>CRM</div>
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Status</label>
-              <select
-                value={status}
-                onChange={e => setStatus(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 10px',
-                  background: badgeStyle.background,
-                  border: `1px solid ${cfg.dot}40`, borderRadius: 8,
-                  color: badgeStyle.color, fontSize: 13, outline: 'none', cursor: 'pointer',
-                }}
-              >
+              <select value={status} onChange={e => setStatus(e.target.value)} style={{ width: '100%', padding: '8px 10px', background: badgeStyle.background, border: `1px solid ${cfg.dot}40`, borderRadius: 8, color: badgeStyle.color, fontSize: 13, outline: 'none', cursor: 'pointer' }}>
                 {Object.entries(STATUS_CONFIG).map(([key, c]) => (
                   <option key={key} value={key} style={{ background: 'var(--bg2)', color: 'var(--text)' }}>{c.label}</option>
                 ))}
@@ -236,15 +256,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Canal de contato</label>
-              <select
-                value={canal}
-                onChange={e => setCanal(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 10px', background: 'var(--bg3)',
-                  border: '1px solid var(--border)', borderRadius: 8,
-                  color: 'var(--text2)', fontSize: 13, outline: 'none',
-                }}
-              >
+              <select value={canal} onChange={e => setCanal(e.target.value)} style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none' }}>
                 <option value="">Selecionar canal</option>
                 {Object.entries(CANAL_CONFIG).map(([key, c]) => (
                   <option key={key} value={key}>{c.icon} {c.label}</option>
@@ -254,30 +266,11 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Observações</label>
-              <textarea
-                value={obs}
-                onChange={e => setObs(e.target.value)}
-                rows={4}
-                placeholder="Notas sobre este lead..."
-                style={{
-                  width: '100%', padding: '8px 10px', background: 'var(--bg3)',
-                  border: '1px solid var(--border)', borderRadius: 8,
-                  color: 'var(--text2)', fontSize: 13, outline: 'none', resize: 'vertical', lineHeight: 1.5,
-                }}
-              />
+              <textarea value={obs} onChange={e => setObs(e.target.value)} rows={4} placeholder="Notas sobre este lead..."
+                style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
             </div>
 
-            <button
-              onClick={save}
-              disabled={saving}
-              style={{
-                width: '100%', padding: '9px', borderRadius: 8, border: 'none',
-                background: saved ? 'var(--green-bg)' : 'var(--accent)',
-                color: saved ? 'var(--green)' : '#fff',
-                fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
-                outline: saved ? '1px solid var(--green)' : 'none',
-              }}
-            >
+            <button onClick={save} disabled={saving} style={{ width: '100%', padding: '9px', borderRadius: 8, border: 'none', background: saved ? 'var(--green-bg)' : 'var(--accent)', color: saved ? 'var(--green)' : '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s', outline: saved ? '1px solid var(--green)' : 'none' }}>
               {saving ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar alterações'}
             </button>
 
@@ -290,9 +283,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
 
           {/* Notas */}
           <div className="card" style={{ padding: '16px 18px' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-              Histórico / Notas
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Histórico / Notas</div>
 
             {notas.length === 0 && (
               <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>Nenhuma nota ainda</div>
@@ -310,27 +301,9 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             </div>
 
             <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                type="text"
-                value={nota}
-                onChange={e => setNota(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addNota()}
-                placeholder="Adicionar nota..."
-                style={{
-                  flex: 1, padding: '7px 10px', background: 'var(--bg3)',
-                  border: '1px solid var(--border)', borderRadius: 8,
-                  color: 'var(--text)', fontSize: 13, outline: 'none',
-                }}
-              />
-              <button
-                onClick={addNota}
-                style={{
-                  padding: '7px 14px', background: 'var(--accent)', border: 'none',
-                  borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                }}
-              >
-                +
-              </button>
+              <input type="text" value={nota} onChange={e => setNota(e.target.value)} onKeyDown={e => e.key === 'Enter' && addNota()} placeholder="Adicionar nota..."
+                style={{ flex: 1, padding: '7px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }} />
+              <button onClick={addNota} style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>+</button>
             </div>
           </div>
         </div>

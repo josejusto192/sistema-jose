@@ -26,7 +26,7 @@ function StatCard({ label, value, sub, accent, onClick }) {
       onMouseLeave={e => onClick && (e.currentTarget.style.boxShadow = 'var(--shadow)')}
     >
       <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontWeight: 700, fontSize: 32, color: accent || 'var(--text)', lineHeight: 1 }}>{value}</div>
+      <div style={{ fontWeight: 700, fontSize: 30, color: accent || 'var(--text)', lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>{sub}</div>}
     </div>
   )
@@ -44,8 +44,28 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }) {
+function fmt(n) {
+  return n?.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '0'
+}
+
+export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead }) {
   const theme = useTheme()
+
+  const financeiro = useMemo(() => {
+    const ativos = contratos.filter(c => c.status === 'ativo')
+    const mrr = ativos
+      .filter(c => c.pacote === 'gestao_trafego')
+      .reduce((sum, c) => sum + (c.valor_mensal || 0), 0)
+    const totalAtivos = ativos.length
+    const ticketMedio = totalAtivos > 0
+      ? ativos.reduce((sum, c) => sum + (c.valor_mensal || c.valor_total || 0), 0) / totalAtivos
+      : 0
+    const cancelados = contratos.filter(c => c.status === 'cancelado').length
+    const churnRate = contratos.length > 0
+      ? Math.round((cancelados / contratos.length) * 100)
+      : 0
+    return { mrr, arr: mrr * 12, totalAtivos, ticketMedio, churnRate }
+  }, [contratos])
 
   const stats = useMemo(() => {
     const total = empresas.length
@@ -81,9 +101,7 @@ export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }
       return { dia: format(date, 'dd/MM'), count }
     })
 
-    const recentes = [...empresas].slice(0, 5)
-
-    return { total, novos, contatados, fechados, perdidos, comEmail, comTel, topUF, topCnae, porStatus, porDia, recentes }
+    return { total, novos, contatados, fechados, perdidos, comEmail, comTel, topUF, topCnae, porStatus, porDia, recentes: [...empresas].slice(0, 5) }
   }, [empresas])
 
   if (loading) return (
@@ -108,25 +126,59 @@ export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        <StatCard label="Total de leads" value={stats.total} sub="empresas captadas" accent={accentColor} onClick={onViewLeads} />
-        <StatCard label="Novos" value={stats.novos} sub="aguardando contato" accent={accentColor} />
-        <StatCard label="Em andamento" value={stats.contatados} sub="contatados ou negociando" accent="var(--yellow)" />
-        <StatCard label="Fechados" value={stats.fechados} sub={`${stats.perdidos} perdidos`} accent="var(--green)" />
+      {/* Financeiro — MRR / ARR */}
+      <div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, fontWeight: 500 }}>Financeiro</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div className="card" onClick={onViewContratos} style={{ padding: '16px 18px', cursor: 'pointer', borderLeft: '3px solid var(--green)' }}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
+          >
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>MRR</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--green)', lineHeight: 1 }}>R$ {fmt(financeiro.mrr)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>recorrente mensal</div>
+          </div>
+          <div className="card" style={{ padding: '16px 18px', borderLeft: '3px solid var(--cyan)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>ARR projetado</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--cyan)', lineHeight: 1 }}>R$ {fmt(financeiro.arr)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>MRR × 12</div>
+          </div>
+          <div className="card" onClick={onViewContratos} style={{ padding: '16px 18px', cursor: 'pointer', borderLeft: '3px solid var(--purple)' }}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
+          >
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Contratos ativos</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--purple)', lineHeight: 1 }}>{financeiro.totalAtivos}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>ticket médio R$ {fmt(financeiro.ticketMedio)}</div>
+          </div>
+          <div className="card" style={{ padding: '16px 18px', borderLeft: '3px solid var(--red)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Churn rate</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: financeiro.churnRate > 0 ? 'var(--red)' : 'var(--text3)', lineHeight: 1 }}>{financeiro.churnRate}%</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>contratos cancelados</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Prospecção */}
+      <div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, fontWeight: 500 }}>Prospecção</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <StatCard label="Total de leads" value={stats.total} sub="empresas captadas" accent={accentColor} onClick={onViewLeads} />
+          <StatCard label="Novos" value={stats.novos} sub="aguardando contato" accent={accentColor} />
+          <StatCard label="Em andamento" value={stats.contatados} sub="contatados ou negociando" accent="var(--yellow)" />
+          <StatCard label="Fechados" value={stats.fechados} sub={`${stats.perdidos} perdidos`} accent="var(--green)" />
+        </div>
       </div>
 
       {/* Info rápida */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[
           { icon: '📧', value: stats.comEmail, label: 'com e-mail', color: 'var(--accent)' },
           { icon: '📱', value: stats.comTel, label: 'com telefone', color: 'var(--purple)' },
-          { icon: '📈', value: `${stats.total > 0 ? Math.round((stats.fechados / stats.total) * 100) : 0}%`, label: 'taxa de conversão', color: 'var(--yellow)' },
+          { icon: '📈', value: `${stats.total > 0 ? Math.round((stats.fechados / stats.total) * 100) : 0}%`, label: 'taxa de conversão leads', color: 'var(--yellow)' },
         ].map((item, i) => (
           <div key={i} className="card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-              {item.icon}
-            </div>
+            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 600, color: item.color, lineHeight: 1 }}>{item.value}</div>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>{item.label}</div>
@@ -135,7 +187,7 @@ export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }
         ))}
       </div>
 
-      {/* Gráficos row 1 */}
+      {/* Gráficos */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Leads por dia (14 dias)</div>
@@ -176,7 +228,7 @@ export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }
         </div>
       </div>
 
-      {/* Gráficos row 2 */}
+      {/* Top UF + Segmentos */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Top estados</div>
@@ -217,12 +269,7 @@ export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }
               <div
                 key={e.id}
                 onClick={() => onOpenLead(e)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-                  borderBottom: i < stats.recentes.length - 1 ? '1px solid var(--border)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'opacity 0.1s',
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < stats.recentes.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer', transition: 'opacity 0.1s' }}
                 onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
                 onMouseLeave={el => el.currentTarget.style.opacity = '1'}
               >
@@ -230,12 +277,8 @@ export default function Dashboard({ empresas, loading, onViewLeads, onOpenLead }
                   {(e.razao_social || e.nome_fantasia || '?')[0]}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {e.nome_fantasia || e.razao_social}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
-                    {e.municipio} · {e.uf} · {e.cnae_principal_descricao?.slice(0, 40)}
-                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.nome_fantasia || e.razao_social}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>{e.municipio} · {e.uf} · {e.cnae_principal_descricao?.slice(0, 40)}</div>
                 </div>
                 <span className="badge" style={{ background: style.background, color: style.color, flexShrink: 0 }}>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot }} />
