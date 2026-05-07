@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
 import { STATUS_CONFIG, CANAL_CONFIG } from '../constants.js'
+import { useTheme } from '../App.jsx'
 import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { supabase } from '../supabase.js'
 
 function Field({ label, value, mono }) {
   if (!value) return null
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'var(--font-mono)', marginBottom: 2 }}>{label}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 13, color: 'var(--text2)', fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)' }}>{value}</div>
     </div>
   )
@@ -16,14 +16,15 @@ function Field({ label, value, mono }) {
 
 function Section({ title, children }) {
   return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px', marginBottom: 12 }}>
-      <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'var(--font-mono)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>{title}</div>
+    <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>{title}</div>
       {children}
     </div>
   )
 }
 
 export default function LeadDetail({ lead, onBack, onUpdate }) {
+  const theme = useTheme()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
   const [canal, setCanal] = useState(lead.canal_envio || '')
   const [obs, setObs] = useState(lead.observacoes || '')
@@ -35,6 +36,9 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
   })
 
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.novo
+  const badgeStyle = theme === 'dark'
+    ? { background: cfg.darkBg, color: cfg.darkColor }
+    : { background: cfg.bg, color: cfg.color }
 
   async function save() {
     setSaving(true)
@@ -67,33 +71,32 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       {/* Header */}
-      <div style={{ padding: '20px 28px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 10 }}>
+      <div style={{ padding: '18px 32px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg2)', zIndex: 10 }}>
         <button
           onClick={onBack}
-          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}
+          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}
         >
           ← Voltar para leads
         </button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, letterSpacing: '-0.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>
               {lead.nome_fantasia || lead.razao_social}
             </h1>
             {lead.nome_fantasia && (
               <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{lead.razao_social}</div>
             )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              <span className="badge" style={{ background: cfg.bg, color: cfg.color }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot }} />
+            <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
+              <span className="badge" style={badgeStyle}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot }} />
                 {cfg.label}
               </span>
               {lead.eh_mei && <span className="badge" style={{ background: 'var(--green-bg)', color: 'var(--green)' }}>MEI</span>}
               {lead.optante_simples && <span className="badge" style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}>Simples Nacional</span>}
-              {lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)' }}>{lead.matriz_filial}</span>}
+              {lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>{lead.matriz_filial}</span>}
             </div>
           </div>
 
-          {/* Ações rápidas de contato */}
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             {lead.telefone && (
               <a
@@ -102,7 +105,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
                 rel="noreferrer"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                  background: '#0d2e20', border: '1px solid var(--green)', borderRadius: 8,
+                  background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 8,
                   color: 'var(--green)', fontSize: 12, fontWeight: 500, textDecoration: 'none',
                 }}
               >
@@ -114,7 +117,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
                 href={`mailto:${lead.email}`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                  background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8,
+                  background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8,
                   color: 'var(--text2)', fontSize: 12, textDecoration: 'none',
                 }}
               >
@@ -126,10 +129,9 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
       </div>
 
       {/* Content */}
-      <div style={{ padding: '20px 28px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, flex: 1 }}>
+      <div style={{ padding: '20px 32px', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)' }}>
         {/* Coluna esquerda */}
         <div>
-          {/* Dados da empresa */}
           <Section title="Dados cadastrais">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
               <Field label="CNPJ" value={cnpjFormatado} mono />
@@ -143,16 +145,15 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             </div>
           </Section>
 
-          {/* Atividade */}
           <Section title="Atividade econômica">
             <Field label="CNAE Principal" value={lead.cnae_principal_descricao ? `${lead.cnae_principal_codigo} — ${lead.cnae_principal_descricao}` : null} />
             {lead.cnaes_secundarios?.length > 0 && (
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'var(--font-mono)', marginBottom: 6 }}>CNAEs secundários</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>CNAEs secundários</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {lead.cnaes_secundarios.slice(0, 5).map((c, i) => (
                     <div key={i} style={{ fontSize: 12, color: 'var(--text3)' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text3)' }}>{c.codigo}</span> — {c.descricao}
+                      <span style={{ fontFamily: 'var(--font-mono)' }}>{c.codigo}</span> — {c.descricao}
                     </div>
                   ))}
                 </div>
@@ -160,7 +161,6 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             )}
           </Section>
 
-          {/* Endereço */}
           <Section title="Localização">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
               <Field label="Logradouro" value={[lead.tipo_logradouro, lead.logradouro, lead.numero].filter(Boolean).join(' ')} />
@@ -181,7 +181,6 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             )}
           </Section>
 
-          {/* Contato */}
           <Section title="Contato">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
               <Field label="E-mail" value={lead.email} />
@@ -191,10 +190,9 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             </div>
           </Section>
 
-          {/* Sócios */}
           {lead.quadro_societario?.length > 0 && (
             <Section title={`Quadro societário (${lead.quadro_societario.length})`}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {lead.quadro_societario.map((s, i) => (
                   <div key={i} style={{ padding: '10px 12px', background: 'var(--bg3)', borderRadius: 8, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div>
@@ -213,21 +211,21 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
 
         {/* Coluna direita — CRM */}
         <div>
-          {/* Controle de prospecção */}
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px', marginBottom: 12, position: 'sticky', top: 20 }}>
-            <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'var(--font-mono)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12, position: 'sticky', top: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
               CRM
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Status</label>
+              <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Status</label>
               <select
                 value={status}
                 onChange={e => setStatus(e.target.value)}
                 style={{
-                  width: '100%', padding: '8px 10px', background: cfg.bg,
-                  border: `1px solid ${cfg.color}40`, borderRadius: 8,
-                  color: cfg.color, fontSize: 13, outline: 'none', cursor: 'pointer',
+                  width: '100%', padding: '8px 10px',
+                  background: badgeStyle.background,
+                  border: `1px solid ${cfg.dot}40`, borderRadius: 8,
+                  color: badgeStyle.color, fontSize: 13, outline: 'none', cursor: 'pointer',
                 }}
               >
                 {Object.entries(STATUS_CONFIG).map(([key, c]) => (
@@ -237,7 +235,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Canal de contato</label>
+              <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Canal de contato</label>
               <select
                 value={canal}
                 onChange={e => setCanal(e.target.value)}
@@ -255,7 +253,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Observações</label>
+              <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Observações</label>
               <textarea
                 value={obs}
                 onChange={e => setObs(e.target.value)}
@@ -264,8 +262,7 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
                 style={{
                   width: '100%', padding: '8px 10px', background: 'var(--bg3)',
                   border: '1px solid var(--border)', borderRadius: 8,
-                  color: 'var(--text2)', fontSize: 12, outline: 'none', resize: 'vertical',
-                  lineHeight: 1.5,
+                  color: 'var(--text2)', fontSize: 13, outline: 'none', resize: 'vertical', lineHeight: 1.5,
                 }}
               />
             </div>
@@ -274,40 +271,40 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
               onClick={save}
               disabled={saving}
               style={{
-                width: '100%', padding: '10px', borderRadius: 8, border: 'none',
-                background: saved ? 'var(--green-bg)' : 'var(--accent)', color: saved ? 'var(--green)' : '#fff',
+                width: '100%', padding: '9px', borderRadius: 8, border: 'none',
+                background: saved ? 'var(--green-bg)' : 'var(--accent)',
+                color: saved ? 'var(--green)' : '#fff',
                 fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
-                border: saved ? '1px solid var(--green)' : 'none',
+                outline: saved ? '1px solid var(--green)' : 'none',
               }}
             >
               {saving ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar alterações'}
             </button>
 
-            {/* Info de envio */}
             {lead.data_envio && (
-              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center' }}>
                 Contatado em {format(new Date(lead.data_envio), 'dd/MM/yyyy')}
               </div>
             )}
           </div>
 
-          {/* Timeline de notas */}
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
-            <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'var(--font-mono)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+          {/* Notas */}
+          <div className="card" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
               Histórico / Notas
             </div>
 
             {notas.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Nenhuma nota ainda</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>Nenhuma nota ainda</div>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {notas.map((n, i) => (
                 <div key={i} style={{ padding: '8px 10px', background: 'var(--bg3)', borderRadius: 8, borderLeft: '2px solid var(--accent)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
                     {format(new Date(n.data), "dd/MM 'às' HH:mm")}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>{n.texto}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>{n.texto}</div>
                 </div>
               ))}
             </div>
@@ -322,12 +319,15 @@ export default function LeadDetail({ lead, onBack, onUpdate }) {
                 style={{
                   flex: 1, padding: '7px 10px', background: 'var(--bg3)',
                   border: '1px solid var(--border)', borderRadius: 8,
-                  color: 'var(--text)', fontSize: 12, outline: 'none',
+                  color: 'var(--text)', fontSize: 13, outline: 'none',
                 }}
               />
               <button
                 onClick={addNota}
-                style={{ padding: '7px 12px', background: 'var(--bg4)', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}
+                style={{
+                  padding: '7px 14px', background: 'var(--accent)', border: 'none',
+                  borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                }}
               >
                 +
               </button>

@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, createContext, useContext } from 'react'
 import { supabase } from './supabase.js'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Leads from './components/Leads.jsx'
 import LeadDetail from './components/LeadDetail.jsx'
 
+export const ThemeContext = createContext('light')
+export const useTheme = () => useContext(ThemeContext)
+
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [view, setView] = useState('dashboard')
   const [selectedLead, setSelectedLead] = useState(null)
   const [empresas, setEmpresas] = useState([])
@@ -14,8 +18,12 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('todos')
 
   useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  useEffect(() => {
     fetchEmpresas()
-    // realtime subscription
     const channel = supabase
       .channel('empresas-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empresas' }, () => {
@@ -69,42 +77,46 @@ export default function App() {
   })
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
-      <Sidebar
-        view={view}
-        setView={v => { setView(v); setSelectedLead(null) }}
-        empresas={empresas}
-      />
-      <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        {view === 'dashboard' && (
-          <Dashboard
-            empresas={empresas}
-            loading={loading}
-            onViewLeads={() => setView('leads')}
-            onOpenLead={openLead}
-          />
-        )}
-        {view === 'leads' && (
-          <Leads
-            empresas={filteredEmpresas}
-            loading={loading}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            onOpenLead={openLead}
-            onUpdateEmpresa={updateEmpresa}
-            totalCount={empresas.length}
-          />
-        )}
-        {view === 'detail' && selectedLead && (
-          <LeadDetail
-            lead={selectedLead}
-            onBack={closeLead}
-            onUpdate={updateEmpresa}
-          />
-        )}
-      </main>
-    </div>
+    <ThemeContext.Provider value={theme}>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
+        <Sidebar
+          view={view}
+          setView={v => { setView(v); setSelectedLead(null) }}
+          empresas={empresas}
+          theme={theme}
+          onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+        />
+        <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {view === 'dashboard' && (
+            <Dashboard
+              empresas={empresas}
+              loading={loading}
+              onViewLeads={() => setView('leads')}
+              onOpenLead={openLead}
+            />
+          )}
+          {view === 'leads' && (
+            <Leads
+              empresas={filteredEmpresas}
+              loading={loading}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              onOpenLead={openLead}
+              onUpdateEmpresa={updateEmpresa}
+              totalCount={empresas.length}
+            />
+          )}
+          {view === 'detail' && selectedLead && (
+            <LeadDetail
+              lead={selectedLead}
+              onBack={closeLead}
+              onUpdate={updateEmpresa}
+            />
+          )}
+        </main>
+      </div>
+    </ThemeContext.Provider>
   )
 }
