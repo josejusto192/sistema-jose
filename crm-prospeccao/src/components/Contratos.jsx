@@ -121,14 +121,35 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
   async function handleSave() {
     if (!form.cliente_nome.trim()) return
     setSaving(true)
+
+    const dateOrNull = v => (v && v.trim() !== '' ? v : null)
+    const numOrNull  = v => (v !== '' && v != null ? Number(v) : null)
+
     const payload = {
-      ...form,
-      empresa_id: form.empresa_id || null,
-      valor_total: form.pacote === 'estrutura_digital' ? Number(form.valor_total) || 1997 : null,
-      valor_mensal: form.pacote === 'gestao_trafego' ? Number(form.valor_mensal) || 997 : null,
-      total_recebido: Number(form.total_recebido) || 0,
-      duracao_meses: Number(form.duracao_meses) || 3,
+      cliente_nome:          form.cliente_nome,
+      cliente_cnpj:          form.cliente_cnpj || null,
+      cliente_email:         form.cliente_email || null,
+      cliente_telefone:      form.cliente_telefone || null,
+      empresa_id:            form.empresa_id || null,
+      pacote:                form.pacote,
+      status:                form.status,
+      valor_total:           form.pacote === 'estrutura_digital' ? numOrNull(form.valor_total) ?? 1997 : null,
+      valor_mensal:          form.pacote === 'gestao_trafego'    ? numOrNull(form.valor_mensal) ?? 997  : null,
+      data_assinatura:       dateOrNull(form.data_assinatura),
+      data_inicio:           dateOrNull(form.data_inicio),
+      pagamento_sinal:       form.pacote === 'estrutura_digital' ? Boolean(form.pagamento_sinal)  : null,
+      pagamento_final:       form.pacote === 'estrutura_digital' ? Boolean(form.pagamento_final)  : null,
+      data_entrega_prevista: form.pacote === 'estrutura_digital' ? dateOrNull(form.data_entrega_prevista) : null,
+      data_entrega_real:     form.pacote === 'estrutura_digital' ? dateOrNull(form.data_entrega_real)     : null,
+      duracao_meses:         form.pacote === 'gestao_trafego'    ? Number(form.duracao_meses) || 3        : null,
+      renovacao_automatica:  form.pacote === 'gestao_trafego'    ? Boolean(form.renovacao_automatica)     : null,
+      proximo_faturamento:   form.pacote === 'gestao_trafego'    ? dateOrNull(form.proximo_faturamento)   : null,
+      data_cancelamento:     dateOrNull(form.data_cancelamento),
+      motivo_churn:          form.motivo_churn || null,
+      total_recebido:        numOrNull(form.total_recebido) ?? 0,
+      observacoes:           form.observacoes || null,
     }
+
     if (modal !== 'new') payload.id = modal.id
     await onSave(payload)
     setSaving(false)
