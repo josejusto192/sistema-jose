@@ -66,12 +66,13 @@ export default function App() {
 
   async function saveContrato(contrato) {
     if (contrato.id) {
-      const { id, criado_em, ...updates } = contrato
+      const { id, criado_em, atualizado_em, ...updates } = contrato
       const { error } = await supabase.from('contratos').update(updates).eq('id', id)
       if (!error) setContratos(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
       return !error
     } else {
-      const { data, error } = await supabase.from('contratos').insert(contrato).select().single()
+      const { id, criado_em, atualizado_em, ...insert } = contrato
+      const { data, error } = await supabase.from('contratos').insert(insert).select().single()
       if (!error && data) setContratos(prev => [data, ...prev])
       return !error
     }
