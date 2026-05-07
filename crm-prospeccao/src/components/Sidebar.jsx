@@ -1,21 +1,15 @@
 import React from 'react'
 import { STATUS_CONFIG } from '../constants.js'
-import { useTheme } from '../App.jsx'
 
-function statusStyle(cfg, theme) {
-  return theme === 'dark'
-    ? { color: cfg.darkColor, bg: cfg.darkBg }
-    : { color: cfg.color, bg: cfg.bg }
-}
-
-export default function Sidebar({ view, setView, empresas, theme, onToggleTheme }) {
+export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme }) {
   const total = empresas.length
-  const novos = empresas.filter(e => e.status_prospeccao === 'novo').length
   const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
+  const contratosAtivos = contratos.filter(c => c.status === 'ativo').length
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: IconGrid },
-    { id: 'leads', label: 'Leads', icon: IconList, badge: total },
+    { id: 'dashboard',  label: 'Dashboard',  icon: IconGrid },
+    { id: 'leads',      label: 'Leads',      icon: IconList,     badge: total },
+    { id: 'contratos',  label: 'Contratos',  icon: IconContract, badge: contratosAtivos || null },
   ]
 
   return (
@@ -32,9 +26,7 @@ export default function Sidebar({ view, setView, empresas, theme, onToggleTheme 
         <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.3px', color: 'var(--text)' }}>
           Prosp<span style={{ color: 'var(--accent)' }}>CRM</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-          José Justo
-        </div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>José Justo</div>
       </div>
 
       {/* Nav */}
@@ -85,9 +77,7 @@ export default function Sidebar({ view, setView, empresas, theme, onToggleTheme 
 
         {/* Status por contagem */}
         <div style={{ marginTop: 20, padding: '0 2px' }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, paddingLeft: 8 }}>
-            Por status
-          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, paddingLeft: 8 }}>Por status</div>
           {Object.entries(STATUS_CONFIG).slice(0, 6).map(([key, cfg]) => {
             const count = empresas.filter(e => e.status_prospeccao === key).length
             if (count === 0) return null
@@ -106,16 +96,19 @@ export default function Sidebar({ view, setView, empresas, theme, onToggleTheme 
 
       {/* Footer */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 12, color: 'var(--text3)' }}>Novos hoje</span>
-          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>{novos}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>Leads totais</span>
+          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>{total}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>Fechados</span>
           <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>{fechados}</span>
         </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>Contratos ativos</span>
+          <span style={{ fontSize: 12, color: 'var(--purple)', fontWeight: 500 }}>{contratosAtivos}</span>
+        </div>
 
-        {/* Toggle tema */}
         <button
           onClick={onToggleTheme}
           style={{
@@ -131,7 +124,6 @@ export default function Sidebar({ view, setView, empresas, theme, onToggleTheme 
             color: 'var(--text3)',
             fontSize: 12,
             cursor: 'pointer',
-            transition: 'all 0.12s',
           }}
         >
           {theme === 'light' ? '🌙 Modo escuro' : '☀️ Modo claro'}
@@ -158,6 +150,17 @@ function IconList({ size = 16, color = 'currentColor' }) {
       <rect x="1" y="3" width="14" height="2" rx="1" fill={color} opacity="0.9" />
       <rect x="1" y="7" width="14" height="2" rx="1" fill={color} opacity="0.9" />
       <rect x="1" y="11" width="14" height="2" rx="1" fill={color} opacity="0.9" />
+    </svg>
+  )
+}
+
+function IconContract({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="1" width="12" height="14" rx="2" stroke={color} strokeWidth="1.5" opacity="0.9" />
+      <rect x="4.5" y="4.5" width="7" height="1.2" rx="0.6" fill={color} opacity="0.9" />
+      <rect x="4.5" y="7" width="7" height="1.2" rx="0.6" fill={color} opacity="0.7" />
+      <rect x="4.5" y="9.5" width="4" height="1.2" rx="0.6" fill={color} opacity="0.5" />
     </svg>
   )
 }
