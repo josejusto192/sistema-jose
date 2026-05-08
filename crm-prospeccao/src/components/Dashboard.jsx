@@ -4,6 +4,7 @@ import { STATUS_CONFIG } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { IconMail, IconPhone } from './Icons.jsx'
 
 function getStatusStyle(cfg, theme) {
   return theme === 'dark'
@@ -173,12 +174,17 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       {/* Info rápida */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[
-          { icon: '📧', value: stats.comEmail, label: 'com e-mail', color: 'var(--accent)' },
-          { icon: '📱', value: stats.comTel, label: 'com telefone', color: 'var(--purple)' },
-          { icon: '📈', value: `${stats.total > 0 ? Math.round((stats.fechados / stats.total) * 100) : 0}%`, label: 'taxa de conversão leads', color: 'var(--yellow)' },
+          { Icon: IconMail,  value: stats.comEmail, label: 'com e-mail',   color: 'var(--accent)' },
+          { Icon: IconPhone, value: stats.comTel,   label: 'com telefone', color: 'var(--purple)' },
+          { Icon: null, value: `${stats.total > 0 ? Math.round((stats.fechados / stats.total) * 100) : 0}%`, label: 'taxa de conversão leads', color: 'var(--yellow)' },
         ].map((item, i) => (
           <div key={i} className="card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
+            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {item.Icon
+                ? <item.Icon size={18} color="var(--text3)" />
+                : <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text3)' }}>%</span>
+              }
+            </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 600, color: item.color, lineHeight: 1 }}>{item.value}</div>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>{item.label}</div>

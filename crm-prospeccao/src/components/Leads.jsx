@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { format, differenceInDays } from 'date-fns'
+import { IconSearch, IconClock, IconMail, IconPhone, IconInbox } from './Icons.jsx'
 
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 const FOLLOWUP_DAYS = 3
@@ -92,8 +93,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             {empresas.length} / {totalCount}
           </span>
           {followupCount > 0 && (
-            <span style={{ fontSize: 12, background: '#FFFBEB', color: '#B45309', border: '1px solid #F59E0B60', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-              ⏰ {followupCount} precisam de atenção
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#FFFBEB', color: '#B45309', border: '1px solid #F59E0B60', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
+              <IconClock size={12} color="#B45309" /> {followupCount} precisam de atenção
             </span>
           )}
         </div>
@@ -107,7 +108,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               onChange={e => setSearchQuery(e.target.value)}
               style={{ width: '100%', padding: '8px 12px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
             />
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 15 }}>⌕</span>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', display: 'flex' }}><IconSearch size={15} color="var(--text3)" /></span>
           </div>
           <select
             value={statusFilter}
@@ -154,7 +155,10 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               borderColor: statusFilter === 'followup' ? '#F59E0B60' : 'var(--border)',
             }}
           >
-            ⏰ Atenção{followupCount > 0 ? ` (${followupCount})` : ''}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <IconClock size={12} color={statusFilter === 'followup' ? '#B45309' : 'var(--text3)'} />
+              Atenção{followupCount > 0 ? ` (${followupCount})` : ''}
+            </span>
           </button>
         </div>
       </div>
@@ -165,7 +169,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13, animation: 'pulse 1.5s infinite' }}>Carregando...</div>
         ) : sorted.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>○</div>
+            <div style={{ marginBottom: 10, opacity: 0.3 }}><IconInbox size={32} color="var(--text3)" /></div>
             <div style={{ fontSize: 14 }}>Nenhum lead encontrado</div>
             <div style={{ fontSize: 12, marginTop: 4 }}>Ajuste os filtros ou aguarde novos registros</div>
           </div>
@@ -224,9 +228,9 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                       </div>
                     </td>
                     <td style={{ padding: '10px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {e.email && <span title={e.email} style={{ fontSize: 14 }}>📧</span>}
-                        {e.telefone && <span title={e.telefone} style={{ fontSize: 14 }}>📱</span>}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {e.email && <span title={e.email} style={{ color: 'var(--text3)', display: 'flex' }}><IconMail size={14} color="var(--text3)" /></span>}
+                        {e.telefone && <span title={e.telefone} style={{ color: 'var(--text3)', display: 'flex' }}><IconPhone size={14} color="var(--text3)" /></span>}
                         {!e.email && !e.telefone && <span style={{ fontSize: 11, color: 'var(--text3)' }}>—</span>}
                       </div>
                     </td>

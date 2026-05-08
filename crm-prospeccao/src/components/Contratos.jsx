@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { PACOTES, CONTRATO_STATUS } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { format, addMonths, addBusinessDays } from 'date-fns'
+import { IconSearch, IconInbox, IconLink, IconX, IconPlus, IconTrash, IconEdit } from './Icons.jsx'
 
 const EMPTY_FORM = {
   cliente_nome: '',
@@ -254,7 +255,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', padding: '8px 12px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
           />
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 15 }}>⌕</span>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', display: 'flex' }}><IconSearch size={15} color="var(--text3)" /></span>
         </div>
 
         {/* Filtros */}
@@ -281,7 +282,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       <div style={{ flex: 1, overflow: 'auto', padding: '20px 32px', background: 'var(--bg)' }}>
         {filtered.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>○</div>
+            <div style={{ marginBottom: 10, opacity: 0.3 }}><IconInbox size={32} color="var(--text3)" /></div>
             <div style={{ fontSize: 14 }}>Nenhum contrato encontrado</div>
             <div style={{ fontSize: 12, marginTop: 4 }}>Clique em "Novo contrato" para adicionar</div>
           </div>
@@ -331,8 +332,8 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                           const emp = empresas.find(e => e.id === c.empresa_id)
                           if (!emp) return null
                           return (
-                            <span style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
-                              🔗 {emp.municipio}/{emp.uf}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--accent)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
+                              <IconLink size={11} color="var(--accent)" /> {emp.municipio}/{emp.uf}
                             </span>
                           )
                         })()}
@@ -391,7 +392,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               <h2 style={{ fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>
                 {modal === 'new' ? 'Novo contrato' : 'Editar contrato'}
               </h2>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer' }}>×</button>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', display: 'flex', padding: 4 }}><IconX size={18} color="var(--text3)" /></button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

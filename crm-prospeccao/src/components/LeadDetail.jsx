@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { format } from 'date-fns'
+import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy } from './Icons.jsx'
 
 function Field({ label, value, mono }) {
   if (!value) return null
@@ -22,7 +23,7 @@ function Section({ title, children }) {
   )
 }
 
-const CANAL_ICONS = { whatsapp: '📱', instagram: '📸', email: '📧', ligacao: '📞' }
+const CANAL_ICON_MAP = { whatsapp: IconWhatsApp, instagram: IconCamera, email: IconMail, ligacao: IconPhone }
 
 export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato }) {
   const theme = useTheme()
@@ -110,17 +111,17 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
                 onClick={() => onCreateContrato(lead)}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               >
-                📄 Criar contrato
+                <IconFileText size={14} color="#fff" /> Criar contrato
               </button>
             )}
             {lead.telefone && (
               <a href={telefoneLink} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 8, color: 'var(--green)', fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>
-                📱 WhatsApp
+                <IconWhatsApp size={14} color="var(--green)" /> WhatsApp
               </a>
             )}
             {lead.email && (
               <a href={`mailto:${lead.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 12, textDecoration: 'none' }}>
-                📧 E-mail
+                <IconMail size={14} color="var(--text2)" /> E-mail
               </a>
             )}
           </div>
@@ -179,7 +180,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
           <Section title="Contato">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
               <Field label="E-mail" value={lead.email} />
-              <Field label="Válido" value={lead.email_valido != null ? (lead.email_valido ? 'Sim ✓' : 'Não ✗') : null} />
+              <Field label="Válido" value={lead.email_valido != null ? (lead.email_valido ? 'Sim' : 'Não') : null} />
               <Field label="Telefone" value={lead.telefone} mono />
               <Field label="DDD / Tipo" value={lead.telefone_ddd ? `${lead.telefone_ddd} · ${lead.telefone_tipo || ''}` : null} />
             </div>
@@ -222,19 +223,23 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
                     <div key={script.id} style={{ background: 'var(--bg3)', borderRadius: 8, overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13 }}>{CANAL_ICONS[script.canal] || '💬'}</span>
+                          {(() => { const Ic = CANAL_ICON_MAP[script.canal]; return Ic ? <Ic size={13} color="var(--text3)" /> : null })()}
                           <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)' }}>{script.titulo}</span>
                         </div>
                         <button
                           onClick={() => copyScript(script)}
                           style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
                             padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', fontWeight: 500,
                             background: scriptsCopied[script.id] ? 'var(--green-bg)' : 'var(--accent)',
                             color: scriptsCopied[script.id] ? 'var(--green)' : '#fff',
                             transition: 'all 0.2s',
                           }}
                         >
-                          {scriptsCopied[script.id] ? '✓ Copiado!' : 'Copiar'}
+                          {scriptsCopied[script.id]
+                            ? <><IconCheck size={12} color="var(--green)" /> Copiado!</>
+                            : <><IconCopy size={12} color="#fff" /> Copiar</>
+                          }
                         </button>
                       </div>
                       <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text3)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
@@ -279,7 +284,10 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
             </div>
 
             <button onClick={save} disabled={saving} style={{ width: '100%', padding: '9px', borderRadius: 8, border: 'none', background: saved ? 'var(--green-bg)' : 'var(--accent)', color: saved ? 'var(--green)' : '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s', outline: saved ? '1px solid var(--green)' : 'none' }}>
-              {saving ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar alterações'}
+              {saving ? 'Salvando...' : saved
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconCheck size={13} color="var(--green)" /> Salvo!</span>
+                : 'Salvar alterações'
+              }
             </button>
 
             {lead.data_envio && (
