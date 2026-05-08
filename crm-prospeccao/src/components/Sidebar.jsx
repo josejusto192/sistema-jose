@@ -1,6 +1,7 @@
 import React from 'react'
 import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun } from './Icons.jsx'
 
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
@@ -132,8 +133,10 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
           <span style={{ fontSize: 12, color: 'var(--purple)', fontWeight: 500 }}>{contratosAtivos}</span>
         </div>
         {followupCount > 0 ? (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, padding: '4px 8px', background: '#FFFBEB', borderRadius: 6, border: '1px solid #F59E0B40' }}>
-            <span style={{ fontSize: 12, color: '#B45309' }}>⏰ Follow-up</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '4px 8px', background: '#FFFBEB', borderRadius: 6, border: '1px solid #F59E0B40' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#B45309' }}>
+              <IconClock size={13} color="#B45309" /> Follow-up
+            </span>
             <span style={{ fontSize: 12, color: '#B45309', fontWeight: 600 }}>{followupCount}</span>
           </div>
         ) : (
@@ -157,41 +160,12 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
             cursor: 'pointer',
           }}
         >
-          {theme === 'light' ? '🌙 Modo escuro' : '☀️ Modo claro'}
+          {theme === 'light'
+            ? <><IconMoon size={13} color="var(--text3)" /> Modo escuro</>
+            : <><IconSun  size={13} color="var(--text3)" /> Modo claro</>
+          }
         </button>
       </div>
     </aside>
-  )
-}
-
-function IconGrid({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="1" y="1" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
-      <rect x="9" y="1" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
-      <rect x="1" y="9" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
-      <rect x="9" y="9" width="6" height="6" rx="1.5" fill={color} opacity="0.9" />
-    </svg>
-  )
-}
-
-function IconList({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="1" y="3" width="14" height="2" rx="1" fill={color} opacity="0.9" />
-      <rect x="1" y="7" width="14" height="2" rx="1" fill={color} opacity="0.9" />
-      <rect x="1" y="11" width="14" height="2" rx="1" fill={color} opacity="0.9" />
-    </svg>
-  )
-}
-
-function IconContract({ size = 16, color = 'currentColor' }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="1" width="12" height="14" rx="2" stroke={color} strokeWidth="1.5" opacity="0.9" />
-      <rect x="4.5" y="4.5" width="7" height="1.2" rx="0.6" fill={color} opacity="0.9" />
-      <rect x="4.5" y="7" width="7" height="1.2" rx="0.6" fill={color} opacity="0.7" />
-      <rect x="4.5" y="9.5" width="4" height="1.2" rx="0.6" fill={color} opacity="0.5" />
-    </svg>
   )
 }
