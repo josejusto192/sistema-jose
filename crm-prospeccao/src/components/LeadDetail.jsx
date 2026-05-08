@@ -24,7 +24,7 @@ function Section({ title, children }) {
 
 const CANAL_ICONS = { whatsapp: '📱', instagram: '📸', email: '📧', ligacao: '📞' }
 
-export default function LeadDetail({ lead, onBack, onUpdate, onSaveContrato }) {
+export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato }) {
   const theme = useTheme()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
   const [canal, setCanal] = useState(lead.canal_envio || '')
@@ -104,7 +104,15 @@ export default function LeadDetail({ lead, onBack, onUpdate, onSaveContrato }) {
               {lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>{lead.matriz_filial}</span>}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {status === 'fechou' && onCreateContrato && (
+              <button
+                onClick={() => onCreateContrato(lead)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                📄 Criar contrato
+              </button>
+            )}
             {lead.telefone && (
               <a href={telefoneLink} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 8, color: 'var(--green)', fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>
                 📱 WhatsApp

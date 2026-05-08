@@ -18,6 +18,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
+  const [pendingContrato, setPendingContrato] = useState(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -94,6 +95,19 @@ export default function App() {
     setView('leads')
   }
 
+  function handleCreateContrato(lead) {
+    setPendingContrato({
+      empresa_id:      lead.id,
+      cliente_nome:    lead.nome_fantasia || lead.razao_social || '',
+      cliente_cnpj:    lead.cnpj || '',
+      cliente_email:   lead.email || '',
+      cliente_telefone:lead.telefone || '',
+    })
+    setSelectedLead(null)
+    setView('contratos')
+  }
+
+  const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
   const filteredEmpresas = empresas.filter(e => {
     const matchSearch = !searchQuery ||
       e.razao_social?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -101,6 +115,13 @@ export default function App() {
       e.cnpj?.includes(searchQuery) ||
       e.municipio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       e.cnae_principal_descricao?.toLowerCase().includes(searchQuery.toLowerCase())
+    if (statusFilter === 'followup') {
+      if (!matchSearch) return false
+      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
+      const ref = e.atualizado_em || e.criado_em
+      if (!ref) return false
+      return (Date.now() - new Date(ref)) / 86400000 >= 3
+    }
     const matchStatus = statusFilter === 'todos' || e.status_prospeccao === statusFilter
     return matchSearch && matchStatus
   })
@@ -145,7 +166,7 @@ export default function App() {
               lead={selectedLead}
               onBack={closeLead}
               onUpdate={updateEmpresa}
-              onSaveContrato={saveContrato}
+              onCreateContrato={handleCreateContrato}
             />
           )}
           {view === 'contratos' && (
@@ -154,6 +175,8 @@ export default function App() {
               empresas={empresas}
               onSave={saveContrato}
               onDelete={deleteContrato}
+              pendingContrato={pendingContrato}
+              onClearPending={() => setPendingContrato(null)}
             />
           )}
         </main>

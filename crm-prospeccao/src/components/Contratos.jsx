@@ -38,15 +38,27 @@ function fmt(n) {
   return (n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-export default function Contratos({ contratos, empresas, onSave, onDelete }) {
+export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending }) {
   const theme = useTheme()
-  const [modal, setModal] = useState(null) // null | 'new' | contrato object
+  const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
   const [filterStatus, setFilterStatus] = useState('todos')
+  const [search, setSearch] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+
+  // Abre modal pré-preenchido quando vem de um lead
+  React.useEffect(() => {
+    if (pendingContrato) {
+      setForm({ ...EMPTY_FORM, ...pendingContrato })
+      setFieldErrors({})
+      setSaveError(null)
+      setModal('new')
+      onClearPending()
+    }
+  }, [pendingContrato])
 
   const metrics = useMemo(() => {
     const ativos = contratos.filter(c => c.status === 'ativo')
@@ -60,10 +72,19 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
     return { mrr, arr: mrr * 12, totalAtivos, cancelados, churnRate, ticketMedio }
   }, [contratos])
 
-  const filtered = useMemo(() =>
-    filterStatus === 'todos' ? contratos : contratos.filter(c => c.status === filterStatus),
-    [contratos, filterStatus]
-  )
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    return contratos.filter(c => {
+      if (filterStatus !== 'todos' && c.status !== filterStatus) return false
+      if (!q) return true
+      return (
+        c.cliente_nome?.toLowerCase().includes(q) ||
+        c.cliente_cnpj?.includes(q) ||
+        c.cliente_email?.toLowerCase().includes(q) ||
+        c.observacoes?.toLowerCase().includes(q)
+      )
+    })
+  }, [contratos, filterStatus, search])
 
   function openNew() {
     setForm({ ...EMPTY_FORM })
@@ -224,6 +245,18 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
           ))}
         </div>
 
+        {/* Busca */}
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="Buscar por nome, CNPJ, e-mail..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '8px 12px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
+          />
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 15 }}>⌕</span>
+        </div>
+
         {/* Filtros */}
         <div style={{ display: 'flex', gap: 6 }}>
           {['todos', 'ativo', 'aguardando_pagamento', 'concluido', 'cancelado'].map(s => {
@@ -294,6 +327,15 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
                             {c.cliente_cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')}
                           </span>
                         )}
+                        {c.empresa_id && (() => {
+                          const emp = empresas.find(e => e.id === c.empresa_id)
+                          if (!emp) return null
+                          return (
+                            <span style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
+                              🔗 {emp.municipio}/{emp.uf}
+                            </span>
+                          )
+                        })()}
                       </div>
                       {/* Progresso pagamento (Estrutura Digital) */}
                       {isED && (
