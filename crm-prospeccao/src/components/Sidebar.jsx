@@ -1,14 +1,23 @@
 import React from 'react'
+import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
+
+const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
 export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme }) {
   const total = empresas.length
   const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
   const contratosAtivos = contratos.filter(c => c.status === 'ativo').length
+  const followupCount = empresas.filter(e => {
+    if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
+    const ref = e.atualizado_em || e.criado_em
+    if (!ref) return false
+    return differenceInDays(new Date(), new Date(ref)) >= 3
+  }).length
 
   const navItems = [
     { id: 'dashboard',  label: 'Dashboard',  icon: IconGrid },
-    { id: 'leads',      label: 'Leads',      icon: IconList,     badge: total },
+    { id: 'leads',      label: 'Leads',      icon: IconList,     badge: total, alert: followupCount || null },
     { id: 'contratos',  label: 'Contratos',  icon: IconContract, badge: contratosAtivos || null },
   ]
 
@@ -60,17 +69,31 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
                 <Icon size={15} color={active ? 'var(--accent)' : 'var(--text3)'} />
                 {item.label}
               </span>
-              {item.badge != null && (
-                <span style={{
-                  background: active ? 'var(--accent)' : 'var(--bg4)',
-                  color: active ? '#fff' : 'var(--text3)',
-                  borderRadius: 20,
-                  padding: '1px 7px',
-                  fontSize: 11,
-                }}>
-                  {item.badge}
-                </span>
-              )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {item.alert != null && (
+                  <span style={{
+                    background: '#F59E0B',
+                    color: '#fff',
+                    borderRadius: 20,
+                    padding: '1px 6px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}>
+                    {item.alert}
+                  </span>
+                )}
+                {item.badge != null && (
+                  <span style={{
+                    background: active ? 'var(--accent)' : 'var(--bg4)',
+                    color: active ? '#fff' : 'var(--text3)',
+                    borderRadius: 20,
+                    padding: '1px 7px',
+                    fontSize: 11,
+                  }}>
+                    {item.badge}
+                  </span>
+                )}
+              </span>
             </button>
           )
         })}
@@ -104,10 +127,18 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>Fechados</span>
           <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>{fechados}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>Contratos ativos</span>
           <span style={{ fontSize: 12, color: 'var(--purple)', fontWeight: 500 }}>{contratosAtivos}</span>
         </div>
+        {followupCount > 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, padding: '4px 8px', background: '#FFFBEB', borderRadius: 6, border: '1px solid #F59E0B40' }}>
+            <span style={{ fontSize: 12, color: '#B45309' }}>⏰ Follow-up</span>
+            <span style={{ fontSize: 12, color: '#B45309', fontWeight: 600 }}>{followupCount}</span>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 12 }} />
+        )}
 
         <button
           onClick={onToggleTheme}

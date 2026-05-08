@@ -38,13 +38,27 @@ function fmt(n) {
   return (n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-export default function Contratos({ contratos, empresas, onSave, onDelete }) {
+export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending }) {
   const theme = useTheme()
-  const [modal, setModal] = useState(null) // null | 'new' | contrato object
+  const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [saveError, setSaveError] = useState(null)
   const [filterStatus, setFilterStatus] = useState('todos')
+  const [search, setSearch] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+
+  // Abre modal pré-preenchido quando vem de um lead
+  React.useEffect(() => {
+    if (pendingContrato) {
+      setForm({ ...EMPTY_FORM, ...pendingContrato })
+      setFieldErrors({})
+      setSaveError(null)
+      setModal('new')
+      onClearPending()
+    }
+  }, [pendingContrato])
 
   const metrics = useMemo(() => {
     const ativos = contratos.filter(c => c.status === 'ativo')
@@ -58,17 +72,30 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
     return { mrr, arr: mrr * 12, totalAtivos, cancelados, churnRate, ticketMedio }
   }, [contratos])
 
-  const filtered = useMemo(() =>
-    filterStatus === 'todos' ? contratos : contratos.filter(c => c.status === filterStatus),
-    [contratos, filterStatus]
-  )
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    return contratos.filter(c => {
+      if (filterStatus !== 'todos' && c.status !== filterStatus) return false
+      if (!q) return true
+      return (
+        c.cliente_nome?.toLowerCase().includes(q) ||
+        c.cliente_cnpj?.includes(q) ||
+        c.cliente_email?.toLowerCase().includes(q) ||
+        c.observacoes?.toLowerCase().includes(q)
+      )
+    })
+  }, [contratos, filterStatus, search])
 
   function openNew() {
     setForm({ ...EMPTY_FORM })
+    setFieldErrors({})
+    setSaveError(null)
     setModal('new')
   }
 
   function openEdit(c) {
+    setFieldErrors({})
+    setSaveError(null)
     setForm({
       ...EMPTY_FORM,
       ...c,
@@ -82,7 +109,19 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
     setModal(c)
   }
 
+  function validate(f) {
+    const errs = {}
+    if (!f.cliente_nome?.trim()) errs.cliente_nome = 'Nome obrigatório'
+    if (!f.data_inicio) errs.data_inicio = 'Data de início obrigatória'
+    if (f.pacote === 'estrutura_digital' && !(Number(f.valor_total) > 0))
+      errs.valor_total = 'Informe o valor total'
+    if (f.pacote === 'gestao_trafego' && !(Number(f.valor_mensal) > 0))
+      errs.valor_mensal = 'Informe o valor mensal'
+    return errs
+  }
+
   function set(field, value) {
+    if (fieldErrors[field]) setFieldErrors(e => { const n = { ...e }; delete n[field]; return n })
     setForm(f => {
       const next = { ...f, [field]: value }
       // Auto-calcular datas ao mudar pacote ou inicio
@@ -119,8 +158,13 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
   }
 
   async function handleSave() {
-    if (!form.cliente_nome.trim()) return
+    const errs = validate(form)
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs)
+      return
+    }
     setSaving(true)
+    setSaveError(null)
 
     const dateOrNull = v => (v && v.trim() !== '' ? v : null)
     const numOrNull  = v => (v !== '' && v != null ? Number(v) : null)
@@ -151,9 +195,13 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
     }
 
     if (modal !== 'new') payload.id = modal.id
-    await onSave(payload)
+    const ok = await onSave(payload)
     setSaving(false)
-    setModal(null)
+    if (ok) {
+      setModal(null)
+    } else {
+      setSaveError('Erro ao salvar. Verifique sua conexão e tente novamente.')
+    }
   }
 
   async function handleDelete(id) {
@@ -195,6 +243,18 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{m.sub}</div>
             </div>
           ))}
+        </div>
+
+        {/* Busca */}
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="Buscar por nome, CNPJ, e-mail..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '8px 12px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
+          />
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 15 }}>⌕</span>
         </div>
 
         {/* Filtros */}
@@ -267,6 +327,15 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
                             {c.cliente_cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')}
                           </span>
                         )}
+                        {c.empresa_id && (() => {
+                          const emp = empresas.find(e => e.id === c.empresa_id)
+                          if (!emp) return null
+                          return (
+                            <span style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
+                              🔗 {emp.municipio}/{emp.uf}
+                            </span>
+                          )
+                        })()}
                       </div>
                       {/* Progresso pagamento (Estrutura Digital) */}
                       {isED && (
@@ -337,8 +406,8 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
               </FormField>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <FormField label="Nome do cliente *">
-                  <input value={form.cliente_nome} onChange={e => set('cliente_nome', e.target.value)} placeholder="Nome ou razão social" style={inputStyle} />
+                <FormField label="Nome do cliente *" error={fieldErrors.cliente_nome}>
+                  <input value={form.cliente_nome} onChange={e => set('cliente_nome', e.target.value)} placeholder="Nome ou razão social" style={errStyle(inputStyle, fieldErrors.cliente_nome)} />
                 </FormField>
                 <FormField label="CNPJ">
                   <input value={form.cliente_cnpj} onChange={e => set('cliente_cnpj', e.target.value)} placeholder="00.000.000/0001-00" style={inputStyle} />
@@ -382,12 +451,12 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
               </FormField>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <FormField label={isED ? 'Valor total (R$)' : 'Valor mensal (R$)'}>
+                <FormField label={isED ? 'Valor total (R$) *' : 'Valor mensal (R$) *'} error={fieldErrors.valor_total || fieldErrors.valor_mensal}>
                   <input
                     type="number"
                     value={isED ? form.valor_total : form.valor_mensal}
                     onChange={e => set(isED ? 'valor_total' : 'valor_mensal', e.target.value)}
-                    style={inputStyle}
+                    style={errStyle(inputStyle, fieldErrors.valor_total || fieldErrors.valor_mensal)}
                   />
                 </FormField>
                 <FormField label="Status">
@@ -400,8 +469,8 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
                 <FormField label="Data de assinatura">
                   <input type="date" value={form.data_assinatura} onChange={e => set('data_assinatura', e.target.value)} style={inputStyle} />
                 </FormField>
-                <FormField label="Data de início">
-                  <input type="date" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)} style={inputStyle} />
+                <FormField label="Data de início *" error={fieldErrors.data_inicio}>
+                  <input type="date" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)} style={errStyle(inputStyle, fieldErrors.data_inicio)} />
                 </FormField>
               </div>
 
@@ -459,8 +528,15 @@ export default function Contratos({ contratos, empresas, onSave, onDelete }) {
               </FormField>
             </div>
 
+            {/* Banner de erro da API */}
+            {saveError && (
+              <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--red-bg)', border: '1px solid var(--red)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+                ⚠️ {saveError}
+              </div>
+            )}
+
             {/* Ações */}
-            <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'space-between' }}>
               <div>
                 {modal !== 'new' && (
                   confirmDelete === modal.id ? (
@@ -499,15 +575,18 @@ const inputStyle = {
   borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
 }
 
-const selectStyle = {
-  ...inputStyle, cursor: 'pointer',
+const selectStyle = { ...inputStyle, cursor: 'pointer' }
+
+function errStyle(base, error) {
+  return error ? { ...base, border: '1px solid var(--red)' } : base
 }
 
-function FormField({ label, children }) {
+function FormField({ label, error, children }) {
   return (
     <div>
-      <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 5 }}>{label}</label>
+      <label style={{ fontSize: 12, color: error ? 'var(--red)' : 'var(--text3)', display: 'block', marginBottom: 5 }}>{label}</label>
       {children}
+      {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{error}</div>}
     </div>
   )
 }
