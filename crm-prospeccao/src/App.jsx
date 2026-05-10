@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react'
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { supabase } from './supabase.js'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -16,6 +16,7 @@ export default function App() {
   const [empresas, setEmpresas] = useState([])
   const [contratos, setContratos] = useState([])
   const [loading, setLoading] = useState(true)
+  const initialLoaded = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [pendingContrato, setPendingContrato] = useState(null)
@@ -39,13 +40,14 @@ export default function App() {
   }, [])
 
   async function fetchEmpresas() {
-    setLoading(true)
+    if (!initialLoaded.current) setLoading(true)
     const { data, error } = await supabase
       .from('empresas')
       .select('*')
       .order('criado_em', { ascending: false })
     if (!error) setEmpresas(data || [])
     setLoading(false)
+    initialLoaded.current = true
   }
 
   async function fetchContratos() {

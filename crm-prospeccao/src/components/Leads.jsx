@@ -1,17 +1,24 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme } from '../App.jsx'
-import { format, differenceInDays } from 'date-fns'
+import { format, differenceInDays, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox } from './Icons.jsx'
 
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 const FOLLOWUP_DAYS = 3
+const PER_PAGE = 20
 
 function needsFollowup(e) {
   if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
   const ref = e.atualizado_em || e.criado_em
   if (!ref) return false
   return differenceInDays(new Date(), new Date(ref)) >= FOLLOWUP_DAYS
+}
+
+// Evita bug de timezone: datas YYYY-MM-DD são UTC; adicionar hora local
+function parseDate(str) {
+  if (!str) return null
+  return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
 }
 
 function StatusBadge({ status }) {
@@ -58,6 +65,10 @@ function SortHeader({ label, col, sortField, sortDir, onSort, style: extraStyle 
 export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, onOpenLead, onUpdateEmpresa, totalCount }) {
   const [sortField, setSortField] = useState('criado_em')
   const [sortDir, setSortDir] = useState('desc')
+  const [page, setPage] = useState(1)
+
+  // Reset para página 1 ao mudar filtro ou busca
+  useEffect(() => { setPage(1) }, [statusFilter, searchQuery])
 
   function handleSort(col) {
     if (sortField === col) {
@@ -66,6 +77,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
       setSortField(col)
       setSortDir('asc')
     }
+    setPage(1)
   }
 
   async function handleStatusChange(empresa, newStatus, e) {
@@ -81,7 +93,12 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
     return [...empresas].sort((a, b) => sortDir === 'asc' ? fn(a, b) : fn(b, a))
   }, [empresas, sortField, sortDir])
 
-  const statusTabs = ['todos', 'novo', 'contatado', 'respondeu', 'call_agendada', 'fechou', 'perdido']
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sorted.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+
+  // Usa todas as chaves de STATUS_CONFIG + 'todos' no início
+  const statusTabs = ['todos', ...Object.keys(STATUS_CONFIG)]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -122,8 +139,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           </select>
         </div>
 
-        {/* Status tabs */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {/* Status tabs — geradas automaticamente do STATUS_CONFIG */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {statusTabs.map(s => {
             const cfg = STATUS_CONFIG[s]
             const isActive = statusFilter === s
@@ -132,8 +149,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 style={{
-                  padding: '4px 12px', borderRadius: 20, border: '1px solid',
-                  fontSize: 12, cursor: 'pointer', fontWeight: isActive ? 500 : 400,
+                  padding: '3px 10px', borderRadius: 20, border: '1px solid',
+                  fontSize: 11, cursor: 'pointer', fontWeight: isActive ? 500 : 400,
                   background: isActive ? (cfg?.bg || 'var(--bg4)') : 'transparent',
                   color: isActive ? (cfg?.color || 'var(--text)') : 'var(--text3)',
                   borderColor: isActive ? `${cfg?.color || 'var(--accent)'}60` : 'var(--border)',
@@ -144,19 +161,19 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               </button>
             )
           })}
-          {/* Tab follow-up */}
+          {/* Tab follow-up especial */}
           <button
             onClick={() => setStatusFilter('followup')}
             style={{
-              padding: '4px 12px', borderRadius: 20, border: '1px solid',
-              fontSize: 12, cursor: 'pointer', fontWeight: statusFilter === 'followup' ? 500 : 400,
+              padding: '3px 10px', borderRadius: 20, border: '1px solid',
+              fontSize: 11, cursor: 'pointer', fontWeight: statusFilter === 'followup' ? 500 : 400,
               background: statusFilter === 'followup' ? '#FFFBEB' : 'transparent',
               color: statusFilter === 'followup' ? '#B45309' : 'var(--text3)',
               borderColor: statusFilter === 'followup' ? '#F59E0B60' : 'var(--border)',
             }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <IconClock size={12} color={statusFilter === 'followup' ? '#B45309' : 'var(--text3)'} />
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <IconClock size={11} color={statusFilter === 'followup' ? '#B45309' : 'var(--text3)'} />
               Atenção{followupCount > 0 ? ` (${followupCount})` : ''}
             </span>
           </button>
@@ -164,7 +181,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
       </div>
 
       {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 32px 32px', background: 'var(--bg)' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 32px 16px', background: 'var(--bg)' }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13, animation: 'pulse 1.5s infinite' }}>Carregando...</div>
         ) : sorted.length === 0 ? (
@@ -188,13 +205,13 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               </tr>
             </thead>
             <tbody>
-              {sorted.map((e, i) => {
+              {pageItems.map((e, i) => {
                 const atencao = needsFollowup(e)
                 return (
                   <tr
                     key={e.id}
                     onClick={() => onOpenLead(e)}
-                    style={{ cursor: 'pointer', animation: `fadeIn 0.2s ease ${Math.min(i, 20) * 0.015}s both` }}
+                    style={{ cursor: 'pointer', animation: `fadeIn 0.2s ease ${Math.min(i, 15) * 0.02}s both` }}
                     onMouseEnter={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = 'var(--bg3)')}
                     onMouseLeave={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = 'var(--bg2)')}
                   >
@@ -215,7 +232,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                     </td>
                     <td style={{ padding: '10px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>
-                        {e.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')}
+                        {e.cnpj?.replace(/\D/g, '').replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') || e.cnpj}
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
@@ -236,7 +253,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                     </td>
                     <td style={{ padding: '10px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>
-                        {e.data_abertura ? format(new Date(e.data_abertura), 'dd/MM/yy') : '—'}
+                        {e.data_abertura ? format(parseDate(e.data_abertura), 'dd/MM/yy') : '—'}
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
@@ -261,6 +278,60 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           </table>
         )}
       </div>
+
+      {/* Paginação */}
+      {!loading && sorted.length > PER_PAGE && (
+        <div style={{ padding: '12px 32px', borderTop: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+            {((safePage - 1) * PER_PAGE) + 1}–{Math.min(safePage * PER_PAGE, sorted.length)} de {sorted.length} leads
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, cursor: safePage === 1 ? 'not-allowed' : 'pointer', opacity: safePage === 1 ? 0.4 : 1 }}
+            >
+              ← Anterior
+            </button>
+            {/* Páginas numéricas (máx 7 botões) */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...')
+                acc.push(p)
+                return acc
+              }, [])
+              .map((p, i) =>
+                p === '...'
+                  ? <span key={`e${i}`} style={{ fontSize: 12, color: 'var(--text3)', padding: '0 4px' }}>…</span>
+                  : (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      style={{
+                        padding: '5px 10px', borderRadius: 6, border: '1px solid',
+                        fontSize: 12, cursor: 'pointer', minWidth: 34,
+                        background: safePage === p ? 'var(--accent)' : 'var(--bg3)',
+                        color: safePage === p ? '#fff' : 'var(--text2)',
+                        borderColor: safePage === p ? 'var(--accent)' : 'var(--border)',
+                        fontWeight: safePage === p ? 500 : 400,
+                      }}
+                    >
+                      {p}
+                    </button>
+                  )
+              )
+            }
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, cursor: safePage === totalPages ? 'not-allowed' : 'pointer', opacity: safePage === totalPages ? 0.4 : 1 }}
+            >
+              Próxima →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
