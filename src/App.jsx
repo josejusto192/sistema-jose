@@ -151,12 +151,23 @@ export default function App() {
           />
         )}
 
-        {/* Sidebar — overlay no mobile, normal no desktop */}
-        <div style={isMobile ? {
-          position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.25s ease',
-        } : {}}>
+        {/* Sidebar — overlay no mobile, direta no desktop */}
+        {isMobile ? (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
+            transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.25s ease',
+          }}>
+            <Sidebar
+              view={view}
+              setView={navigate}
+              empresas={empresas}
+              contratos={contratos}
+              theme={theme}
+              onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+            />
+          </div>
+        ) : (
           <Sidebar
             view={view}
             setView={navigate}
@@ -165,7 +176,7 @@ export default function App() {
             theme={theme}
             onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
           />
-        </div>
+        )}
 
         <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* Barra superior mobile com hambúrguer */}
