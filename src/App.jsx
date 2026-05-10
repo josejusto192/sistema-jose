@@ -5,6 +5,8 @@ import Dashboard from './components/Dashboard.jsx'
 import Leads from './components/Leads.jsx'
 import LeadDetail from './components/LeadDetail.jsx'
 import Contratos from './components/Contratos.jsx'
+import { useIsMobile } from './hooks/useIsMobile.js'
+import { IconMenu } from './components/Icons.jsx'
 
 export const ThemeContext = createContext('light')
 export const useTheme = () => useContext(ThemeContext)
@@ -16,10 +18,12 @@ export default function App() {
   const [empresas, setEmpresas] = useState([])
   const [contratos, setContratos] = useState([])
   const [loading, setLoading] = useState(true)
-  const initialLoaded = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [pendingContrato, setPendingContrato] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const initialLoaded = useRef(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -87,9 +91,16 @@ export default function App() {
     return !error
   }
 
+  function navigate(v) {
+    setView(v)
+    setSelectedLead(null)
+    if (isMobile) setSidebarOpen(false)
+  }
+
   function openLead(lead) {
     setSelectedLead(lead)
     setView('detail')
+    if (isMobile) setSidebarOpen(false)
   }
 
   function closeLead() {
@@ -130,23 +141,59 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
-        <Sidebar
-          view={view}
-          setView={v => { setView(v); setSelectedLead(null) }}
-          empresas={empresas}
-          contratos={contratos}
-          theme={theme}
-          onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
-        />
-        <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
+
+        {/* Backdrop mobile */}
+        {isMobile && sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 40 }}
+          />
+        )}
+
+        {/* Sidebar — overlay no mobile, normal no desktop */}
+        <div style={isMobile ? {
+          position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s ease',
+        } : {}}>
+          <Sidebar
+            view={view}
+            setView={navigate}
+            empresas={empresas}
+            contratos={contratos}
+            theme={theme}
+            onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+          />
+        </div>
+
+        <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Barra superior mobile com hambúrguer */}
+          {isMobile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+              background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
+              position: 'sticky', top: 0, zIndex: 20, flexShrink: 0,
+            }}>
+              <button
+                onClick={() => setSidebarOpen(o => !o)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}
+              >
+                <IconMenu size={20} color="var(--text)" />
+              </button>
+              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>
+                Prosp<span style={{ color: 'var(--accent)' }}>CRM</span>
+              </span>
+            </div>
+          )}
+
           {view === 'dashboard' && (
             <Dashboard
               empresas={empresas}
               contratos={contratos}
               loading={loading}
-              onViewLeads={() => setView('leads')}
-              onViewContratos={() => setView('contratos')}
+              onViewLeads={() => navigate('leads')}
+              onViewContratos={() => navigate('contratos')}
               onOpenLead={openLead}
             />
           )}

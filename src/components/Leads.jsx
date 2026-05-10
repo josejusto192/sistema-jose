@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme } from '../App.jsx'
+import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox } from './Icons.jsx'
 
@@ -63,6 +64,7 @@ function SortHeader({ label, col, sortField, sortDir, onSort, style: extraStyle 
 }
 
 export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, onOpenLead, onUpdateEmpresa, totalCount }) {
+  const isMobile = useIsMobile()
   const [sortField, setSortField] = useState('criado_em')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
@@ -103,7 +105,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Toolbar */}
-      <div style={{ padding: '20px 32px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{ padding: isMobile ? '12px 16px 10px' : '20px 32px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', color: 'var(--text)' }}>Leads</h1>
           <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 20 }}>
@@ -181,7 +183,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
       </div>
 
       {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 32px 16px', background: 'var(--bg)' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '0 0 16px' : '0 32px 16px', background: 'var(--bg)' }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13, animation: 'pulse 1.5s infinite' }}>Carregando...</div>
         ) : sorted.length === 0 ? (
@@ -191,7 +193,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             <div style={{ fontSize: 12, marginTop: 4 }}>Ajuste os filtros ou aguarde novos registros</div>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 3px', marginTop: 14 }}>
+          <table style={{ width: '100%', minWidth: 700, borderCollapse: 'separate', borderSpacing: '0 3px', marginTop: 14 }}>
             <thead>
               <tr>
                 <SortHeader label="Empresa"    col="nome"      sortField={sortField} sortDir={sortDir} onSort={handleSort} />
@@ -281,7 +283,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
 
       {/* Paginação */}
       {!loading && sorted.length > PER_PAGE && (
-        <div style={{ padding: '12px 32px', borderTop: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ padding: isMobile ? '10px 16px' : '12px 32px', borderTop: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>
             {((safePage - 1) * PER_PAGE) + 1}–{Math.min(safePage * PER_PAGE, sorted.length)} de {sorted.length} leads
           </span>

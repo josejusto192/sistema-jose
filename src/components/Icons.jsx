@@ -189,6 +189,16 @@ export function IconEdit({ size = 14, color = 'currentColor' }) {
   )
 }
 
+export function IconMenu({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <line x1="2" y1="4" x2="14" y2="4" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+      <line x1="2" y1="8" x2="14" y2="8" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+      <line x1="2" y1="12" x2="14" y2="12" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconCopy({ size = 14, color = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" aria-hidden="true">

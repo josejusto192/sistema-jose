@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme } from '../App.jsx'
+import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { IconMail, IconPhone } from './Icons.jsx'
@@ -51,6 +52,7 @@ function fmt(n) {
 
 export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead }) {
   const theme = useTheme()
+  const isMobile = useIsMobile()
 
   const financeiro = useMemo(() => {
     const ativos = contratos.filter(c => c.status === 'ativo')
@@ -115,7 +117,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
   const chartTickColor = theme === 'dark' ? '#636366' : '#9CA3AF'
 
   return (
-    <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeIn 0.25s ease' }}>
+    <div style={{ padding: isMobile ? '16px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeIn 0.25s ease' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
@@ -130,7 +132,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       {/* Financeiro — MRR / ARR */}
       <div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, fontWeight: 500 }}>Financeiro</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
           <div className="card" onClick={onViewContratos} style={{ padding: '16px 18px', cursor: 'pointer', borderLeft: '3px solid var(--green)' }}
             onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
             onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
@@ -163,7 +165,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       {/* Prospecção */}
       <div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, fontWeight: 500 }}>Prospecção</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
           <StatCard label="Total de leads" value={stats.total} sub="empresas captadas" accent={accentColor} onClick={onViewLeads} />
           <StatCard label="Novos" value={stats.novos} sub="aguardando contato" accent={accentColor} />
           <StatCard label="Em andamento" value={stats.contatados} sub="contatados ou negociando" accent="var(--yellow)" />
@@ -172,7 +174,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       </div>
 
       {/* Info rápida */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 10 }}>
         {[
           { Icon: IconMail,  value: stats.comEmail, label: 'com e-mail',   color: 'var(--accent)' },
           { Icon: IconPhone, value: stats.comTel,   label: 'com telefone', color: 'var(--purple)' },
@@ -194,7 +196,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       </div>
 
       {/* Gráficos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Leads por dia (14 dias)</div>
           <ResponsiveContainer width="100%" height={150}>
@@ -235,7 +237,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       </div>
 
       {/* Top UF + Segmentos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Top estados</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { PACOTES, CONTRATO_STATUS } from '../constants.js'
 import { useTheme } from '../App.jsx'
+import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
 
 function parseDate(str) {
@@ -46,6 +47,7 @@ function fmt(n) {
 
 export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending }) {
   const theme = useTheme()
+  const isMobile = useIsMobile()
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -54,6 +56,14 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const [filterStatus, setFilterStatus] = useState('todos')
   const [search, setSearch] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+
+  // Fecha modal com ESC
+  useEffect(() => {
+    if (!modal) return
+    const onKey = e => { if (e.key === 'Escape') setModal(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [modal])
 
   // Abre modal pré-preenchido quando vem de um lead
   React.useEffect(() => {
@@ -236,7 +246,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
         </div>
 
         {/* Métricas */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
           {[
             { label: 'MRR', value: `R$ ${fmt(metrics.mrr)}`, sub: 'recorrente mensal', color: 'var(--green)' },
             { label: 'ARR projetado', value: `R$ ${fmt(metrics.arr)}`, sub: 'MRR × 12', color: 'var(--cyan)' },
@@ -389,10 +399,10 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       {/* Modal */}
       {modal && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 100, padding: isMobile ? 0 : 20 }}
           onClick={e => e.target === e.currentTarget && setModal(null)}
         >
-          <div className="card" style={{ width: '100%', maxWidth: 580, maxHeight: '90vh', overflow: 'auto', padding: '24px 28px', background: 'var(--bg2)' }}>
+          <div className="card" style={{ width: '100%', maxWidth: isMobile ? '100%' : 580, maxHeight: isMobile ? '92dvh' : '90vh', overflow: 'auto', padding: isMobile ? '20px 18px' : '24px 28px', background: 'var(--bg2)', borderRadius: isMobile ? '16px 16px 0 0' : 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>
                 {modal === 'new' ? 'Novo contrato' : 'Editar contrato'}
