@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
 import { useTheme } from '../App.jsx'
+import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
 
 function parseDate(str) {
@@ -32,6 +33,7 @@ const CANAL_ICON_MAP = { whatsapp: IconWhatsApp, instagram: IconCamera, email: I
 
 export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato }) {
   const theme = useTheme()
+  const isMobile = useIsMobile()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
   const [canal, setCanal] = useState(lead.canal_envio || '')
   const [obs, setObs] = useState(lead.observacoes || '')
@@ -88,7 +90,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       {/* Header */}
-      <div style={{ padding: '18px 32px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg2)', zIndex: 10 }}>
+      <div style={{ padding: isMobile ? '12px 16px' : '18px 32px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg2)', zIndex: 10 }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
           ← Voltar para leads
         </button>
@@ -134,7 +136,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
       </div>
 
       {/* Content */}
-      <div style={{ padding: '20px 32px', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)' }}>
+      <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)' }}>
         {/* Coluna esquerda */}
         <div>
           <Section title="Dados cadastrais">
@@ -260,7 +262,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
 
         {/* Coluna direita — CRM */}
         <div>
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12, position: 'sticky', top: 20 }}>
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12, position: isMobile ? 'static' : 'sticky', top: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>CRM</div>
 
             <div style={{ marginBottom: 12 }}>
