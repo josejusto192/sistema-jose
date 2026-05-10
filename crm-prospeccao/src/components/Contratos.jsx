@@ -1,7 +1,12 @@
 import React, { useState, useMemo } from 'react'
 import { PACOTES, CONTRATO_STATUS } from '../constants.js'
 import { useTheme } from '../App.jsx'
-import { format, addMonths, addBusinessDays } from 'date-fns'
+import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
+
+function parseDate(str) {
+  if (!str) return null
+  return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
+}
 import { IconSearch, IconInbox, IconLink, IconX, IconPlus, IconTrash, IconEdit } from './Icons.jsx'
 
 const EMPTY_FORM = {
@@ -360,17 +365,17 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                     </div>
                     {isED && c.data_entrega_prevista && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                        Entrega: {format(new Date(c.data_entrega_prevista), 'dd/MM/yyyy')}
+                        Entrega: {format(parseDate(c.data_entrega_prevista), 'dd/MM/yyyy')}
                       </div>
                     )}
                     {!isED && c.proximo_faturamento && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                        Próx. fat.: {format(new Date(c.proximo_faturamento), 'dd/MM/yyyy')}
+                        Próx. fat.: {format(parseDate(c.proximo_faturamento), 'dd/MM/yyyy')}
                       </div>
                     )}
                     {c.data_inicio && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                        Início: {format(new Date(c.data_inicio), 'dd/MM/yyyy')}
+                        Início: {format(parseDate(c.data_inicio), 'dd/MM/yyyy')}
                       </div>
                     )}
                   </div>

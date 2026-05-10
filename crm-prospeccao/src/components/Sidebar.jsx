@@ -102,7 +102,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
         {/* Status por contagem */}
         <div style={{ marginTop: 20, padding: '0 2px' }}>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, paddingLeft: 8 }}>Por status</div>
-          {Object.entries(STATUS_CONFIG).slice(0, 6).map(([key, cfg]) => {
+          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
             const count = empresas.filter(e => e.status_prospeccao === key).length
             if (count === 0) return null
             return (

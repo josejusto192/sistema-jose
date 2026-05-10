@@ -1,7 +1,12 @@
 import React, { useState } from 'react'
 import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
 import { useTheme } from '../App.jsx'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
+
+function parseDate(str) {
+  if (!str) return null
+  return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
+}
 import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy } from './Icons.jsx'
 
 function Field({ label, value, mono }) {
@@ -138,7 +143,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
               <Field label="CNPJ Raiz" value={lead.cnpj_raiz} mono />
               <Field label="Natureza jurídica" value={lead.natureza_juridica_descricao} />
               <Field label="Porte" value={lead.porte_descricao} />
-              <Field label="Data de abertura" value={lead.data_abertura ? format(new Date(lead.data_abertura), 'dd/MM/yyyy') : null} />
+              <Field label="Data de abertura" value={lead.data_abertura ? format(parseDate(lead.data_abertura), 'dd/MM/yyyy') : null} />
               <Field label="Situação" value={lead.situacao_cadastral} />
               <Field label="Capital social" value={lead.capital_social ? `R$ ${Number(lead.capital_social).toLocaleString('pt-BR')}` : null} />
               <Field label="Captado em" value={lead.criado_em ? format(new Date(lead.criado_em), "dd/MM/yyyy 'às' HH:mm") : null} />
@@ -196,7 +201,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{s.qualificacao_socio} · {s.faixa_etaria_descricao}</div>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
-                      {s.data_entrada_sociedade ? format(new Date(s.data_entrada_sociedade), 'dd/MM/yyyy') : ''}
+                      {s.data_entrada_sociedade ? format(parseDate(s.data_entrada_sociedade), 'dd/MM/yyyy') : ''}
                     </div>
                   </div>
                 ))}
