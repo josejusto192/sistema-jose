@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
-import { useTheme } from '../App.jsx'
+import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
@@ -53,8 +53,11 @@ function tagColor(tag) {
 
 export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato }) {
   const theme = useTheme()
+  const isSuperAdmin = useIsSuperAdmin()
   const isMobile = useIsMobile()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
+  const [vendedorId, setVendedorId] = useState(lead.vendedor_id || '')
+  const [vendedores, setVendedores] = useState([])
   const [canal, setCanal] = useState(lead.canal_envio || '')
   const [obs, setObs] = useState(lead.observacoes || '')
   const [followup, setFollowup] = useState(lead.data_followup || '')
@@ -75,6 +78,18 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
   // Status history
   const [statusHistory, setStatusHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.from('profiles').select('id, nome, sobrenome').eq('ativo', true)
+      .then(({ data }) => setVendedores(data || []))
+  }, [])
+
+  async function assignVendedor(newId) {
+    setVendedorId(newId)
+    const prof = vendedores.find(v => v.id === newId)
+    const nome = prof ? [prof.nome, prof.sobrenome].filter(Boolean).join(' ') : ''
+    await onUpdate(lead.id, { vendedor_id: newId || null, vendedor_nome: nome || null })
+  }
 
   useEffect(() => {
     async function fetchHistory() {
@@ -354,6 +369,29 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
         <div>
           <div className="card" style={{ padding: '16px 18px', marginBottom: 12, position: isMobile ? 'static' : 'sticky', top: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>CRM</div>
+
+            {/* Responsável */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Responsável</label>
+              {isSuperAdmin ? (
+                <select
+                  value={vendedorId}
+                  onChange={e => assignVendedor(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: vendedorId ? 'var(--text)' : 'var(--text3)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="">— Não atribuído —</option>
+                  {vendedores.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {[v.nome, v.sobrenome].filter(Boolean).join(' ')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: lead.vendedor_nome ? 'var(--text)' : 'var(--text3)' }}>
+                  {lead.vendedor_nome || 'Não atribuído'}
+                </div>
+              )}
+            </div>
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Status</label>
