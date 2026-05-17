@@ -269,7 +269,18 @@ export default function App() {
   const currentUser = profile?.nome || ''
 
   async function updateProfile(updates) {
-    const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id)
+    // Usa RPC SECURITY DEFINER para evitar conflitos de RLS
+    const { error } = await supabase.rpc('update_my_profile', {
+      p_nome:        updates.nome        ?? profile?.nome        ?? '',
+      p_sobrenome:   updates.sobrenome   ?? profile?.sobrenome   ?? '',
+      p_bio:         updates.bio         ?? profile?.bio         ?? '',
+      p_telefone:    updates.telefone    ?? profile?.telefone    ?? '',
+      p_foto_url:    updates.foto_url    ?? profile?.foto_url    ?? null,
+      p_cargo:       updates.cargo       ?? profile?.cargo       ?? null,
+      p_whatsapp:    updates.whatsapp    ?? profile?.whatsapp    ?? null,
+      p_instagram:   updates.instagram   ?? profile?.instagram   ?? null,
+      p_meta_mensal: updates.meta_mensal ?? profile?.meta_mensal ?? 5,
+    })
     if (!error) setProfile(prev => ({ ...prev, ...updates }))
     return { ok: !error, errorMsg: error?.message || null }
   }
