@@ -216,3 +216,32 @@ export function IconMapPin({ size = 14, color = 'currentColor' }) {
     </svg>
   )
 }
+
+export function IconLogOut({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M11 5l3 3-3 3" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="14" y1="8" x2="6" y2="8" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function IconTag({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 2h5.5l6.5 6.5-5.5 5.5L2 7.5V2z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="5.5" cy="5.5" r="1" fill={color} />
+    </svg>
+  )
+}
+
+export function IconHistory({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2.5 8A5.5 5.5 0 1 0 4 4.5" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M2 2v3h3" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 5.5V8l2 1.5" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
