@@ -85,6 +85,13 @@ export default function Configuracoes({ session, profile }) {
     setUpdating(null)
   }
 
+  async function updateComissao(userId, newValue) {
+    const val = parseFloat(newValue)
+    if (isNaN(val)) return
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, comissao_percentual: val } : u))
+    await supabase.from('profiles').update({ comissao_percentual: val }).eq('id', userId)
+  }
+
   const tabStyle = (id) => ({
     padding: '8px 18px',
     borderRadius: 7,
@@ -138,7 +145,7 @@ export default function Configuracoes({ session, profile }) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Usuário', 'E-mail', 'Papel', 'Status', 'Ações'].map(h => (
+                  {['Usuário', 'E-mail', 'Papel', 'Status', 'Comissão %', 'Ações'].map(h => (
                     <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       {h}
                     </th>
@@ -204,6 +211,33 @@ export default function Configuracoes({ session, profile }) {
                         }}>
                           {user.ativo !== false ? 'Ativo' : 'Inativo'}
                         </span>
+                      </td>
+
+                      {/* Comissão % */}
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={user.comissao_percentual ?? 10}
+                            onChange={e => setUsers(prev => prev.map(u => u.id === user.id ? { ...u, comissao_percentual: e.target.value } : u))}
+                            onBlur={e => updateComissao(user.id, e.target.value)}
+                            style={{
+                              width: 60,
+                              padding: '4px 8px',
+                              background: 'var(--bg)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 6,
+                              color: 'var(--text)',
+                              fontSize: 12,
+                              outline: 'none',
+                              fontFamily: 'inherit',
+                            }}
+                          />
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>%</span>
+                        </div>
                       </td>
 
                       {/* Ações */}

@@ -198,13 +198,41 @@ export default function App() {
     setView('leads')
   }
 
-  function handleCreateContrato(lead) {
+  async function handleCreateContrato(lead) {
+    // Who last changed this lead to 'fechou'?
+    const { data: hist } = await supabase
+      .from('status_history')
+      .select('usuario_id, usuario_nome')
+      .eq('empresa_id', lead.id)
+      .eq('status_novo', 'fechou')
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let vendedor_id = ''
+    let vendedor_nome = ''
+    let comissao_percentual = 10
+
+    if (hist?.usuario_id) {
+      vendedor_id = hist.usuario_id
+      vendedor_nome = hist.usuario_nome || ''
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('comissao_percentual')
+        .eq('id', vendedor_id)
+        .maybeSingle()
+      if (prof?.comissao_percentual != null) comissao_percentual = Number(prof.comissao_percentual)
+    }
+
     setPendingContrato({
-      empresa_id:       lead.id,
-      cliente_nome:     lead.nome_fantasia || lead.razao_social || '',
-      cliente_cnpj:     lead.cnpj || '',
-      cliente_email:    lead.email || '',
-      cliente_telefone: lead.telefone || '',
+      empresa_id:           lead.id,
+      cliente_nome:         lead.nome_fantasia || lead.razao_social || '',
+      cliente_cnpj:         lead.cnpj || '',
+      cliente_email:        lead.email || '',
+      cliente_telefone:     lead.telefone || '',
+      vendedor_id,
+      vendedor_nome,
+      comissao_percentual,
     })
     setSelectedLead(null)
     setView('contratos')
@@ -361,7 +389,7 @@ export default function App() {
             />
           )}
           {view === 'desempenho' && (
-            <Desempenho session={session} profile={profile} />
+            <Desempenho session={session} profile={profile} contratos={contratos} />
           )}
           {view === 'contratos' && (
             <Contratos

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase.js'
-import { STATUS_CONFIG } from '../constants.js'
+import { STATUS_CONFIG, PACOTES } from '../constants.js'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 
 // ─── Metric categories ───────────────────────────────────────────────────────
@@ -249,8 +249,225 @@ function PeriodTab({ id, label, active, onClick }) {
   )
 }
 
+// ─── Commission status badge ──────────────────────────────────────────────────
+function ComissaoBadge({ status }) {
+  const cfg = {
+    paga:      { bg: 'var(--green-bg)',        color: 'var(--green)',        label: 'Paga'      },
+    pendente:  { bg: 'var(--bg3)',             color: 'var(--text3)',        label: 'Pendente'  },
+    cancelada: { bg: 'var(--red-bg,#FFF1F2)',  color: 'var(--red,#BE123C)', label: 'Cancelada' },
+  }[status] || { bg: 'var(--bg3)', color: 'var(--text3)', label: status }
+  return (
+    <span style={{
+      fontSize: 11, padding: '2px 8px', borderRadius: 20,
+      background: cfg.bg, color: cfg.color, fontWeight: 500,
+    }}>
+      {cfg.label}
+    </span>
+  )
+}
+
+// ─── Comissões section ────────────────────────────────────────────────────────
+function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
+  const userId = session?.user?.id
+
+  // My commissions
+  const minhasComissoes = contratos.filter(c => c.vendedor_id === userId && c.comissao_valor > 0)
+  const pendente = minhasComissoes.filter(c => c.comissao_status === 'pendente').reduce((s, c) => s + Number(c.comissao_valor), 0)
+  const pago     = minhasComissoes.filter(c => c.comissao_status === 'paga').reduce((s, c) => s + Number(c.comissao_valor), 0)
+  const totalFechado = contratos.filter(c => c.vendedor_id === userId).reduce((s, c) => s + (Number(c.valor_total || c.valor_mensal) || 0), 0)
+
+  // My contracts
+  const meusContratos = contratos.filter(c => c.vendedor_id === userId).slice(0, 10)
+
+  // Team commission overview (superadmin)
+  const byVendor = {}
+  if (isSuperAdmin) {
+    for (const c of contratos) {
+      if (!c.vendedor_nome && !c.vendedor_id) continue
+      const key = c.vendedor_id || c.vendedor_nome || 'desconhecido'
+      if (!byVendor[key]) {
+        byVendor[key] = {
+          nome: c.vendedor_nome || 'Sem nome',
+          contratos: 0,
+          valorFechado: 0,
+          comissaoPendente: 0,
+          comissaoPaga: 0,
+        }
+      }
+      byVendor[key].contratos++
+      byVendor[key].valorFechado += Number(c.valor_total || c.valor_mensal) || 0
+      if (c.comissao_valor > 0) {
+        if (c.comissao_status === 'pendente') byVendor[key].comissaoPendente += Number(c.comissao_valor)
+        if (c.comissao_status === 'paga')     byVendor[key].comissaoPaga     += Number(c.comissao_valor)
+      }
+    }
+  }
+  const vendorRows = Object.values(byVendor)
+
+  function fmtBRL(n) {
+    return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  return (
+    <section style={{ marginBottom: 32 }}>
+      <SectionTitle>Comissões</SectionTitle>
+
+      {/* My 3 metric cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)',
+        gap: 12,
+        marginBottom: 20,
+      }}>
+        <div className="card" style={{ padding: 20, borderLeft: '3px solid var(--accent)' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Total fechado</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>
+            R$ {fmtBRL(totalFechado)}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+            {contratos.filter(c => c.vendedor_id === userId).length} contrato(s)
+          </div>
+        </div>
+        <div className="card" style={{ padding: 20, borderLeft: '3px solid #F59E0B' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Comissão pendente</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#F59E0B', lineHeight: 1 }}>
+            R$ {fmtBRL(pendente)}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+            {minhasComissoes.filter(c => c.comissao_status === 'pendente').length} contrato(s)
+          </div>
+        </div>
+        <div className="card" style={{ padding: 20, borderLeft: '3px solid var(--green)' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Comissão recebida</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--green)', lineHeight: 1 }}>
+            R$ {fmtBRL(pago)}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+            {minhasComissoes.filter(c => c.comissao_status === 'paga').length} contrato(s)
+          </div>
+        </div>
+      </div>
+
+      {/* My recent contracts list */}
+      {meusContratos.length > 0 && (
+        <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Meus contratos
+          </div>
+          {meusContratos.map((c, i) => {
+            const pacote = PACOTES[c.pacote]
+            const isED = c.pacote === 'estrutura_digital'
+            return (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 16px',
+                borderBottom: i < meusContratos.length - 1 ? '1px solid var(--border)' : 'none',
+                gap: 12,
+                flexWrap: isMobile ? 'wrap' : 'nowrap',
+              }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginBottom: 3 }}>{c.cliente_nome}</div>
+                  {pacote && (
+                    <span style={{
+                      fontSize: 10, padding: '1px 7px', borderRadius: 20,
+                      background: pacote.bg, color: pacote.color, fontWeight: 500,
+                    }}>
+                      {pacote.label}
+                    </span>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                    R$ {fmtBRL(isED ? c.valor_total : c.valor_mensal)}{!isED && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)' }}>/mês</span>}
+                  </div>
+                  {c.comissao_valor > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                      Comissão R$ {fmtBRL(c.comissao_valor)}
+                    </div>
+                  )}
+                </div>
+                {c.comissao_valor > 0 && (
+                  <div style={{ flexShrink: 0 }}>
+                    <ComissaoBadge status={c.comissao_status} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {meusContratos.length === 0 && (
+        <div className="card" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text3)', fontSize: 13, marginBottom: 24 }}>
+          Nenhum contrato atribuído a você ainda.
+        </div>
+      )}
+
+      {/* Superadmin: team commission table */}
+      {isSuperAdmin && vendorRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Comissões da equipe
+          </div>
+          {isMobile ? (
+            // Mobile: cards
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {vendorRows.map((v, i) => (
+                <div key={i} style={{ padding: '12px 14px', background: 'var(--bg3)', borderRadius: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>{v.nome}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>Contratos</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{v.contratos}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>Valor fechado</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>R$ {fmtBRL(v.valorFechado)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>Com. pendente</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#F59E0B' }}>R$ {fmtBRL(v.comissaoPendente)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>Com. paga</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>R$ {fmtBRL(v.comissaoPaga)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['Vendedor', 'Contratos', 'Valor fechado', 'Comissão pendente', 'Comissão paga'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {vendorRows.map((v, i) => (
+                  <tr key={i} style={{ borderBottom: i < vendorRows.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{v.nome}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--text2)' }}>{v.contratos}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--text2)' }}>R$ {fmtBRL(v.valorFechado)}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, color: '#F59E0B' }}>R$ {fmtBRL(v.comissaoPendente)}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>R$ {fmtBRL(v.comissaoPaga)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Desempenho({ session, profile }) {
+export default function Desempenho({ session, profile, contratos = [] }) {
   const [periodo, setPeriodo]   = useState('mes')
   const [history, setHistory]   = useState([])
   const [profiles, setProfiles] = useState([])
@@ -468,7 +685,7 @@ export default function Desempenho({ session, profile }) {
           </section>
 
           {/* ── Section 4: Recent activity ──────────────────────────────────── */}
-          <section>
+          <section style={{ marginBottom: 32 }}>
             <SectionTitle>Atividade recente</SectionTitle>
             <div className="card" style={{ padding: '0 16px' }}>
               {recentRows.length === 0 ? (
@@ -482,6 +699,14 @@ export default function Desempenho({ session, profile }) {
               )}
             </div>
           </section>
+
+          {/* ── Section 5: Comissões ────────────────────────────────────────── */}
+          <CommissoesSection
+            contratos={contratos}
+            session={session}
+            isSuperAdmin={isSuperAdmin}
+            isMobile={isMobile}
+          />
         </>
       )}
     </div>

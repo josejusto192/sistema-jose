@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { PACOTES, CONTRATO_STATUS } from '../constants.js'
-import { useTheme } from '../App.jsx'
+import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
+import { supabase } from '../supabase.js'
 
 function parseDate(str) {
   if (!str) return null
@@ -33,6 +34,12 @@ const EMPTY_FORM = {
   motivo_churn: '',
   total_recebido: 0,
   observacoes: '',
+  vendedor_id: '',
+  vendedor_nome: '',
+  comissao_percentual: 10,
+  comissao_valor: 0,
+  comissao_status: 'pendente',
+  comissao_paga_em: '',
 }
 
 function getBadgeStyle(cfg, theme) {
@@ -47,6 +54,7 @@ function fmt(n) {
 
 export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending }) {
   const theme = useTheme()
+  const isSuperAdmin = useIsSuperAdmin()
   const isMobile = useIsMobile()
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -56,6 +64,12 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const [filterStatus, setFilterStatus] = useState('todos')
   const [search, setSearch] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [profiles, setProfiles] = useState([])
+
+  useEffect(() => {
+    supabase.from('profiles').select('id, nome, sobrenome, comissao_percentual').eq('ativo', true)
+      .then(({ data }) => setProfiles(data || []))
+  }, [])
 
   // Fecha modal com ESC
   useEffect(() => {
@@ -121,6 +135,12 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       data_entrega_real: c.data_entrega_real || '',
       proximo_faturamento: c.proximo_faturamento || '',
       data_cancelamento: c.data_cancelamento || '',
+      vendedor_id:          c.vendedor_id || '',
+      vendedor_nome:        c.vendedor_nome || '',
+      comissao_percentual:  c.comissao_percentual ?? 10,
+      comissao_valor:       c.comissao_valor ?? 0,
+      comissao_status:      c.comissao_status || 'pendente',
+      comissao_paga_em:     c.comissao_paga_em || '',
     })
     setModal(c)
   }
@@ -169,6 +189,24 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
           next.cliente_telefone = emp.telefone || ''
         }
       }
+      // Recalculate commission value whenever valor or % changes
+      if (['valor_total','valor_mensal','comissao_percentual','pacote'].includes(field)) {
+        const base = next.pacote === 'estrutura_digital'
+          ? Number(next.valor_total) || 0
+          : Number(next.valor_mensal) || 0
+        next.comissao_valor = parseFloat(((base * (Number(next.comissao_percentual) || 0)) / 100).toFixed(2))
+      }
+      // When vendor changes, fill their commission %
+      if (field === 'vendedor_id' && value) {
+        const prof = profiles.find(p => p.id === value)
+        if (prof?.comissao_percentual != null) {
+          next.comissao_percentual = Number(prof.comissao_percentual)
+          const base = next.pacote === 'estrutura_digital'
+            ? Number(next.valor_total) || 0
+            : Number(next.valor_mensal) || 0
+          next.comissao_valor = parseFloat(((base * next.comissao_percentual) / 100).toFixed(2))
+        }
+      }
       return next
     })
   }
@@ -208,6 +246,12 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       motivo_churn:          form.motivo_churn || null,
       total_recebido:        numOrNull(form.total_recebido) ?? 0,
       observacoes:           form.observacoes || null,
+      vendedor_id:           form.vendedor_id || null,
+      vendedor_nome:         form.vendedor_nome || null,
+      comissao_percentual:   form.comissao_percentual != null ? Number(form.comissao_percentual) : null,
+      comissao_valor:        form.comissao_valor != null ? Number(form.comissao_valor) : null,
+      comissao_status:       form.comissao_status || 'pendente',
+      comissao_paga_em:      form.comissao_paga_em || null,
     }
 
     if (modal !== 'new') payload.id = modal.id
@@ -352,6 +396,22 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                             </span>
                           )
                         })()}
+                        {c.vendedor_nome && (
+                          <span style={{ fontSize: 11, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
+                            {c.vendedor_nome}
+                          </span>
+                        )}
+                        {c.comissao_valor > 0 && (
+                          <span style={{
+                            fontSize: 11,
+                            padding: '1px 7px', borderRadius: 20,
+                            background: c.comissao_status === 'paga' ? 'var(--green-bg)' : 'var(--bg3)',
+                            color: c.comissao_status === 'paga' ? 'var(--green)' : 'var(--text3)',
+                            border: `1px solid ${c.comissao_status === 'paga' ? 'var(--green)30' : 'var(--border)'}`,
+                          }}>
+                            Comissão R$ {Number(c.comissao_valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})} · {c.comissao_status === 'paga' ? 'Paga' : c.comissao_status === 'cancelada' ? 'Cancelada' : 'Pendente'}
+                          </span>
+                        )}
                       </div>
                       {/* Progresso pagamento (Estrutura Digital) */}
                       {isED && (
@@ -539,6 +599,67 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               <FormField label="Total recebido (R$)">
                 <input type="number" value={form.total_recebido} onChange={e => set('total_recebido', e.target.value)} style={inputStyle} />
               </FormField>
+
+              <Divider label="Comissão do vendedor" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField label="Vendedor responsável">
+                  <select
+                    value={form.vendedor_id}
+                    onChange={e => {
+                      const prof = profiles.find(p => p.id === e.target.value)
+                      set('vendedor_nome', prof ? [prof.nome, prof.sobrenome].filter(Boolean).join(' ') : '')
+                      set('vendedor_id', e.target.value)
+                    }}
+                    style={selectStyle}
+                  >
+                    <option value="">— Nenhum —</option>
+                    {profiles.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {[p.nome, p.sobrenome].filter(Boolean).join(' ')}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField label="Comissão (%)">
+                  <input
+                    type="number"
+                    min={0} max={100} step={0.5}
+                    value={form.comissao_percentual}
+                    onChange={e => set('comissao_percentual', e.target.value)}
+                    style={inputStyle}
+                  />
+                </FormField>
+              </div>
+
+              {form.comissao_valor > 0 && (
+                <div style={{ padding: '10px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)30', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
+                    Comissão calculada
+                  </span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>
+                    R$ {Number(form.comissao_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+
+              {isSuperAdmin && modal !== 'new' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <FormField label="Status da comissão">
+                    <select value={form.comissao_status} onChange={e => set('comissao_status', e.target.value)} style={selectStyle}>
+                      <option value="pendente">Pendente</option>
+                      <option value="paga">Paga</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </FormField>
+                  {form.comissao_status === 'paga' && (
+                    <FormField label="Data do pagamento">
+                      <input type="date" value={form.comissao_paga_em ? form.comissao_paga_em.slice(0,10) : ''} onChange={e => set('comissao_paga_em', e.target.value)} style={inputStyle} />
+                    </FormField>
+                  )}
+                </div>
+              )}
+
               <FormField label="Observações">
                 <textarea value={form.observacoes} onChange={e => set('observacoes', e.target.value)} rows={3} placeholder="Notas sobre o contrato..." style={{ ...inputStyle, resize: 'vertical' }} />
               </FormField>
