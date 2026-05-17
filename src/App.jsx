@@ -8,6 +8,7 @@ import Contratos from './components/Contratos.jsx'
 import Logs from './components/Logs.jsx'
 import Perfil from './components/Perfil.jsx'
 import Configuracoes from './components/Configuracoes.jsx'
+import Desempenho from './components/Desempenho.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
@@ -358,6 +359,9 @@ export default function App() {
               onUpdate={updateEmpresa}
               onCreateContrato={handleCreateContrato}
             />
+          )}
+          {view === 'desempenho' && (
+            <Desempenho session={session} profile={profile} />
           )}
           {view === 'contratos' && (
             <Contratos
