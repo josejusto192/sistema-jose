@@ -83,15 +83,31 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
 
   async function handleSave() {
     setSaving(true); setError(null); setSaved(false)
-    const ok = await onUpdateProfile({
-      nome, sobrenome, bio, telefone, cargo,
-      whatsapp, instagram,
-      meta_mensal: Number(metaMensal) || 5,
-      foto_url: fotoUrl,
-    })
+
+    // Campos base (sempre existem desde migration 004 + 006)
+    const base = { nome, sobrenome, bio, telefone, foto_url: fotoUrl }
+
+    // Campos novos (migration 008 — podem não existir ainda)
+    const extras = { cargo, whatsapp, instagram, meta_mensal: Number(metaMensal) || 5 }
+
+    const { ok, errorMsg } = await onUpdateProfile({ ...base, ...extras })
+    if (!ok && errorMsg?.includes('column')) {
+      // Colunas novas ainda não existem — salva só os campos base
+      const { ok: ok2, errorMsg: e2 } = await onUpdateProfile(base)
+      setSaving(false)
+      if (ok2) {
+        setSaved(true)
+        setError('Perfil salvo. Para salvar cargo/WhatsApp/Instagram rode a migration 008 no Supabase.')
+        setTimeout(() => setSaved(false), 5000)
+      } else {
+        setError(`Erro: ${e2 || 'desconhecido'}`)
+      }
+      return
+    }
+
     setSaving(false)
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000) }
-    else setError('Erro ao salvar. Verifique as permissões no Supabase (política own_profile_update).')
+    else setError(`Erro ao salvar: ${errorMsg || 'verifique as permissões (policy own_profile_update)'}`)
   }
 
   const inp = {
