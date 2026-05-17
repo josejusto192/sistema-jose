@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   comissao_valor: 0,
   comissao_status: 'pendente',
   comissao_paga_em: '',
+  comprovante_url: '',
 }
 
 function getBadgeStyle(cfg, theme) {
@@ -66,8 +67,10 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [profiles, setProfiles] = useState([])
 
+  const [uploadingComp, setUploadingComp] = useState(false)
+
   useEffect(() => {
-    supabase.from('profiles').select('id, nome, sobrenome, comissao_percentual').eq('ativo', true)
+    supabase.from('profiles').select('id, nome, sobrenome, comissao_percentual, tipo_pix, chave_pix').eq('ativo', true)
       .then(({ data }) => setProfiles(data || []))
   }, [])
 
@@ -141,6 +144,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       comissao_valor:       c.comissao_valor ?? 0,
       comissao_status:      c.comissao_status || 'pendente',
       comissao_paga_em:     c.comissao_paga_em || '',
+      comprovante_url:      c.comprovante_url || '',
     })
     setModal(c)
   }
@@ -211,6 +215,19 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
     })
   }
 
+  async function handleUploadComprovante(file, contratoId) {
+    if (!file || !contratoId) return
+    setUploadingComp(true)
+    const ext = file.name.split('.').pop()
+    const path = `${contratoId}/comprovante.${ext}`
+    const { error } = await supabase.storage.from('comprovantes').upload(path, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('comprovantes').getPublicUrl(path)
+      set('comprovante_url', data.publicUrl + '?t=' + Date.now())
+    }
+    setUploadingComp(false)
+  }
+
   async function handleSave() {
     const errs = validate(form)
     if (Object.keys(errs).length > 0) {
@@ -252,6 +269,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       comissao_valor:        form.comissao_valor != null ? Number(form.comissao_valor) : null,
       comissao_status:       form.comissao_status || 'pendente',
       comissao_paga_em:      form.comissao_paga_em || null,
+      comprovante_url:       form.comprovante_url || null,
     }
 
     if (modal !== 'new') payload.id = modal.id
@@ -403,14 +421,24 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                         )}
                         {c.comissao_valor > 0 && (
                           <span style={{
-                            fontSize: 11,
-                            padding: '1px 7px', borderRadius: 20,
+                            fontSize: 11, padding: '1px 7px', borderRadius: 20,
                             background: c.comissao_status === 'paga' ? 'var(--green-bg)' : 'var(--bg3)',
                             color: c.comissao_status === 'paga' ? 'var(--green)' : 'var(--text3)',
                             border: `1px solid ${c.comissao_status === 'paga' ? 'var(--green)30' : 'var(--border)'}`,
                           }}>
-                            Comissão R$ {Number(c.comissao_valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})} · {c.comissao_status === 'paga' ? 'Paga' : c.comissao_status === 'cancelada' ? 'Cancelada' : 'Pendente'}
+                            Comissão R$ {Number(c.comissao_valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})} · {c.comissao_status === 'paga' ? 'Paga ✓' : c.comissao_status === 'cancelada' ? 'Cancelada' : 'Pendente'}
                           </span>
+                        )}
+                        {c.comprovante_url && (
+                          <a
+                            href={c.comprovante_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ fontSize: 11, color: 'var(--accent)', padding: '1px 7px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--bg3)', textDecoration: 'none' }}
+                          >
+                            Comprovante
+                          </a>
                         )}
                       </div>
                       {/* Progresso pagamento (Estrutura Digital) */}
@@ -643,22 +671,100 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 </div>
               )}
 
-              {isSuperAdmin && modal !== 'new' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <FormField label="Status da comissão">
-                    <select value={form.comissao_status} onChange={e => set('comissao_status', e.target.value)} style={selectStyle}>
-                      <option value="pendente">Pendente</option>
-                      <option value="paga">Paga</option>
-                      <option value="cancelada">Cancelada</option>
-                    </select>
-                  </FormField>
-                  {form.comissao_status === 'paga' && (
-                    <FormField label="Data do pagamento">
-                      <input type="date" value={form.comissao_paga_em ? form.comissao_paga_em.slice(0,10) : ''} onChange={e => set('comissao_paga_em', e.target.value)} style={inputStyle} />
+              {isSuperAdmin && modal !== 'new' && (() => {
+                const vendPerfil = profiles.find(p => p.id === form.vendedor_id)
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <FormField label="Status da comissão">
+                        <select value={form.comissao_status} onChange={e => {
+                          set('comissao_status', e.target.value)
+                          if (e.target.value === 'paga' && !form.comissao_paga_em) {
+                            set('comissao_paga_em', format(new Date(), 'yyyy-MM-dd'))
+                          }
+                        }} style={selectStyle}>
+                          <option value="pendente">Pendente</option>
+                          <option value="paga">Paga</option>
+                          <option value="cancelada">Cancelada</option>
+                        </select>
+                      </FormField>
+                      {form.comissao_status === 'paga' && (
+                        <FormField label="Data do pagamento">
+                          <input type="date" value={form.comissao_paga_em ? form.comissao_paga_em.slice(0,10) : ''} onChange={e => set('comissao_paga_em', e.target.value)} style={inputStyle} />
+                        </FormField>
+                      )}
+                    </div>
+
+                    {/* PIX do vendedor */}
+                    {form.vendedor_id && (
+                      <div style={{ padding: '12px 14px', background: 'var(--bg3)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600 }}>PIX DO VENDEDOR</div>
+                        {vendPerfil?.chave_pix ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                            <div>
+                              <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--bg4)', padding: '1px 6px', borderRadius: 3, marginRight: 8 }}>
+                                {(vendPerfil.tipo_pix || 'PIX').toUpperCase()}
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+                                {vendPerfil.chave_pix}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard.writeText(vendPerfil.chave_pix)}
+                              style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', flexShrink: 0 }}
+                            >
+                              Copiar
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                            {vendPerfil ? 'Vendedor não cadastrou chave PIX ainda.' : 'Selecione um vendedor para ver o PIX.'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Comprovante */}
+                    <FormField label="Comprovante de pagamento">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{
+                            flex: 1, padding: '7px 12px', background: 'var(--bg3)', border: '1px dashed var(--border)',
+                            borderRadius: 6, fontSize: 12, color: 'var(--text3)', cursor: uploadingComp ? 'default' : 'pointer',
+                            textAlign: 'center', display: 'block',
+                          }}>
+                            {uploadingComp ? 'Enviando...' : '+ Selecionar arquivo (imagem ou PDF)'}
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              style={{ display: 'none' }}
+                              disabled={uploadingComp}
+                              onChange={e => {
+                                const file = e.target.files?.[0]
+                                if (file && modal?.id) handleUploadComprovante(file, modal.id)
+                              }}
+                            />
+                          </label>
+                        </div>
+                        {form.comprovante_url && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--green-bg)', border: '1px solid var(--green)30', borderRadius: 6 }}>
+                            <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>Comprovante anexado</span>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <a href={form.comprovante_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg2)' }}>
+                                Visualizar
+                              </a>
+                              <button type="button" onClick={() => set('comprovante_url', '')} style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px' }}>
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </FormField>
-                  )}
-                </div>
-              )}
+                  </div>
+                )
+              })()}
 
               <FormField label="Observações">
                 <textarea value={form.observacoes} onChange={e => set('observacoes', e.target.value)} rows={3} placeholder="Notas sobre o contrato..." style={{ ...inputStyle, resize: 'vertical' }} />
