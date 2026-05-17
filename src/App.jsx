@@ -6,14 +6,17 @@ import Leads from './components/Leads.jsx'
 import LeadDetail from './components/LeadDetail.jsx'
 import Contratos from './components/Contratos.jsx'
 import Logs from './components/Logs.jsx'
+import Perfil from './components/Perfil.jsx'
+import Configuracoes from './components/Configuracoes.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
 
-export const AppContext = createContext({ theme: 'light', currentUser: '', isSuperAdmin: false })
+export const AppContext = createContext({ theme: 'light', currentUser: '', isSuperAdmin: false, profile: null })
 export const useTheme = () => useContext(AppContext).theme
 export const useCurrentUser = () => useContext(AppContext).currentUser
 export const useIsSuperAdmin = () => useContext(AppContext).isSuperAdmin
+export const useProfile = () => useContext(AppContext).profile
 
 // Keep ThemeContext as alias so any existing import still works
 export const ThemeContext = AppContext
@@ -236,7 +239,13 @@ export default function App() {
   const isSuperAdmin = profile?.role === 'superadmin'
   const currentUser = profile?.nome || ''
 
-  const contextValue = { theme, currentUser, isSuperAdmin }
+  async function updateProfile(updates) {
+    const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id)
+    if (!error) setProfile(prev => ({ ...prev, ...updates }))
+    return !error
+  }
+
+  const contextValue = { theme, currentUser, isSuperAdmin, profile }
 
   // Still loading auth state
   if (session === undefined) {
@@ -268,6 +277,7 @@ export default function App() {
     currentUser,
     isSuperAdmin,
     onLogout: handleLogout,
+    profile,
   }
 
   return (
@@ -361,6 +371,16 @@ export default function App() {
           )}
           {view === 'logs' && (
             <Logs isSuperAdmin={isSuperAdmin} />
+          )}
+          {view === 'perfil' && (
+            <Perfil
+              profile={profile}
+              session={session}
+              onUpdateProfile={updateProfile}
+            />
+          )}
+          {view === 'configuracoes' && isSuperAdmin && (
+            <Configuracoes session={session} profile={profile} />
           )}
         </main>
       </div>
