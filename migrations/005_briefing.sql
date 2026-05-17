@@ -11,14 +11,17 @@ CREATE TABLE IF NOT EXISTS briefing_template (
 );
 
 -- Respostas por lead (uma linha por empresa_id)
+-- template_snapshot: cópia do template no momento do último save — garante que
+-- mudanças futuras no template não afetam briefings já preenchidos
 CREATE TABLE IF NOT EXISTS briefing_respostas (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  empresa_id    UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-  respostas     JSONB NOT NULL DEFAULT '{}',
-  criado_em     TIMESTAMPTZ DEFAULT NOW(),
-  atualizado_em TIMESTAMPTZ DEFAULT NOW(),
-  usuario_id    UUID REFERENCES auth.users(id),
-  usuario_nome  TEXT,
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id        UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  respostas         JSONB NOT NULL DEFAULT '{}',
+  template_snapshot JSONB,
+  criado_em         TIMESTAMPTZ DEFAULT NOW(),
+  atualizado_em     TIMESTAMPTZ DEFAULT NOW(),
+  usuario_id        UUID REFERENCES auth.users(id),
+  usuario_nome      TEXT,
   UNIQUE(empresa_id)
 );
 

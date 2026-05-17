@@ -1,11 +1,21 @@
 import React from 'react'
 import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings } from './Icons.jsx'
+
+function Avatar({ profile, size = 40 }) {
+  const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
+  if (profile?.foto_url) return <img src={profile.foto_url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.35, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+      {initials}
+    </div>
+  )
+}
 
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
-export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout }) {
+export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile }) {
   const total = empresas.length
   const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
   const contratosAtivos = contratos.filter(c => c.status === 'ativo').length
@@ -20,7 +30,10 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     { id: 'dashboard',  label: 'Dashboard',  icon: IconGrid },
     { id: 'leads',      label: 'Leads',      icon: IconList,     badge: total, alert: followupCount || null },
     { id: 'contratos',  label: 'Contratos',  icon: IconContract, badge: contratosAtivos || null },
-    ...(isSuperAdmin ? [{ id: 'logs', label: 'Logs', icon: IconFileText }] : []),
+    ...(isSuperAdmin ? [
+      { id: 'logs',          label: 'Logs',          icon: IconFileText },
+      { id: 'configuracoes', label: 'Configurações',  icon: IconSettings },
+    ] : []),
   ]
 
   return (
@@ -144,16 +157,35 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
           <div style={{ marginBottom: 10 }} />
         )}
 
-        {/* Usuário logado */}
+        {/* Usuário logado — clicável, navega para perfil */}
         {currentUser && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, padding: '5px 8px', background: 'var(--bg3)', borderRadius: 7 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser}</div>
-              {isSuperAdmin && (
-                <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600, marginTop: 1 }}>superadmin</div>
-              )}
+          <button
+            onClick={() => setView('perfil')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              marginBottom: 8,
+              padding: '6px 8px',
+              background: view === 'perfil' ? 'var(--bg4)' : 'var(--bg3)',
+              borderRadius: 7,
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.12s',
+            }}
+          >
+            <Avatar profile={profile} size={40} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {[profile?.nome, profile?.sobrenome].filter(Boolean).join(' ') || currentUser}
+              </div>
+              <div style={{ fontSize: 10, color: isSuperAdmin ? 'var(--accent)' : 'var(--text3)', fontWeight: 600, marginTop: 1 }}>
+                {isSuperAdmin ? 'superadmin' : 'vendedor'}
+              </div>
             </div>
-          </div>
+          </button>
         )}
 
         <button
