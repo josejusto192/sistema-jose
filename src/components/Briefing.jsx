@@ -68,15 +68,17 @@ function QuestionInput({ q, value, onChange, onCheckbox }) {
 
 export default function Briefing({ lead }) {
   const isSuperAdmin = useIsSuperAdmin()
-  const [template, setTemplate]         = useState(null)
-  const [templateId, setTemplateId]     = useState(null)
-  const [respostas, setRespostas]       = useState({})
-  const [loading, setLoading]           = useState(true)
-  const [saving, setSaving]             = useState(false)
-  const [saved, setSaved]               = useState(false)
-  const [editMode, setEditMode]         = useState(false)
-  const [editTpl, setEditTpl]           = useState(null)
-  const [savingTpl, setSavingTpl]       = useState(false)
+  const [currentTemplate, setCurrentTemplate] = useState(null)  // template atual do banco
+  const [templateId, setTemplateId]           = useState(null)
+  const [activeTemplate, setActiveTemplate]   = useState(null)  // template em uso para exibir
+  const [respostas, setRespostas]             = useState({})
+  const [hasSnapshot, setHasSnapshot]         = useState(false) // briefing foi salvo com template antigo?
+  const [loading, setLoading]                 = useState(true)
+  const [saving, setSaving]                   = useState(false)
+  const [saved, setSaved]                     = useState(false)
+  const [editMode, setEditMode]               = useState(false)
+  const [editTpl, setEditTpl]                 = useState(null)
+  const [savingTpl, setSavingTpl]             = useState(false)
 
   useEffect(() => { load() }, [lead.id])
 
@@ -84,11 +86,36 @@ export default function Briefing({ lead }) {
     setLoading(true)
     const [{ data: tpl }, { data: resp }] = await Promise.all([
       supabase.from('briefing_template').select('*').limit(1).single(),
-      supabase.from('briefing_respostas').select('respostas').eq('empresa_id', lead.id).maybeSingle(),
+      supabase.from('briefing_respostas')
+        .select('respostas, template_snapshot')
+        .eq('empresa_id', lead.id)
+        .maybeSingle(),
     ])
-    if (tpl) { setTemplateId(tpl.id); setTemplate(tpl.secoes || []) }
-    if (resp) setRespostas(resp.respostas || {})
+    if (tpl) { setTemplateId(tpl.id); setCurrentTemplate(tpl.secoes || []) }
+
+    if (resp) {
+      setRespostas(resp.respostas || {})
+      // Se o briefing tem snapshot E é diferente do template atual, usa o snapshot
+      if (resp.template_snapshot && tpl) {
+        const snapshotIds = resp.template_snapshot.flatMap(s => s.perguntas.map(q => q.id)).sort().join()
+        const currentIds  = (tpl.secoes || []).flatMap(s => s.perguntas.map(q => q.id)).sort().join()
+        if (snapshotIds !== currentIds) {
+          setActiveTemplate(resp.template_snapshot)
+          setHasSnapshot(true)
+          setLoading(false)
+          return
+        }
+      }
+    }
+
+    if (tpl) setActiveTemplate(tpl.secoes || [])
+    setHasSnapshot(false)
     setLoading(false)
+  }
+
+  function switchToCurrentTemplate() {
+    setActiveTemplate(currentTemplate)
+    setHasSnapshot(false)
   }
 
   function handleChange(qid, val)             { setRespostas(p => ({ ...p, [qid]: val })) }
@@ -101,16 +128,24 @@ export default function Briefing({ lead }) {
 
   async function save() {
     setSaving(true)
+    // Salva respostas + snapshot do template atual — protege contra mudanças futuras
     await supabase.from('briefing_respostas').upsert(
-      { empresa_id: lead.id, respostas, atualizado_em: new Date().toISOString() },
+      {
+        empresa_id:        lead.id,
+        respostas,
+        template_snapshot: currentTemplate,
+        atualizado_em:     new Date().toISOString(),
+      },
       { onConflict: 'empresa_id' }
     )
+    setActiveTemplate(currentTemplate)
+    setHasSnapshot(false)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
   // ── Template editor helpers ───────────────────────────────────────────────
-  function startEdit() { setEditTpl(JSON.parse(JSON.stringify(template))); setEditMode(true) }
+  function startEdit() { setEditTpl(JSON.parse(JSON.stringify(currentTemplate))); setEditMode(true) }
   function cancelEdit() { setEditMode(false); setEditTpl(null) }
 
   async function saveTemplate() {
@@ -119,7 +154,7 @@ export default function Briefing({ lead }) {
       .from('briefing_template')
       .update({ secoes: editTpl, atualizado_em: new Date().toISOString() })
       .eq('id', templateId)
-    if (!error) { setTemplate(editTpl); setEditMode(false); setEditTpl(null) }
+    if (!error) { setCurrentTemplate(editTpl); setActiveTemplate(editTpl); setEditMode(false); setEditTpl(null) }
     setSavingTpl(false)
   }
 
@@ -154,14 +189,14 @@ export default function Briefing({ lead }) {
   if (loading) return (
     <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
   )
-  if (!template) return (
+  if (!activeTemplate) return (
     <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Template não encontrado. Rode a migration 005.</div>
   )
 
   const answered = Object.keys(respostas).filter(k => {
     const v = respostas[k]; return v !== '' && v != null && !(Array.isArray(v) && v.length === 0)
   }).length
-  const total = template.reduce((n, s) => n + s.perguntas.length, 0)
+  const total = activeTemplate.reduce((n, s) => n + s.perguntas.length, 0)
 
   const SaveBtn = ({ style }) => (
     <button onClick={save} disabled={saving} style={{
@@ -262,7 +297,7 @@ export default function Briefing({ lead }) {
   // ── Briefing form ────────────────────────────────────────────────────────
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: hasSnapshot ? 12 : 20 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 3 }}>Briefing</div>
           <div style={{ fontSize: 12, color: 'var(--text3)' }}>{answered}/{total} perguntas respondidas</div>
@@ -277,8 +312,23 @@ export default function Briefing({ lead }) {
         </div>
       </div>
 
+      {/* Banner: template foi alterado após o último save */}
+      {hasSnapshot && (
+        <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--yellow-bg, #FFFBEB)', border: '1px solid var(--yellow, #D97706)30', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--yellow, #92400E)' }}>
+            O template foi alterado desde o último salvamento. Exibindo a versão com que este briefing foi preenchido.
+          </div>
+          <button
+            onClick={switchToCurrentTemplate}
+            style={{ flexShrink: 0, padding: '5px 12px', background: 'none', border: '1px solid var(--yellow, #D97706)', borderRadius: 6, color: 'var(--yellow, #92400E)', fontSize: 11, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Usar template atual
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {template.map(sec => (
+        {activeTemplate.map(sec => (
           <div key={sec.id} className="card" style={{ padding: '16px 18px' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
               {sec.titulo}
