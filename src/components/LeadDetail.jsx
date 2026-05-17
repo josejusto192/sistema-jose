@@ -10,6 +10,7 @@ function parseDate(str) {
   return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
 }
 import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory } from './Icons.jsx'
+import Briefing from './Briefing.jsx'
 
 function Field({ label, value, mono }) {
   if (!value) return null
@@ -65,6 +66,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
   })
   const [scriptsCopied, setScriptsCopied] = useState({})
   const [scriptsOpen, setScriptsOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('dados')
 
   // Tags state
   const [tags, setTags] = useState(() => lead.tags || [])
@@ -197,8 +199,34 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
         </div>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: 'flex', background: 'var(--bg2)', borderBottom: '1px solid var(--border)', padding: isMobile ? '0 16px' : '0 32px' }}>
+        {[['dados', 'Dados'], ['briefing', 'Briefing']].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            style={{
+              padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
+              borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent',
+              color: activeTab === key ? 'var(--accent)' : 'var(--text3)',
+              fontSize: 13, fontWeight: activeTab === key ? 600 : 400,
+              marginBottom: -1, transition: 'color 0.15s',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Briefing tab */}
+      {activeTab === 'briefing' && (
+        <div style={{ padding: isMobile ? '16px' : '24px 32px', flex: 1, overflow: 'auto', background: 'var(--bg)', maxWidth: 860 }}>
+          <Briefing lead={lead} />
+        </div>
+      )}
+
       {/* Content */}
-      <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)' }}>
+      {activeTab === 'dados' && <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)' }}>
         {/* Coluna esquerda */}
         <div>
           <Section title="Dados cadastrais">
@@ -477,7 +505,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
             </div>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
