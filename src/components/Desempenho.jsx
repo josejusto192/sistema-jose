@@ -250,7 +250,7 @@ function PeriodTab({ id, label, active, onClick }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Desempenho({ session, profile }) {
+export default function Desempenho({ session, profile, contratos = [] }) {
   const [periodo, setPeriodo]   = useState('mes')
   const [history, setHistory]   = useState([])
   const [profiles, setProfiles] = useState([])
@@ -468,7 +468,7 @@ export default function Desempenho({ session, profile }) {
           </section>
 
           {/* ── Section 4: Recent activity ──────────────────────────────────── */}
-          <section>
+          <section style={{ marginBottom: 32 }}>
             <SectionTitle>Atividade recente</SectionTitle>
             <div className="card" style={{ padding: '0 16px' }}>
               {recentRows.length === 0 ? (
@@ -482,6 +482,14 @@ export default function Desempenho({ session, profile }) {
               )}
             </div>
           </section>
+
+          {/* ── Section 5: Comissões ────────────────────────────────────────── */}
+          <CommissoesSection
+            contratos={contratos}
+            session={session}
+            isSuperAdmin={isSuperAdmin}
+            isMobile={isMobile}
+          />
         </>
       )}
     </div>
