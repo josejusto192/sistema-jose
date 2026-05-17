@@ -183,6 +183,30 @@ function UserModal({ user, currentUserId, onClose, onSaved }) {
 
           <Divider />
 
+          {/* PIX */}
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Chave PIX</div>
+          {user.chave_pix ? (
+            <div style={{ padding: '12px 14px', background: 'var(--bg3)', borderRadius: 6, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>{(user.tipo_pix || 'pix').toUpperCase()}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>{user.chave_pix}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(user.chave_pix)}
+                style={{ padding: '6px 14px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+              >
+                Copiar PIX
+              </button>
+            </div>
+          ) : (
+            <div style={{ padding: '12px 14px', background: 'var(--bg3)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, color: 'var(--text3)' }}>
+              Este usuário ainda não cadastrou uma chave PIX no perfil.
+            </div>
+          )}
+
+          <Divider />
+
           {/* Ações de segurança */}
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Segurança</div>
 

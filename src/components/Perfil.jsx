@@ -30,6 +30,8 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
   const [whatsapp,    setWhatsapp]    = useState(profile?.whatsapp    || '')
   const [instagram,   setInstagram]   = useState(profile?.instagram   || '')
   const [metaMensal,  setMetaMensal]  = useState(profile?.meta_mensal ?? 5)
+  const [tipoPix,     setTipoPix]     = useState(profile?.tipo_pix    || 'cpf')
+  const [chavePix,    setChavePix]    = useState(profile?.chave_pix   || '')
   const [fotoUrl,     setFotoUrl]     = useState(profile?.foto_url    || null)
   const [previewUrl,  setPreviewUrl]  = useState(null)
   const [uploading,   setUploading]   = useState(false)
@@ -88,7 +90,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
     const base = { nome, sobrenome, bio, telefone, foto_url: fotoUrl }
 
     // Campos novos (migration 008 — podem não existir ainda)
-    const extras = { cargo, whatsapp, instagram, meta_mensal: Number(metaMensal) || 5 }
+    const extras = { cargo, whatsapp, instagram, meta_mensal: Number(metaMensal) || 5, tipo_pix: tipoPix, chave_pix: chavePix || null }
 
     const { ok, errorMsg } = await onUpdateProfile({ ...base, ...extras })
     if (!ok && errorMsg?.includes('column')) {
@@ -225,6 +227,48 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <SectionTitle>Chave PIX</SectionTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '12px 14px' }}>
+            <div>
+              <label style={lbl}>Tipo de chave</label>
+              <select style={{ ...inp, cursor: 'pointer' }} value={tipoPix} onChange={e => setTipoPix(e.target.value)}>
+                <option value="cpf">CPF</option>
+                <option value="cnpj">CNPJ</option>
+                <option value="email">E-mail</option>
+                <option value="telefone">Telefone</option>
+                <option value="aleatoria">Chave aleatória</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Chave PIX</label>
+              <input style={inp} value={chavePix} onChange={e => setChavePix(e.target.value)}
+                placeholder={
+                  tipoPix === 'cpf' ? '000.000.000-00' :
+                  tipoPix === 'cnpj' ? '00.000.000/0001-00' :
+                  tipoPix === 'email' ? 'email@exemplo.com' :
+                  tipoPix === 'telefone' ? '+5515999999999' :
+                  'Chave aleatória UUID'
+                }
+              />
+            </div>
+          </div>
+          {chavePix && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--bg3)', borderRadius: 5, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                {tipoPix.toUpperCase()}: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>{chavePix}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(chavePix)}
+                style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+              >
+                Copiar
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: 24 }}>

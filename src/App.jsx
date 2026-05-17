@@ -280,6 +280,8 @@ export default function App() {
       p_whatsapp:    updates.whatsapp    ?? profile?.whatsapp    ?? null,
       p_instagram:   updates.instagram   ?? profile?.instagram   ?? null,
       p_meta_mensal: updates.meta_mensal ?? profile?.meta_mensal ?? 5,
+      p_tipo_pix:    updates.tipo_pix    ?? profile?.tipo_pix    ?? null,
+      p_chave_pix:   updates.chave_pix   ?? profile?.chave_pix   ?? null,
     })
     if (!error) setProfile(prev => ({ ...prev, ...updates }))
     return { ok: !error, errorMsg: error?.message || null }
