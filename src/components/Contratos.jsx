@@ -630,41 +630,57 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
 
               <Divider label="Comissão do vendedor" />
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <FormField label="Vendedor responsável">
-                  <select
-                    value={form.vendedor_id}
-                    onChange={e => {
-                      const prof = profiles.find(p => p.id === e.target.value)
-                      set('vendedor_nome', prof ? [prof.nome, prof.sobrenome].filter(Boolean).join(' ') : '')
-                      set('vendedor_id', e.target.value)
-                    }}
-                    style={selectStyle}
-                  >
-                    <option value="">— Nenhum —</option>
-                    {profiles.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {[p.nome, p.sobrenome].filter(Boolean).join(' ')}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-                <FormField label="Comissão (%)">
-                  <input
-                    type="number"
-                    min={0} max={100} step={0.5}
-                    value={form.comissao_percentual}
-                    onChange={e => set('comissao_percentual', e.target.value)}
-                    style={inputStyle}
-                  />
-                </FormField>
-              </div>
+              {isSuperAdmin ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <FormField label="Vendedor responsável">
+                    <select
+                      value={form.vendedor_id}
+                      onChange={e => {
+                        const prof = profiles.find(p => p.id === e.target.value)
+                        set('vendedor_nome', prof ? [prof.nome, prof.sobrenome].filter(Boolean).join(' ') : '')
+                        set('vendedor_id', e.target.value)
+                      }}
+                      style={selectStyle}
+                    >
+                      <option value="">— Nenhum —</option>
+                      {profiles.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {[p.nome, p.sobrenome].filter(Boolean).join(' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <FormField label="Comissão (%)">
+                    <input
+                      type="number"
+                      min={0} max={100} step={0.5}
+                      value={form.comissao_percentual}
+                      onChange={e => set('comissao_percentual', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </FormField>
+                </div>
+              ) : (
+                /* Vendedor: somente leitura */
+                form.vendedor_nome && (
+                  <div style={{ padding: '10px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>Responsável pelo contrato</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{form.vendedor_nome}</div>
+                  </div>
+                )
+              )}
 
               {form.comissao_valor > 0 && (
-                <div style={{ padding: '10px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)30', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
-                    Comissão calculada
-                  </span>
+                <div style={{ padding: '10px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)30', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>Comissão</span>
+                    {!isSuperAdmin && (
+                      <div style={{ fontSize: 11, color: 'var(--green)', opacity: 0.8, marginTop: 2 }}>
+                        {form.comissao_status === 'paga' ? 'Paga ✓' : 'Pendente'}
+                        {form.comissao_paga_em ? ` · ${form.comissao_paga_em.slice(0,10)}` : ''}
+                      </div>
+                    )}
+                  </div>
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>
                     R$ {Number(form.comissao_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
