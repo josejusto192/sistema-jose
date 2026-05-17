@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { STATUS_CONFIG } from '../constants.js'
-import { useTheme } from '../App.jsx'
+import { useTheme, useIsSuperAdmin, useProfile } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
-import { format, subDays, isPast, isToday, parseISO } from 'date-fns'
+import { format, subDays, isPast, isToday, parseISO, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { IconMail, IconPhone, IconClock } from './Icons.jsx'
 
@@ -55,7 +55,209 @@ function fmt(n) {
   return n?.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '0'
 }
 
+/* ─── Dashboard do Vendedor ──────────────────────────────────────────────── */
+const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
+
+function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLeads, onViewContratos }) {
+  const profile  = useProfile()
+  const isMobile = useIsMobile()
+  const theme    = useTheme()
+
+  const stats = useMemo(() => {
+    const meus     = empresas // já filtrado por RLS
+    const total    = meus.length
+    const fechados = meus.filter(e => e.status_prospeccao === 'fechou').length
+    const contatos = meus.filter(e => e.status_prospeccao === 'contatado').length
+    const perdidos = meus.filter(e => ['perdido', 'descartado'].includes(e.status_prospeccao)).length
+    const conversao = contatos > 0 ? Math.round((fechados / contatos) * 100) : 0
+
+    const followups = meus
+      .filter(e => {
+        if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
+        const ref = e.atualizado_em || e.criado_em
+        return ref && differenceInDays(new Date(), new Date(ref)) >= 3
+      })
+      .slice(0, 5)
+
+    const agendados = meus
+      .filter(e => e.data_followup)
+      .map(e => ({ ...e, _date: parseFollowupDate(e.data_followup) }))
+      .sort((a, b) => a._date - b._date)
+      .slice(0, 5)
+
+    const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
+    const comPendente   = meusContratos.filter(c => c.comissao_status === 'pendente')
+    const comPaga       = meusContratos.filter(c => c.comissao_status === 'paga')
+    const totalPendente = comPendente.reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
+    const totalPago     = comPaga.reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
+
+    const meta       = profile?.meta_mensal || 5
+    const progresso  = Math.min(100, Math.round((fechados / meta) * 100))
+
+    return { total, fechados, contatos, perdidos, conversao, followups, agendados, meusContratos, comPendente, totalPendente, totalPago, meta, progresso }
+  }, [empresas, contratos, profile])
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)' }}>
+      <div style={{ fontSize: 13 }}>Carregando...</div>
+    </div>
+  )
+
+  const nome = profile?.nome || 'Vendedor'
+  const hora  = new Date().getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+
+  return (
+    <div style={{ padding: isMobile ? '16px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header pessoal */}
+      <div>
+        <h1 style={{ fontWeight: 700, fontSize: 20, color: 'var(--text)', marginBottom: 2 }}>
+          {saudacao}, {nome}!
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>
+          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+        </div>
+      </div>
+
+      {/* Meta mensal */}
+      <div className="card" style={{ padding: '18px 20px', borderLeft: '3px solid var(--accent)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>Meta mensal de fechamentos</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+              {stats.fechados} <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text3)' }}>/ {stats.meta}</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: stats.progresso >= 100 ? 'var(--green)' : 'var(--accent)' }}>
+            {stats.progresso}%
+          </div>
+        </div>
+        <div style={{ height: 6, background: 'var(--bg3)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${stats.progresso}%`, background: stats.progresso >= 100 ? 'var(--green)' : 'var(--accent)', borderRadius: 4, transition: 'width 0.5s' }} />
+        </div>
+        {stats.progresso >= 100 && (
+          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8, fontWeight: 500 }}>Meta atingida! 🎉</div>
+        )}
+      </div>
+
+      {/* KPIs pessoais */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 10 }}>
+        {[
+          { label: 'Meus leads',    value: stats.total,     color: 'var(--accent)',  sub: 'atribuídos a mim' },
+          { label: 'Fechamentos',   value: stats.fechados,  color: 'var(--green)',   sub: 'este período' },
+          { label: 'Conversão',     value: `${stats.conversao}%`, color: 'var(--purple)', sub: `${stats.contatos} contatados` },
+          { label: 'Perdidos',      value: stats.perdidos,  color: 'var(--red)',     sub: 'descartados' },
+        ].map((k, i) => (
+          <div key={i} className="card" style={{ padding: '14px 16px', borderLeft: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+        {/* Comissões */}
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+            Minhas comissões
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--text3)' }}>Pendente de pagamento</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--yellow)' }}>
+                R$ {stats.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--text3)' }}>Já recebido</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>
+                R$ {stats.totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            {stats.comPendente.length > 0 && (
+              <div style={{ marginTop: 4, padding: '8px 10px', background: 'var(--yellow-bg)', borderRadius: 5, fontSize: 12, color: 'var(--yellow)' }}>
+                {stats.comPendente.length} contrato{stats.comPendente.length > 1 ? 's' : ''} com comissão a receber
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Follow-ups com atenção */}
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <IconClock size={14} color="var(--text3)" />
+            Precisam de atenção
+            {stats.followups.length > 0 && (
+              <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 3, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
+                {stats.followups.length}
+              </span>
+            )}
+          </div>
+          {stats.followups.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Tudo em dia!</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {stats.followups.map((e, i) => {
+                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
+                return (
+                  <div key={e.id} onClick={() => onOpenLead(e)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: i < stats.followups.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
+                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
+                  >
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {e.nome_fantasia || e.razao_social}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600, flexShrink: 0 }}>Ver</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Próximos follow-ups agendados */}
+      {stats.agendados.length > 0 && (
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+            Próximos follow-ups agendados
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {stats.agendados.map((e, i) => {
+              const atrasado = isPast(e._date) && !isToday(e._date)
+              const hoje     = isToday(e._date)
+              const cor      = atrasado ? 'var(--red)' : hoje ? 'var(--yellow)' : 'var(--text3)'
+              return (
+                <div key={e.id} onClick={() => onOpenLead(e)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: i < stats.agendados.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
+                  onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
+                  onMouseLeave={el => el.currentTarget.style.opacity = '1'}
+                >
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: cor, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{e.nome_fantasia || e.razao_social}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: cor, fontWeight: atrasado || hoje ? 600 : 400, flexShrink: 0 }}>
+                    {atrasado ? 'Atrasado · ' : hoje ? 'Hoje · ' : ''}{format(e._date, 'dd/MM')}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── Dashboard do Admin ─────────────────────────────────────────────────── */
 export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead }) {
+  const isSuperAdmin = useIsSuperAdmin()
   // Follow-ups: leads com data_followup preenchido, ordenados por data
   const followups = useMemo(() => {
     return empresas
@@ -118,6 +320,13 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
 
     return { total, novos, contatados, fechados, perdidos, comEmail, comTel, topUF, topCnae, porStatus, porDia, recentes: [...empresas].slice(0, 5) }
   }, [empresas])
+
+  if (!isSuperAdmin) return (
+    <VendedorDashboard
+      empresas={empresas} contratos={contratos} loading={loading}
+      onOpenLead={onOpenLead} onViewLeads={onViewLeads} onViewContratos={onViewContratos}
+    />
+  )
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)' }}>
