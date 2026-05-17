@@ -3,9 +3,14 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
-import { format, subDays } from 'date-fns'
+import { format, subDays, isPast, isToday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { IconMail, IconPhone } from './Icons.jsx'
+import { IconMail, IconPhone, IconClock } from './Icons.jsx'
+
+function parseFollowupDate(str) {
+  if (!str) return null
+  return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
+}
 
 function getStatusStyle(cfg, theme) {
   return theme === 'dark'
@@ -51,6 +56,13 @@ function fmt(n) {
 }
 
 export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead }) {
+  // Follow-ups: leads com data_followup preenchido, ordenados por data
+  const followups = useMemo(() => {
+    return empresas
+      .filter(e => e.data_followup)
+      .map(e => ({ ...e, _date: parseFollowupDate(e.data_followup) }))
+      .sort((a, b) => a._date - b._date)
+  }, [empresas])
   const theme = useTheme()
   const isMobile = useIsMobile()
 
@@ -128,6 +140,52 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
           {format(new Date(), "dd 'de' MMMM, yyyy", { locale: ptBR })}
         </div>
       </div>
+
+      {/* Follow-ups */}
+      {followups.length > 0 && (
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 14 }}>
+            <IconClock size={14} color="var(--text3)" />
+            Follow-ups agendados
+            <span style={{ fontSize: 11, background: 'var(--bg3)', color: 'var(--text3)', borderRadius: 20, padding: '1px 8px', marginLeft: 2 }}>{followups.length}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {followups.map((e, i) => {
+              const date = e._date
+              const atrasado = date && isPast(date) && !isToday(date)
+              const hoje = date && isToday(date)
+              const indicatorColor = atrasado ? '#EF4444' : hoje ? '#F59E0B' : 'var(--text3)'
+              const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => onOpenLead(e)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '9px 0',
+                    borderBottom: i < followups.length - 1 ? '1px solid var(--border)' : 'none',
+                    cursor: 'pointer', transition: 'opacity 0.1s',
+                  }}
+                  onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
+                  onMouseLeave={el => el.currentTarget.style.opacity = '1'}
+                >
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: indicatorColor, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {e.nome_fantasia || e.razao_social}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: indicatorColor, fontWeight: atrasado || hoje ? 600 : 400, flexShrink: 0, textAlign: 'right' }}>
+                    {atrasado ? 'Atrasado · ' : hoje ? 'Hoje · ' : ''}
+                    {date ? format(date, 'dd/MM/yy') : ''}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Financeiro — MRR / ARR */}
       <div>

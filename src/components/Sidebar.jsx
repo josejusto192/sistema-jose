@@ -1,11 +1,11 @@
 import React from 'react'
 import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut } from './Icons.jsx'
 
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
-export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme }) {
+export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout }) {
   const total = empresas.length
   const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
   const contratosAtivos = contratos.filter(c => c.status === 'ativo').length
@@ -20,6 +20,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     { id: 'dashboard',  label: 'Dashboard',  icon: IconGrid },
     { id: 'leads',      label: 'Leads',      icon: IconList,     badge: total, alert: followupCount || null },
     { id: 'contratos',  label: 'Contratos',  icon: IconContract, badge: contratosAtivos || null },
+    ...(isSuperAdmin ? [{ id: 'logs', label: 'Logs', icon: IconFileText }] : []),
   ]
 
   return (
@@ -133,14 +134,26 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
           <span style={{ fontSize: 12, color: 'var(--purple)', fontWeight: 500 }}>{contratosAtivos}</span>
         </div>
         {followupCount > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '4px 8px', background: '#FFFBEB', borderRadius: 6, border: '1px solid #F59E0B40' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '4px 8px', background: '#FFFBEB', borderRadius: 6, border: '1px solid #F59E0B40' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#B45309' }}>
               <IconClock size={13} color="#B45309" /> Follow-up
             </span>
             <span style={{ fontSize: 12, color: '#B45309', fontWeight: 600 }}>{followupCount}</span>
           </div>
         ) : (
-          <div style={{ marginBottom: 12 }} />
+          <div style={{ marginBottom: 10 }} />
+        )}
+
+        {/* Usuário logado */}
+        {currentUser && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, padding: '5px 8px', background: 'var(--bg3)', borderRadius: 7 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser}</div>
+              {isSuperAdmin && (
+                <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600, marginTop: 1 }}>superadmin</div>
+              )}
+            </div>
+          </div>
         )}
 
         <button
@@ -158,6 +171,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
             color: 'var(--text3)',
             fontSize: 12,
             cursor: 'pointer',
+            marginBottom: 6,
           }}
         >
           {theme === 'light'
@@ -165,6 +179,28 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
             : <><IconSun  size={13} color="var(--text3)" /> Modo claro</>
           }
         </button>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 7,
+              padding: '7px 10px',
+              borderRadius: 7,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--text3)',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <IconLogOut size={13} color="var(--text3)" /> Sair
+          </button>
+        )}
       </div>
     </aside>
   )

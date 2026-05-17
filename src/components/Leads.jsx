@@ -63,14 +63,32 @@ function SortHeader({ label, col, sortField, sortDir, onSort, style: extraStyle 
   )
 }
 
-export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, onOpenLead, onUpdateEmpresa, totalCount }) {
+// Gera cor de tag a partir de hash da string
+const TAG_PALETTE = [
+  { bg: '#EFF6FF', color: '#2563EB' },
+  { bg: '#F0FDF4', color: '#16A34A' },
+  { bg: '#FFF7ED', color: '#C2410C' },
+  { bg: '#FDF4FF', color: '#9333EA' },
+  { bg: '#FFFBEB', color: '#B45309' },
+  { bg: '#FFF1F2', color: '#BE123C' },
+  { bg: '#F0FDFA', color: '#0D9488' },
+  { bg: '#F8FAFC', color: '#475569' },
+]
+
+function tagColor(tag) {
+  let hash = 0
+  for (let i = 0; i < tag.length; i++) hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffff
+  return TAG_PALETTE[Math.abs(hash) % TAG_PALETTE.length]
+}
+
+export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, onOpenLead, onUpdateEmpresa, totalCount }) {
   const isMobile = useIsMobile()
   const [sortField, setSortField] = useState('criado_em')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
 
   // Reset para página 1 ao mudar filtro ou busca
-  useEffect(() => { setPage(1) }, [statusFilter, searchQuery])
+  useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter])
 
   function handleSort(col) {
     if (sortField === col) {
@@ -139,6 +157,18 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               <option key={key} value={key}>{cfg.label}</option>
             ))}
           </select>
+          {allTags && allTags.length > 0 && (
+            <select
+              value={tagFilter || ''}
+              onChange={e => setTagFilter(e.target.value)}
+              style={{ padding: '8px 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="">Todas as etiquetas</option>
+              {allTags.map(tag => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Status tabs — geradas automaticamente do STATUS_CONFIG */}
@@ -229,6 +259,21 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
                             {e.eh_mei ? 'MEI' : e.porte_descricao || '—'}
                           </div>
+                          {e.tags && e.tags.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                              {e.tags.slice(0, 3).map(tag => {
+                                const tc = tagColor(tag)
+                                return (
+                                  <span key={tag} style={{ padding: '1px 6px', borderRadius: 20, fontSize: 10, fontWeight: 500, background: tc.bg, color: tc.color }}>
+                                    {tag}
+                                  </span>
+                                )
+                              })}
+                              {e.tags.length > 3 && (
+                                <span style={{ padding: '1px 6px', borderRadius: 20, fontSize: 10, color: 'var(--text3)', background: 'var(--bg3)' }}>+{e.tags.length - 3}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

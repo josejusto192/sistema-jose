@@ -1,14 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
 import { useTheme } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
+import { supabase } from '../supabase.js'
 
 function parseDate(str) {
   if (!str) return null
   return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
 }
-import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy } from './Icons.jsx'
+import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory } from './Icons.jsx'
 
 function Field({ label, value, mono }) {
   if (!value) return null
@@ -31,12 +32,31 @@ function Section({ title, children }) {
 
 const CANAL_ICON_MAP = { whatsapp: IconWhatsApp, instagram: IconCamera, email: IconMail, ligacao: IconPhone }
 
+// Gera uma cor de palette a partir de um hash da string
+const TAG_PALETTE = [
+  { bg: '#EFF6FF', color: '#2563EB' },
+  { bg: '#F0FDF4', color: '#16A34A' },
+  { bg: '#FFF7ED', color: '#C2410C' },
+  { bg: '#FDF4FF', color: '#9333EA' },
+  { bg: '#FFFBEB', color: '#B45309' },
+  { bg: '#FFF1F2', color: '#BE123C' },
+  { bg: '#F0FDFA', color: '#0D9488' },
+  { bg: '#F8FAFC', color: '#475569' },
+]
+
+function tagColor(tag) {
+  let hash = 0
+  for (let i = 0; i < tag.length; i++) hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffff
+  return TAG_PALETTE[Math.abs(hash) % TAG_PALETTE.length]
+}
+
 export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato }) {
   const theme = useTheme()
   const isMobile = useIsMobile()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
   const [canal, setCanal] = useState(lead.canal_envio || '')
   const [obs, setObs] = useState(lead.observacoes || '')
+  const [followup, setFollowup] = useState(lead.data_followup || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [nota, setNota] = useState('')
@@ -45,6 +65,28 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
   })
   const [scriptsCopied, setScriptsCopied] = useState({})
   const [scriptsOpen, setScriptsOpen] = useState(false)
+
+  // Tags state
+  const [tags, setTags] = useState(() => lead.tags || [])
+  const [tagInput, setTagInput] = useState('')
+
+  // Status history
+  const [statusHistory, setStatusHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchHistory() {
+      setHistoryLoading(true)
+      const { data } = await supabase
+        .from('status_history')
+        .select('*')
+        .eq('empresa_id', lead.id)
+        .order('criado_em', { ascending: false })
+      setStatusHistory(data || [])
+      setHistoryLoading(false)
+    }
+    fetchHistory()
+  }, [lead.id])
 
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.novo
   const badgeStyle = theme === 'dark'
@@ -55,7 +97,12 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
 
   async function save() {
     setSaving(true)
-    const updates = { status_prospeccao: status, canal_envio: canal, observacoes: obs }
+    const updates = {
+      status_prospeccao: status,
+      canal_envio: canal,
+      observacoes: obs,
+      data_followup: followup || null,
+    }
     if (status !== lead.status_prospeccao && !lead.data_envio) {
       updates.data_envio = new Date().toISOString()
     }
@@ -82,6 +129,21 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
       setScriptsCopied(prev => ({ ...prev, [script.id]: true }))
       setTimeout(() => setScriptsCopied(prev => ({ ...prev, [script.id]: false })), 2000)
     })
+  }
+
+  function addTag() {
+    const t = tagInput.trim()
+    if (!t || tags.includes(t)) { setTagInput(''); return }
+    const updated = [...tags, t]
+    setTags(updated)
+    setTagInput('')
+    onUpdate(lead.id, { tags: updated })
+  }
+
+  function removeTag(tag) {
+    const updated = tags.filter(t => t !== tag)
+    setTags(updated)
+    onUpdate(lead.id, { tags: updated })
   }
 
   const cnpjFormatado = lead.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
@@ -284,6 +346,17 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
               </select>
             </div>
 
+            {/* Data de follow-up */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Data de follow-up</label>
+              <input
+                type="date"
+                value={followup}
+                onChange={e => setFollowup(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Observações</label>
               <textarea value={obs} onChange={e => setObs(e.target.value)} rows={4} placeholder="Notas sobre este lead..."
@@ -300,6 +373,80 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
             {lead.data_envio && (
               <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center' }}>
                 Contatado em {format(new Date(lead.data_envio), 'dd/MM/yyyy')}
+              </div>
+            )}
+          </div>
+
+          {/* Etiquetas */}
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Etiquetas</div>
+
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                {tags.map(tag => {
+                  const tc = tagColor(tag)
+                  return (
+                    <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: tc.bg, color: tc.color }}>
+                      {tag}
+                      <button
+                        onClick={() => removeTag(tag)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: tc.color, lineHeight: 1 }}
+                      >
+                        <IconX size={10} color={tc.color} />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addTag()}
+                placeholder="Nova etiqueta..."
+                style={{ flex: 1, padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }}
+              />
+              <button
+                onClick={addTag}
+                style={{ padding: '6px 12px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Histórico de status */}
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+              <IconHistory size={14} color="var(--text3)" /> Histórico de status
+            </div>
+
+            {historyLoading ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '10px 0' }}>Carregando...</div>
+            ) : statusHistory.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '10px 0' }}>Sem alterações de status</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {statusHistory.map((s, i) => {
+                  const cfgNovo = STATUS_CONFIG[s.status_novo]
+                  return (
+                    <div key={s.id || i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfgNovo?.dot || 'var(--text3)', flexShrink: 0, marginTop: 4 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 500 }}>
+                          {cfgNovo?.label || s.status_novo}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                          {s.criado_em ? format(new Date(s.criado_em), "dd/MM/yy 'às' HH:mm") : ''}
+                          {s.usuario_nome ? ` · ${s.usuario_nome}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
