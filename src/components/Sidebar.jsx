@@ -1,7 +1,7 @@
 import React from 'react'
 import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser } from './Icons.jsx'
 
 function Avatar({ profile, size = 40 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
@@ -27,10 +27,11 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
   }).length
 
   const navItems = [
-    { id: 'dashboard',  label: 'Dashboard',  icon: IconGrid },
-    { id: 'leads',      label: 'Leads',      icon: IconList,     badge: total, alert: followupCount || null },
-    { id: 'desempenho', label: 'Desempenho', icon: IconBarChart },
-    { id: 'contratos',  label: 'Contratos',  icon: IconContract, badge: contratosAtivos || null },
+    { id: 'dashboard',    label: 'Dashboard',     icon: IconGrid },
+    { id: 'leads',        label: 'Leads',         icon: IconList,     badge: total, alert: followupCount || null },
+    { id: 'desempenho',   label: 'Desempenho',    icon: IconBarChart },
+    { id: 'contratos',    label: 'Contratos',     icon: IconContract, badge: contratosAtivos || null },
+    { id: 'perfil',       label: 'Meu Perfil',    icon: IconUser },
     ...(isSuperAdmin ? [
       { id: 'logs',          label: 'Logs',          icon: IconFileText },
       { id: 'configuracoes', label: 'Configurações',  icon: IconSettings },
