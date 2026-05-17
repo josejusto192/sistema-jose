@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { STATUS_CONFIG } from '../constants.js'
-import { useTheme } from '../App.jsx'
+import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox } from './Icons.jsx'
@@ -83,12 +83,24 @@ function tagColor(tag) {
 
 export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, onOpenLead, onUpdateEmpresa, totalCount }) {
   const isMobile = useIsMobile()
+  const isSuperAdmin = useIsSuperAdmin()
   const [sortField, setSortField] = useState('criado_em')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
+  const [vendorFilter, setVendorFilter] = useState('')
 
   // Reset para página 1 ao mudar filtro ou busca
-  useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter])
+  useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter, vendorFilter])
+
+  // Lista de vendedores únicos nos leads carregados (superadmin)
+  const vendedoresDisponiveis = useMemo(() => {
+    if (!isSuperAdmin) return []
+    const map = {}
+    empresas.forEach(e => {
+      if (e.vendedor_id && e.vendedor_nome) map[e.vendedor_id] = e.vendedor_nome
+    })
+    return Object.entries(map).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome))
+  }, [empresas, isSuperAdmin])
 
   function handleSort(col) {
     if (sortField === col) {
@@ -108,10 +120,13 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const followupCount = useMemo(() => empresas.filter(needsFollowup).length, [empresas])
 
   const sorted = useMemo(() => {
+    let list = empresas
+    if (vendorFilter === '__unassigned__') list = list.filter(e => !e.vendedor_id)
+    else if (vendorFilter) list = list.filter(e => e.vendedor_id === vendorFilter)
     const fn = SORT_COLS[sortField]
-    if (!fn) return empresas
-    return [...empresas].sort((a, b) => sortDir === 'asc' ? fn(a, b) : fn(b, a))
-  }, [empresas, sortField, sortDir])
+    if (!fn) return list
+    return [...list].sort((a, b) => sortDir === 'asc' ? fn(a, b) : fn(b, a))
+  }, [empresas, sortField, sortDir, vendorFilter])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
   const safePage = Math.min(page, totalPages)
@@ -166,6 +181,19 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               <option value="">Todas as etiquetas</option>
               {allTags.map(tag => (
                 <option key={tag} value={tag}>{tag}</option>
+              ))}
+            </select>
+          )}
+          {isSuperAdmin && (
+            <select
+              value={vendorFilter}
+              onChange={e => setVendorFilter(e.target.value)}
+              style={{ padding: '8px 12px', background: vendorFilter ? 'var(--accent)' : 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: vendorFilter ? '#fff' : 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="">Todos os vendedores</option>
+              <option value="__unassigned__">Não atribuídos</option>
+              {vendedoresDisponiveis.map(v => (
+                <option key={v.id} value={v.id}>{v.nome}</option>
               ))}
             </select>
           )}
@@ -272,6 +300,13 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                               {e.tags.length > 3 && (
                                 <span style={{ padding: '1px 6px', borderRadius: 20, fontSize: 10, color: 'var(--text3)', background: 'var(--bg3)' }}>+{e.tags.length - 3}</span>
                               )}
+                            </div>
+                          )}
+                          {isSuperAdmin && e.vendedor_nome && (
+                            <div style={{ marginTop: 4 }}>
+                              <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 6px', borderRadius: 3 }}>
+                                {e.vendedor_nome}
+                              </span>
                             </div>
                           )}
                         </div>
