@@ -24,6 +24,16 @@ function AcaoBadge({ acao }) {
   )
 }
 
+function AccessDenied({ title }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: 'var(--text3)', padding: 40 }}>
+      <div style={{ fontSize: 32 }}>🔒</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text2)' }}>{title}</div>
+      <div style={{ fontSize: 13, color: 'var(--text3)' }}>Esta área requer permissão de superadmin.</div>
+    </div>
+  )
+}
+
 export default function Logs({ isSuperAdmin }) {
   const isMobile = useIsMobile()
   const [logs, setLogs] = useState([])

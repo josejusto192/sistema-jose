@@ -422,8 +422,8 @@ export default function App() {
               onUpdateProfile={updateProfile}
             />
           )}
-          {view === 'configuracoes' && isSuperAdmin && (
-            <Configuracoes session={session} profile={profile} />
+          {view === 'configuracoes' && (
+            <Configuracoes session={session} profile={profile} isSuperAdmin={isSuperAdmin} />
           )}
         </main>
       </div>

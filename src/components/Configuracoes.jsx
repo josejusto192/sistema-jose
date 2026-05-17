@@ -35,7 +35,7 @@ function AvatarCircle({ profile, size = 36 }) {
   )
 }
 
-export default function Configuracoes({ session, profile }) {
+export default function Configuracoes({ session, profile, isSuperAdmin }) {
   const [activeTab, setActiveTab] = useState('usuarios')
   const [users, setUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(true)
@@ -44,8 +44,18 @@ export default function Configuracoes({ session, profile }) {
   const currentUserId = session?.user?.id
 
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    if (isSuperAdmin) fetchUsers()
+  }, [isSuperAdmin])
+
+  if (!isSuperAdmin) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: 'var(--text3)', padding: 40 }}>
+        <div style={{ fontSize: 32 }}>🔒</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text2)' }}>Acesso restrito</div>
+        <div style={{ fontSize: 13 }}>Esta área requer permissão de superadmin.</div>
+      </div>
+    )
+  }
 
   async function fetchUsers() {
     setLoadingUsers(true)
