@@ -271,7 +271,7 @@ export default function App() {
   async function updateProfile(updates) {
     const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id)
     if (!error) setProfile(prev => ({ ...prev, ...updates }))
-    return !error
+    return { ok: !error, errorMsg: error?.message || null }
   }
 
   const contextValue = { theme, currentUser, isSuperAdmin, profile }
