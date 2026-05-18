@@ -66,7 +66,8 @@ function QuestionInput({ q, value, onChange, onCheckbox }) {
   return <input type="text" value={value || ''} onChange={e => onChange(q.id, e.target.value)} style={base} />
 }
 
-export default function Briefing({ lead }) {
+export default function Briefing({ contrato }) {
+  if (!contrato?.id) return null
   const isSuperAdmin = useIsSuperAdmin()
   const [currentTemplate, setCurrentTemplate] = useState(null)  // template atual do banco
   const [templateId, setTemplateId]           = useState(null)
@@ -80,7 +81,7 @@ export default function Briefing({ lead }) {
   const [editTpl, setEditTpl]                 = useState(null)
   const [savingTpl, setSavingTpl]             = useState(false)
 
-  useEffect(() => { load() }, [lead.id])
+  useEffect(() => { load() }, [contrato?.id])
 
   async function load() {
     setLoading(true)
@@ -88,7 +89,7 @@ export default function Briefing({ lead }) {
       supabase.from('briefing_template').select('*').limit(1).single(),
       supabase.from('briefing_respostas')
         .select('respostas, template_snapshot')
-        .eq('empresa_id', lead.id)
+        .eq('contrato_id', contrato.id)
         .maybeSingle(),
     ])
     if (tpl) { setTemplateId(tpl.id); setCurrentTemplate(tpl.secoes || []) }
@@ -131,12 +132,12 @@ export default function Briefing({ lead }) {
     // Salva respostas + snapshot do template atual — protege contra mudanças futuras
     await supabase.from('briefing_respostas').upsert(
       {
-        empresa_id:        lead.id,
+        contrato_id:       contrato.id,
         respostas,
         template_snapshot: currentTemplate,
         atualizado_em:     new Date().toISOString(),
       },
-      { onConflict: 'empresa_id' }
+      { onConflict: 'contrato_id' }
     )
     setActiveTemplate(currentTemplate)
     setHasSnapshot(false)

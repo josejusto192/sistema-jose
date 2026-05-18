@@ -4,12 +4,13 @@ import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
+import Briefing from './Briefing.jsx'
+import { IconSearch, IconInbox, IconLink, IconX } from './Icons.jsx'
 
 function parseDate(str) {
   if (!str) return null
   return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
 }
-import { IconSearch, IconInbox, IconLink, IconX, IconPlus, IconTrash, IconEdit } from './Icons.jsx'
 
 const EMPTY_FORM = {
   cliente_nome: '',
@@ -66,6 +67,8 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const [search, setSearch] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [profiles, setProfiles] = useState([])
+  const [selectedContrato, setSelectedContrato] = useState(null)
+  const [detailTab, setDetailTab] = useState('dados')
 
   const [uploadingComp, setUploadingComp] = useState(false)
 
@@ -74,13 +77,17 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       .then(({ data }) => setProfiles(data || []))
   }, [])
 
-  // Fecha modal com ESC
+  // Fecha modal/detail com ESC
   useEffect(() => {
-    if (!modal) return
-    const onKey = e => { if (e.key === 'Escape') setModal(null) }
+    const onKey = e => {
+      if (e.key === 'Escape') {
+        if (modal) setModal(null)
+        else if (selectedContrato) setSelectedContrato(null)
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [modal])
+  }, [modal, selectedContrato])
 
   // Abre modal pré-preenchido quando vem de um lead
   React.useEffect(() => {
@@ -299,12 +306,14 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
             <h1 style={{ fontWeight: 700, fontSize: 20, color: 'var(--text)' }}>Contratos</h1>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Gestão de clientes e receita</div>
           </div>
-          <button
-            onClick={openNew}
-            style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-          >
-            + Novo contrato
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={openNew}
+              style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+            >
+              + Novo contrato
+            </button>
+          )}
         </div>
 
         {/* Métricas */}
@@ -379,7 +388,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 <div
                   key={c.id}
                   className="card"
-                  onClick={() => openEdit(c)}
+                  onClick={() => { setSelectedContrato(c); setDetailTab('dados') }}
                   style={{ padding: '16px 20px', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, transition: 'box-shadow 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
                   onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
@@ -483,6 +492,221 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
           </div>
         )}
       </div>
+
+      {/* Detail panel */}
+      {selectedContrato && !modal && (() => {
+        const c = selectedContrato
+        const pacote = PACOTES[c.pacote]
+        const statusCfg = CONTRATO_STATUS[c.status] || CONTRATO_STATUS.ativo
+        const pacoteStyle = getBadgeStyle(pacote, theme)
+        const statusStyle = getBadgeStyle(statusCfg, theme)
+        const isEDc = c.pacote === 'estrutura_digital'
+        const vendPerfil = profiles.find(p => p.id === c.vendedor_id)
+        function fmtBRL(n) { return Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
+
+        return (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'flex-end', zIndex: 100 }}
+            onClick={e => e.target === e.currentTarget && setSelectedContrato(null)}
+          >
+            <div
+              className="card"
+              style={{
+                width: '100%', maxWidth: isMobile ? '100%' : 560,
+                height: isMobile ? '92dvh' : '100vh',
+                overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                background: 'var(--bg2)', borderRadius: isMobile ? '16px 16px 0 0' : 0,
+                borderLeft: isMobile ? 'none' : '1px solid var(--border)',
+              }}
+            >
+              {/* Detail header */}
+              <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{c.cliente_nome}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span className="badge" style={{ ...pacoteStyle, fontSize: 11 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot }} />
+                        {pacote?.label}
+                      </span>
+                      <span className="badge" style={{ ...statusStyle, fontSize: 11 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: statusCfg.dot }} />
+                        {statusCfg.label}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => openEdit(c)}
+                        style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                      >
+                        Editar
+                      </button>
+                    )}
+                    <button onClick={() => setSelectedContrato(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', display: 'flex', padding: 4 }}>
+                      <IconX size={18} color="var(--text3)" />
+                    </button>
+                  </div>
+                </div>
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: 0 }}>
+                  {['dados', 'briefing'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setDetailTab(tab)}
+                      style={{
+                        padding: '8px 18px', fontSize: 13, fontWeight: detailTab === tab ? 600 : 400,
+                        border: 'none', background: 'transparent', cursor: 'pointer',
+                        color: detailTab === tab ? 'var(--accent)' : 'var(--text3)',
+                        borderBottom: detailTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+                        marginBottom: -1, transition: 'all 0.1s',
+                      }}
+                    >
+                      {tab === 'dados' ? 'Dados' : 'Briefing'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Detail content */}
+              <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+                {detailTab === 'dados' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Value */}
+                    <div className="card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--accent)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                        {isEDc ? 'Valor total' : 'Valor mensal'}
+                      </div>
+                      <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
+                        R$ {fmtBRL(isEDc ? c.valor_total : c.valor_mensal)}
+                        {!isEDc && <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)' }}>/mês</span>}
+                      </div>
+                      {c.total_recebido > 0 && (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
+                          Recebido: R$ {fmtBRL(c.total_recebido)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dates grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {[
+                        { label: 'Assinatura', val: c.data_assinatura },
+                        { label: 'Início', val: c.data_inicio },
+                        isEDc && { label: 'Entrega prevista', val: c.data_entrega_prevista },
+                        isEDc && { label: 'Entrega real', val: c.data_entrega_real },
+                        !isEDc && { label: 'Próx. faturamento', val: c.proximo_faturamento },
+                        c.data_cancelamento && { label: 'Cancelamento', val: c.data_cancelamento },
+                      ].filter(Boolean).map(({ label, val }) => val ? (
+                        <div key={label} style={{ padding: '10px 14px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                            {(() => { try { return format(parseDate(val), 'dd/MM/yyyy') } catch { return val } })()}
+                          </div>
+                        </div>
+                      ) : null)}
+                    </div>
+
+                    {/* Estrutura Digital payment */}
+                    {isEDc && (
+                      <div style={{ padding: '12px 16px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagamento</div>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.pagamento_sinal ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
+                            <span style={{ color: c.pagamento_sinal ? 'var(--green)' : 'var(--text3)' }}>Sinal (50%)</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.pagamento_final ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
+                            <span style={{ color: c.pagamento_final ? 'var(--green)' : 'var(--text3)' }}>Saldo (50%)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Commission */}
+                    {c.comissao_valor > 0 && (
+                      <div style={{ padding: '12px 16px', background: c.comissao_status === 'paga' ? 'var(--green-bg)' : 'var(--bg3)', borderRadius: 8, border: `1px solid ${c.comissao_status === 'paga' ? 'var(--green)30' : 'var(--border)'}` }}>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comissão</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: c.comissao_status === 'paga' ? 'var(--green)' : 'var(--text)' }}>
+                              R$ {fmtBRL(c.comissao_valor)}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                              {c.comissao_percentual}% · {c.vendedor_nome || '—'}
+                            </div>
+                          </div>
+                          <span style={{
+                            fontSize: 12, padding: '4px 10px', borderRadius: 20, fontWeight: 600,
+                            background: c.comissao_status === 'paga' ? 'var(--green)20' : c.comissao_status === 'cancelada' ? 'var(--red)10' : 'var(--bg4)',
+                            color: c.comissao_status === 'paga' ? 'var(--green)' : c.comissao_status === 'cancelada' ? 'var(--red)' : 'var(--text3)',
+                          }}>
+                            {c.comissao_status === 'paga' ? 'Paga ✓' : c.comissao_status === 'cancelada' ? 'Cancelada' : 'Pendente'}
+                          </span>
+                        </div>
+                        {c.comissao_paga_em && (
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
+                            Paga em: {(() => { try { return format(parseDate(c.comissao_paga_em), 'dd/MM/yyyy') } catch { return c.comissao_paga_em } })()}
+                          </div>
+                        )}
+                        {/* PIX info (superadmin) */}
+                        {isSuperAdmin && vendPerfil?.chave_pix && (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                              <span style={{ fontSize: 10, color: 'var(--text3)', background: 'var(--bg4)', padding: '1px 5px', borderRadius: 3, marginRight: 6 }}>
+                                {(vendPerfil.tipo_pix || 'PIX').toUpperCase()}
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>{vendPerfil.chave_pix}</span>
+                            </div>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(vendPerfil.chave_pix)}
+                              style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', padding: '3px 8px', fontFamily: 'inherit' }}
+                            >
+                              Copiar PIX
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Comprovante */}
+                    {c.comprovante_url && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 500 }}>Comprovante de pagamento</span>
+                        <a href={c.comprovante_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--bg2)' }}>
+                          Visualizar
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {c.observacoes && (
+                      <div style={{ padding: '12px 16px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Observações</div>
+                        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.observacoes}</div>
+                      </div>
+                    )}
+
+                    {/* Cancellation reason */}
+                    {c.motivo_churn && (
+                      <div style={{ padding: '12px 16px', background: 'var(--red)10', borderRadius: 8, border: '1px solid var(--red)30' }}>
+                        <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Motivo do cancelamento</div>
+                        <div style={{ fontSize: 13, color: 'var(--text2)' }}>{c.motivo_churn}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {detailTab === 'briefing' && (
+                  <Briefing contrato={selectedContrato} />
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Modal */}
       {modal && (
@@ -797,7 +1021,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
             {/* Ações */}
             <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'space-between' }}>
               <div>
-                {modal !== 'new' && (
+                {isSuperAdmin && modal !== 'new' && (
                   confirmDelete === modal.id ? (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: 'var(--red)' }}>Confirmar exclusão?</span>

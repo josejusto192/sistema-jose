@@ -596,7 +596,7 @@ export default function Desempenho({ session, profile, contratos = [] }) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: isMobile ? '16px' : '24px 28px', maxWidth: 1000, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : '24px 28px' }}>
 
       {/* Header */}
       <div style={{
@@ -604,9 +604,11 @@ export default function Desempenho({ session, profile, contratos = [] }) {
         flexWrap: 'wrap', gap: 12, marginBottom: 28,
       }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Desempenho</h1>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+            {isSuperAdmin ? 'Equipe' : 'Meu Desempenho'}
+          </h1>
           <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text3)' }}>
-            Acompanhe suas métricas de prospecção
+            {isSuperAdmin ? 'Desempenho e métricas da equipe de vendas' : 'Acompanhe suas métricas de prospecção'}
           </p>
         </div>
         {/* Period tabs */}

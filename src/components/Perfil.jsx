@@ -124,7 +124,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
     : 0
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 680, margin: '0 auto' }}>
+    <div style={{ padding: '24px 32px' }}>
 
       {/* Header card — avatar + identidade */}
       <div className="card" style={{ padding: '28px 32px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 28 }}>
