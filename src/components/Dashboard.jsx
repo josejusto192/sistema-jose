@@ -5,7 +5,7 @@ import { useTheme, useIsSuperAdmin, useProfile } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, subDays, isPast, isToday, parseISO, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { IconClock, IconBell, IconTrendUp, IconTrendDown } from './Icons.jsx'
+import { IconClock, IconTrendUp, IconTrendDown } from './Icons.jsx'
 import { supabase } from '../supabase.js'
 
 function parseFollowupDate(str) {
@@ -118,20 +118,6 @@ function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead }) 
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative' }}>
-          <button style={{
-            width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--border)',
-            background: 'var(--bg2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <IconBell size={18} color="var(--text2)" />
-          </button>
-          {followupCount > 0 && (
-            <span style={{
-              position: 'absolute', top: 1, right: 1, width: 9, height: 9,
-              borderRadius: '50%', background: '#EF4444', border: '2px solid var(--bg2)',
-            }} />
-          )}
-        </div>
         <Avatar profile={profile} size={38} />
         <button
           onClick={onNewLead}
