@@ -126,11 +126,12 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
     const mrr = ativos.filter(c => !isPontual(c.pacote)).reduce((s, c) => s + (c.valor_mensal || 0), 0)
     const totalAtivos = ativos.length
     const cancelados = contratos.filter(c => c.status === 'cancelado').length
-    const churnRate = contratos.length > 0 ? Math.round((cancelados / contratos.length) * 100) : 0
+    const baseChurn  = ativos.length + cancelados
+    const churnRate  = baseChurn > 0 ? Math.round((cancelados / baseChurn) * 100) : 0
     const ticketMedio = totalAtivos > 0
       ? ativos.reduce((s, c) => s + (c.valor_mensal || c.valor_total || 0), 0) / totalAtivos
       : 0
-    return { mrr, arr: mrr * 12, totalAtivos, cancelados, churnRate, ticketMedio }
+    return { mrr, arr: mrr * 12, totalAtivos, cancelados, churnRate, ticketMedio, baseChurn }
   }, [contratos, pacotesList])
 
   const filtered = useMemo(() => {
@@ -345,7 +346,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
             { label: 'MRR', value: `R$ ${fmt(metrics.mrr)}`, sub: 'recorrente mensal', color: 'var(--green)' },
             { label: 'ARR projetado', value: `R$ ${fmt(metrics.arr)}`, sub: 'MRR × 12', color: 'var(--cyan)' },
             { label: 'Contratos ativos', value: metrics.totalAtivos, sub: `ticket médio R$ ${fmt(metrics.ticketMedio)}`, color: 'var(--purple)' },
-            { label: 'Churn rate', value: `${metrics.churnRate}%`, sub: `${metrics.cancelados} cancelados`, color: metrics.churnRate > 0 ? 'var(--red)' : 'var(--text3)' },
+            { label: 'Churn rate', value: `${metrics.churnRate}%`, sub: `${metrics.cancelados} de ${metrics.cancelados + metrics.totalAtivos} contratos`, color: metrics.churnRate > 0 ? 'var(--red)' : 'var(--text3)' },
           ].map((m, i) => (
             <div key={i} className="card" style={{ padding: '12px 16px', borderLeft: `3px solid ${m.color}` }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{m.label}</div>
