@@ -37,9 +37,6 @@ function Avatar({ profile, size = 36 }) {
 }
 
 function TrendBadge({ value }) {
-  if (value === null || value === undefined) {
-    return <span style={{ fontSize: 12, color: 'var(--text3)' }}>— vs mês anterior</span>
-  }
   const pos = value >= 0
   const Icon = pos ? IconTrendUp : IconTrendDown
   const color = pos ? 'var(--green)' : 'var(--red)'
@@ -51,12 +48,15 @@ function TrendBadge({ value }) {
   )
 }
 
-function StatCard({ label, value, trendValue }) {
+function StatCard({ label, value, sub, trendValue }) {
   return (
     <div className="card" style={{ padding: '22px 24px' }}>
       <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 10, fontWeight: 400 }}>{label}</div>
       <div style={{ fontWeight: 700, fontSize: 28, color: 'var(--text)', lineHeight: 1.1, marginBottom: 10 }}>{value}</div>
-      <TrendBadge value={trendValue} />
+      {trendValue != null
+        ? <TrendBadge value={trendValue} />
+        : <span style={{ fontSize: 12, color: 'var(--text3)' }}>{sub}</span>
+      }
     </div>
   )
 }
@@ -134,23 +134,19 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
 
   const financeiro = useMemo(() => {
-    const ativos = contratos.filter(c => c.status === 'ativo')
-    const mrr = ativos.filter(c => c.valor_mensal > 0).reduce((s, c) => s + (c.valor_mensal || 0), 0)
+    const ativos      = contratos.filter(c => c.status === 'ativo')
+    const recorrentes = ativos.filter(c => c.valor_mensal > 0)
+    const mrr         = recorrentes.reduce((s, c) => s + (c.valor_mensal || 0), 0)
     const totalAtivos = ativos.length
-    const cancelados = contratos.filter(c => c.status === 'cancelado').length
-    const baseChurn = ativos.length + cancelados
-    const churnRate = baseChurn > 0 ? Math.round((cancelados / baseChurn) * 100) : 0
-    const totalComissoes = contratos
-      .filter(c => c.comissao_status === 'pendente')
-      .reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
-    return { mrr, totalAtivos, cancelados, churnRate, totalComissoes }
+    const cancelados  = contratos.filter(c => c.status === 'cancelado').length
+    return { mrr, totalAtivos, cancelados, recorrentes: recorrentes.length }
   }, [contratos])
 
   const stats = useMemo(() => {
-    const total   = empresas.length
-    const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
+    const total       = empresas.length
+    const fechados    = empresas.filter(e => e.status_prospeccao === 'fechou').length
     const trabalhados = empresas.filter(e => e.status_prospeccao !== 'novo').length
-    const conversao = trabalhados > 0 ? +((fechados / trabalhados) * 100).toFixed(1) : 0
+    const conversao   = trabalhados > 0 ? +((fechados / trabalhados) * 100).toFixed(1) : 0
 
     const leadsThisMonth = empresas.filter(e => e.criado_em && new Date(e.criado_em) >= thisMonthStart).length
     const leadsLastMonth = empresas.filter(e => {
@@ -168,18 +164,14 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
     }).length
     const trendContratos = trend(contratosThisMonth, contratosLastMonth)
 
-    // Chart: leads por dia, 30 dias
     const chartData = Array.from({ length: 30 }, (_, i) => {
-      const date = subDays(now, 29 - i)
+      const date    = subDays(now, 29 - i)
       const dateStr = format(date, 'yyyy-MM-dd')
-      const count = empresas.filter(e => {
-        if (!e.criado_em) return false
-        return format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr
-      }).length
+      const count   = empresas.filter(e => e.criado_em && format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr).length
       return { dia: format(date, 'dd/MM'), count }
     })
 
-    return { total, fechados, trabalhados, conversao, trendLeads, trendContratos, chartData }
+    return { total, fechados, trabalhados, conversao, leadsThisMonth, leadsLastMonth, trendLeads, contratosThisMonth, trendContratos, chartData }
   }, [empresas, contratos])
 
   // Ranking de vendedores por contratos
@@ -229,22 +221,24 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
           <StatCard
             label="MRR"
             value={fmtBRL(financeiro.mrr)}
-            trendValue={null}
+            sub={`${financeiro.recorrentes} contrato${financeiro.recorrentes !== 1 ? 's' : ''} recorrente${financeiro.recorrentes !== 1 ? 's' : ''} ativo${financeiro.recorrentes !== 1 ? 's' : ''}`}
           />
           <StatCard
-            label="Negócios"
+            label="Contratos Ativos"
             value={financeiro.totalAtivos}
+            sub={stats.contratosThisMonth > 0 ? `+${stats.contratosThisMonth} este mês` : `${financeiro.cancelados} cancelado${financeiro.cancelados !== 1 ? 's' : ''}`}
             trendValue={stats.trendContratos}
+          />
+          <StatCard
+            label="Novos Leads (mês)"
+            value={stats.leadsThisMonth}
+            sub={`${stats.leadsLastMonth} no mês anterior`}
+            trendValue={stats.trendLeads}
           />
           <StatCard
             label="Taxa de Conversão"
             value={`${stats.conversao}%`}
-            trendValue={null}
-          />
-          <StatCard
-            label="Comissões"
-            value={fmtBRL(financeiro.totalComissoes)}
-            trendValue={null}
+            sub={`${stats.fechados} fechados de ${stats.trabalhados} trabalhados`}
           />
         </div>
 
@@ -442,7 +436,7 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
     const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
     const totalPendente = meusContratos.filter(c => c.comissao_status === 'pendente').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
     const totalPago     = meusContratos.filter(c => c.comissao_status === 'paga').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
-    const meta     = profile?.meta_mensal || 5
+    const meta      = profile?.meta_mensal || 5
     const progresso = meta > 0 ? Math.min(100, Math.round((fechados / meta) * 100)) : 0
 
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -456,13 +450,13 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
     const trendLeads = trend(leadsThisMonth, leadsLastMonth)
 
     const chartData = Array.from({ length: 30 }, (_, i) => {
-      const date = subDays(now, 29 - i)
+      const date    = subDays(now, 29 - i)
       const dateStr = format(date, 'yyyy-MM-dd')
-      const count = meus.filter(e => e.criado_em && format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr).length
+      const count   = meus.filter(e => e.criado_em && format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr).length
       return { dia: format(date, 'dd/MM'), count }
     })
 
-    return { total, fechados, trabalhados, perdidos, conversao, followups, agendados, meusContratos, totalPendente, totalPago, meta, progresso, trendLeads, chartData }
+    return { total, fechados, trabalhados, perdidos, conversao, followups, agendados, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads, chartData }
   }, [empresas, contratos, profile])
 
   if (loading) return (
@@ -501,10 +495,27 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
 
         {/* 4 KPI cards */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
-          <StatCard label="Meus Leads" value={stats.total} trendValue={stats.trendLeads} />
-          <StatCard label="Fechamentos" value={stats.fechados} trendValue={null} />
-          <StatCard label="Conversão" value={`${stats.conversao}%`} trendValue={null} />
-          <StatCard label="Comissão Pendente" value={fmtBRL(stats.totalPendente)} trendValue={null} />
+          <StatCard
+            label="Meus Leads"
+            value={stats.total}
+            sub={`${stats.leadsThisMonth} captado${stats.leadsThisMonth !== 1 ? 's' : ''} este mês`}
+            trendValue={stats.trendLeads}
+          />
+          <StatCard
+            label="Fechamentos"
+            value={stats.fechados}
+            sub={`meta: ${stats.meta} | progresso ${stats.progresso}%`}
+          />
+          <StatCard
+            label="Conversão"
+            value={`${stats.conversao}%`}
+            sub={`${stats.fechados} fechados de ${stats.trabalhados} trabalhados`}
+          />
+          <StatCard
+            label="Comissão Pendente"
+            value={fmtBRL(stats.totalPendente)}
+            sub={stats.totalPendente > 0 ? `a receber` : 'nenhuma pendente'}
+          />
         </div>
 
         {/* Gráfico + follow-ups */}
