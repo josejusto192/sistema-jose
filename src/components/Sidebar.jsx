@@ -2,7 +2,6 @@ import React from 'react'
 import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
 import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser } from './Icons.jsx'
-import { InfoTooltip } from './Tooltip.jsx'
 import TilimIcon from './TilimIcon.jsx'
 
 function Avatar({ profile, size = 32 }) {
@@ -62,7 +61,6 @@ function NavBtn({ item, active, onClick }) {
 
 export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile }) {
   const total = empresas.length
-  const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
   const followupCount = empresas.filter(e => {
     if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
     const ref = e.atualizado_em || e.criado_em
@@ -100,20 +98,6 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
   const statusCounts = Object.entries(STATUS_CONFIG)
     .map(([key, cfg]) => ({ key, cfg, count: empresas.filter(e => e.status_prospeccao === key).length }))
     .filter(s => s.count > 0)
-
-  const footerStats = isSuperAdmin
-    ? [
-        { label: 'Leads',      value: total,          color: '#3B82F6', tooltip: 'Total de leads cadastrados no sistema.' },
-        { label: 'Fechados',   value: fechados,        color: '#10B981', tooltip: 'Leads que chegaram ao status Fechou.' },
-        { label: 'Contratos',  value: contratosAtivos, color: '#8B5CF6', tooltip: 'Contratos com status Ativo.' },
-        { label: 'Follow-up',  value: followupCount,   color: '#F59E0B', tooltip: 'Leads em prospecção sem atualização há 3+ dias.' },
-      ]
-    : [
-        { label: 'Meus leads',    value: total,                    color: '#3B82F6', tooltip: 'Total de leads cadastrados no sistema.' },
-        { label: 'Follow-up',     value: followupCount,            color: '#F59E0B', tooltip: 'Leads sem atualização há 3+ dias.' },
-        { label: 'Fechamentos',   value: fechados,                 color: '#10B981', tooltip: 'Leads que você converteu em clientes.' },
-        { label: 'Com. abertas',  value: minhasComissoesPendentes, color: '#8B5CF6', tooltip: 'Comissões seus aguardando pagamento pelo admin.' },
-      ]
 
   return (
     <aside style={S.sidebar}>
@@ -165,19 +149,6 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
 
       {/* Footer */}
       <div style={S.footer}>
-        {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
-          {footerStats.map(s => (
-            <div key={s.label} style={{ background: '#161B22', borderRadius: 6, padding: '6px 8px' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: '#3D4A5C', marginTop: 2, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                {s.label}
-                {s.tooltip && <InfoTooltip text={s.tooltip} size={10} width={180} dir="up" />}
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* User card */}
         <button
           onClick={() => setView('perfil')}
