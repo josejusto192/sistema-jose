@@ -2,11 +2,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
-import { format, differenceInDays, parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox, IconList, IconKanban } from './Icons.jsx'
 
-const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-const FOLLOWUP_DAYS = Number(localStorage.getItem('cfg_followup_dias')) || 3
 const PER_PAGE = 20
 
 const KANBAN_STATUSES = [
@@ -14,11 +12,9 @@ const KANBAN_STATUSES = [
   'call_agendada', 'proposta_enviada', 'fechou', 'perdido',
 ]
 
-function needsFollowup(e) {
-  if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-  const ref = e.atualizado_em || e.criado_em
-  if (!ref) return false
-  return differenceInDays(new Date(), new Date(ref)) >= FOLLOWUP_DAYS
+function hasOverdueTask(leadId, tasks) {
+  const today = new Date().toISOString().slice(0, 10)
+  return tasks.some(t => t.empresa_id === leadId && !t.completed && t.due_date <= today)
 }
 
 // Evita bug de timezone: datas YYYY-MM-DD são UTC; adicionar hora local
@@ -88,7 +84,7 @@ function tagColor(tag) {
 
 /* ─── Kanban card ──────────────────────────────────────────────────────────── */
 function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, isSuperAdmin }) {
-  const atencao = needsFollowup(e)
+  const atencao = hasOverdueTask(e.id, tasks)
   return (
     <div
       draggable
@@ -387,7 +383,7 @@ function BulkBar({ count, onClear, onStatusChange, onAssign, onDelete, vendedore
 }
 
 /* ─── Main component ───────────────────────────────────────────────────────── */
-export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, totalCount }) {
+export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, tasks = [], totalCount }) {
   const isMobile = useIsMobile()
   const isSuperAdmin = useIsSuperAdmin()
   const [sortField, setSortField] = useState('criado_em')
@@ -433,7 +429,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
     await onUpdateEmpresa(empresa.id, { status_prospeccao: newStatus })
   }
 
-  const followupCount = useMemo(() => empresas.filter(needsFollowup).length, [empresas])
+  const followupCount = useMemo(() => empresas.filter(e => hasOverdueTask(e.id, tasks)).length, [empresas, tasks])
 
   const sorted = useMemo(() => {
     let list = empresas
@@ -673,7 +669,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                 </thead>
                 <tbody>
                   {pageItems.map((e, i) => {
-                    const atencao = needsFollowup(e)
+                    const atencao = hasOverdueTask(e.id, tasks)
                     const isSelected = selectedIds.includes(e.id)
                     return (
                       <tr
@@ -698,7 +694,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                         <td style={{ padding: '10px 12px', background: isSelected ? 'var(--bg3)' : 'var(--bg2)', maxWidth: 200, transition: 'background 0.1s', cursor: 'pointer' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {atencao && (
-                              <span title={`Sem atualização há ${FOLLOWUP_DAYS}+ dias`} style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
+                              <span title="Tem tarefa atrasada" style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
                             )}
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

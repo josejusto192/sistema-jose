@@ -26,9 +26,6 @@ export const useProfile = () => useContext(AppContext).profile
 // Keep ThemeContext as alias so any existing import still works
 export const ThemeContext = AppContext
 
-const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-const FOLLOWUP_CHECK_KEY = 'tilim_followup_checked'
-const FOLLOWUP_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4h
 const TASK_DUE_CHECK_KEY = 'tilim_task_due_checked'
 
 export default function App() {
@@ -100,26 +97,6 @@ export default function App() {
 
     return () => supabase.removeChannel(channel)
   }, [session])
-
-  // Periodic stale-lead follow-up check (every 4h)
-  useEffect(() => {
-    if (!session || !empresas.length) return
-    if (Notification.permission !== 'granted') return
-
-    const lastCheck = Number(localStorage.getItem(FOLLOWUP_CHECK_KEY) || 0)
-    if (Date.now() - lastCheck < FOLLOWUP_CHECK_INTERVAL_MS) return
-
-    const count = empresas.filter(e => {
-      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-      const ref = e.atualizado_em || e.criado_em
-      return ref && (Date.now() - new Date(ref)) / 86400000 >= 3
-    }).length
-
-    if (count > 0) {
-      notify.followupAlert(count, [session.user.id])
-      localStorage.setItem(FOLLOWUP_CHECK_KEY, String(Date.now()))
-    }
-  }, [empresas, session])
 
   // Daily task due notification check
   useEffect(() => {
@@ -374,10 +351,8 @@ export default function App() {
 
     if (statusFilter === 'followup') {
       if (!matchSearch || !matchTag) return false
-      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-      const ref = e.atualizado_em || e.criado_em
-      if (!ref) return false
-      return (Date.now() - new Date(ref)) / 86400000 >= 3
+      const today = new Date().toISOString().slice(0, 10)
+      return tasks.some(t => t.empresa_id === e.id && !t.completed && t.due_date <= today)
     }
     const matchStatus = statusFilter === 'todos' || e.status_prospeccao === statusFilter
     return matchSearch && matchStatus && matchTag
@@ -526,6 +501,7 @@ export default function App() {
               onUpdateEmpresa={updateEmpresa}
               onBulkUpdate={bulkUpdateEmpresas}
               onBulkDelete={bulkDeleteEmpresas}
+              tasks={tasks}
               totalCount={empresas.length}
             />
           )}

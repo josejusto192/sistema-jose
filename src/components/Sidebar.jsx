@@ -1,5 +1,5 @@
 import React from 'react'
-import { differenceInDays, isToday, parseISO } from 'date-fns'
+import { isToday, parseISO } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
 import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar } from './Icons.jsx'
 import TilimIcon from './TilimIcon.jsx'
@@ -14,7 +14,6 @@ function Avatar({ profile, size = 32 }) {
   )
 }
 
-const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
 const S = {
   sidebar: { width: 228, background: '#0F1115', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
@@ -61,12 +60,8 @@ function NavBtn({ item, active, onClick }) {
 
 export default function Sidebar({ view, setView, empresas, contratos, tasks = [], theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile, bellSlot }) {
   const total = empresas.length
-  const followupCount = empresas.filter(e => {
-    if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-    const ref = e.atualizado_em || e.criado_em
-    if (!ref) return false
-    return differenceInDays(new Date(), new Date(ref)) >= 3
-  }).length
+  const today = new Date().toISOString().slice(0, 10)
+  const followupCount = tasks.filter(t => !t.completed && t.due_date <= today).length
 
   const contratosAtivos = contratos.filter(c => c.status === 'ativo').length
   const minhasComissoesPendentes = !isSuperAdmin
