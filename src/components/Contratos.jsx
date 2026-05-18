@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { PACOTES, CONTRATO_STATUS } from '../constants.js'
+import { PACOTES as PACOTES_FALLBACK, CONTRATO_STATUS } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
@@ -45,6 +45,11 @@ const EMPTY_FORM = {
 }
 
 function getBadgeStyle(cfg, theme) {
+  if (!cfg) return { background: 'var(--bg3)', color: 'var(--text3)' }
+  // DB pacote (has .cor field)
+  if (cfg.cor) {
+    return { background: cfg.cor + (theme === 'dark' ? '30' : '18'), color: cfg.cor }
+  }
   return theme === 'dark'
     ? { background: cfg.darkBg, color: cfg.darkColor }
     : { background: cfg.bg, color: cfg.color }
@@ -67,14 +72,30 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const [search, setSearch] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [profiles, setProfiles] = useState([])
+  const [pacotesList, setPacotesList] = useState([])
   const [selectedContrato, setSelectedContrato] = useState(null)
   const [detailTab, setDetailTab] = useState('dados')
 
   const [uploadingComp, setUploadingComp] = useState(false)
 
+  // Resolve a package by codigo: DB first, fallback to hardcoded constants
+  function getPacote(codigo) {
+    const db = pacotesList.find(p => p.codigo === codigo)
+    if (db) return { ...db, label: db.nome, dot: db.cor || '#3B82F6' }
+    const fallback = PACOTES_FALLBACK[codigo]
+    return fallback ? { ...fallback, cor: fallback.dot } : null
+  }
+
+  function isPontual(codigo) {
+    const p = getPacote(codigo)
+    return p ? p.tipo === 'pontual' || p.tipo === 'unico' : codigo === 'estrutura_digital'
+  }
+
   useEffect(() => {
     supabase.from('profiles').select('id, nome, sobrenome, comissao_percentual, tipo_pix, chave_pix').eq('ativo', true)
       .then(({ data }) => setProfiles(data || []))
+    supabase.from('pacotes').select('*').eq('ativo', true).order('criado_em')
+      .then(({ data }) => setPacotesList(data || []))
   }, [])
 
   // Fecha modal/detail com ESC
@@ -187,9 +208,11 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
         }
       }
       if (field === 'pacote') {
-        next.valor_total = value === 'estrutura_digital' ? 1997 : null
-        next.valor_mensal = value === 'gestao_trafego' ? 997 : null
-        next.status = value === 'estrutura_digital' ? 'aguardando_pagamento' : 'ativo'
+        const pkg = getPacote(value)
+        const pontual = pkg ? (pkg.tipo === 'pontual' || pkg.tipo === 'unico') : value === 'estrutura_digital'
+        next.valor_total = pontual ? (pkg?.valor || null) : null
+        next.valor_mensal = !pontual ? (pkg?.valor || null) : null
+        next.status = pontual ? 'aguardando_pagamento' : 'ativo'
       }
       if (field === 'empresa_id' && value) {
         const emp = empresas.find(e => e.id === value)
@@ -202,7 +225,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       }
       // Recalculate commission value whenever valor or % changes
       if (['valor_total','valor_mensal','comissao_percentual','pacote'].includes(field)) {
-        const base = next.pacote === 'estrutura_digital'
+        const base = isPontual(next.pacote)
           ? Number(next.valor_total) || 0
           : Number(next.valor_mensal) || 0
         next.comissao_valor = parseFloat(((base * (Number(next.comissao_percentual) || 0)) / 100).toFixed(2))
@@ -255,17 +278,17 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       empresa_id:            form.empresa_id || null,
       pacote:                form.pacote,
       status:                form.status,
-      valor_total:           form.pacote === 'estrutura_digital' ? numOrNull(form.valor_total) ?? 1997 : null,
-      valor_mensal:          form.pacote === 'gestao_trafego'    ? numOrNull(form.valor_mensal) ?? 997  : null,
+      valor_total:           isED ? numOrNull(form.valor_total) ?? getPacote(form.pacote)?.valor ?? 0 : null,
+      valor_mensal:          !isED ? numOrNull(form.valor_mensal) ?? getPacote(form.pacote)?.valor ?? 0 : null,
       data_assinatura:       dateOrNull(form.data_assinatura),
       data_inicio:           dateOrNull(form.data_inicio),
-      pagamento_sinal:       form.pacote === 'estrutura_digital' ? Boolean(form.pagamento_sinal)  : null,
-      pagamento_final:       form.pacote === 'estrutura_digital' ? Boolean(form.pagamento_final)  : null,
-      data_entrega_prevista: form.pacote === 'estrutura_digital' ? dateOrNull(form.data_entrega_prevista) : null,
-      data_entrega_real:     form.pacote === 'estrutura_digital' ? dateOrNull(form.data_entrega_real)     : null,
-      duracao_meses:         form.pacote === 'gestao_trafego'    ? Number(form.duracao_meses) || 3        : null,
-      renovacao_automatica:  form.pacote === 'gestao_trafego'    ? Boolean(form.renovacao_automatica)     : null,
-      proximo_faturamento:   form.pacote === 'gestao_trafego'    ? dateOrNull(form.proximo_faturamento)   : null,
+      pagamento_sinal:       isED ? Boolean(form.pagamento_sinal)  : null,
+      pagamento_final:       isED ? Boolean(form.pagamento_final)  : null,
+      data_entrega_prevista: isED ? dateOrNull(form.data_entrega_prevista) : null,
+      data_entrega_real:     isED ? dateOrNull(form.data_entrega_real)     : null,
+      duracao_meses:         !isED ? Number(form.duracao_meses) || 3        : null,
+      renovacao_automatica:  !isED ? Boolean(form.renovacao_automatica)     : null,
+      proximo_faturamento:   !isED ? dateOrNull(form.proximo_faturamento)   : null,
       data_cancelamento:     dateOrNull(form.data_cancelamento),
       motivo_churn:          form.motivo_churn || null,
       total_recebido:        numOrNull(form.total_recebido) ?? 0,
@@ -295,7 +318,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
     setModal(null)
   }
 
-  const isED = form.pacote === 'estrutura_digital'
+  const isED = isPontual(form.pacote)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -375,11 +398,11 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filtered.map(c => {
-              const pacote = PACOTES[c.pacote]
+              const pacote = getPacote(c.pacote)
               const statusCfg = CONTRATO_STATUS[c.status] || CONTRATO_STATUS.ativo
               const statusStyle = getBadgeStyle(statusCfg, theme)
               const pacoteStyle = getBadgeStyle(pacote, theme)
-              const isED = c.pacote === 'estrutura_digital'
+              const isED = isPontual(c.pacote)
               const progresso = isED
                 ? (c.pagamento_sinal && c.pagamento_final ? 100 : c.pagamento_sinal ? 50 : 0)
                 : null
@@ -402,8 +425,8 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                       <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>{c.cliente_nome}</div>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span className="badge" style={{ ...pacoteStyle, fontSize: 11 }}>
-                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot }} />
-                          {pacote?.label}
+                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot || pacote?.cor }} />
+                          {pacote?.label || pacote?.nome || c.pacote}
                         </span>
                         <span className="badge" style={{ ...statusStyle, fontSize: 11 }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: statusCfg.dot }} />
@@ -496,11 +519,11 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       {/* Detail panel */}
       {selectedContrato && !modal && (() => {
         const c = selectedContrato
-        const pacote = PACOTES[c.pacote]
+        const pacote = getPacote(c.pacote)
         const statusCfg = CONTRATO_STATUS[c.status] || CONTRATO_STATUS.ativo
         const pacoteStyle = getBadgeStyle(pacote, theme)
         const statusStyle = getBadgeStyle(statusCfg, theme)
-        const isEDc = c.pacote === 'estrutura_digital'
+        const isEDc = isPontual(c.pacote)
         const vendPerfil = profiles.find(p => p.id === c.vendedor_id)
         function fmtBRL(n) { return Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 
@@ -526,8 +549,8 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                     <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{c.cliente_nome}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                       <span className="badge" style={{ ...pacoteStyle, fontSize: 11 }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot }} />
-                        {pacote?.label}
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot || pacote?.cor }} />
+                        {pacote?.label || pacote?.nome || c.pacote}
                       </span>
                       <span className="badge" style={{ ...statusStyle, fontSize: 11 }}>
                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: statusCfg.dot }} />
@@ -751,26 +774,29 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               <Divider />
 
               {/* Pacote */}
-              <FormField label="Pacote">
+              <FormField label="Serviço / Pacote">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {Object.entries(PACOTES).map(([key, pkg]) => {
-                    const active = form.pacote === key
+                  {(pacotesList.length > 0 ? pacotesList : Object.values(PACOTES_FALLBACK).map((p, i) => ({ ...p, codigo: Object.keys(PACOTES_FALLBACK)[i], nome: p.label }))).map(pkg => {
+                    const codigo = pkg.codigo || pkg.key
+                    const active = form.pacote === codigo
+                    const cor = pkg.cor || pkg.dot || '#3B82F6'
                     const pkgStyle = getBadgeStyle(pkg, theme)
+                    const pontual = pkg.tipo === 'pontual' || pkg.tipo === 'unico'
                     return (
                       <div
-                        key={key}
-                        onClick={() => set('pacote', key)}
+                        key={codigo}
+                        onClick={() => set('pacote', codigo)}
                         style={{
                           padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
-                          border: `2px solid ${active ? pkg.dot : 'var(--border)'}`,
-                          background: active ? (theme === 'dark' ? pkg.darkBg : pkg.bg) : 'var(--bg3)',
+                          border: `2px solid ${active ? cor : 'var(--border)'}`,
+                          background: active ? cor + (theme === 'dark' ? '22' : '12') : 'var(--bg3)',
                           transition: 'all 0.15s',
                         }}
                       >
-                        <div style={{ fontWeight: 600, fontSize: 13, color: active ? pkgStyle.color : 'var(--text)' }}>{pkg.label}</div>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: active ? cor : 'var(--text)' }}>{pkg.nome || pkg.label}</div>
                         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{pkg.descricao}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: active ? pkgStyle.color : 'var(--text2)', marginTop: 6 }}>
-                          R$ {pkg.valor.toLocaleString('pt-BR')}{pkg.tipo === 'recorrente' ? '/mês' : ''}
+                        <div style={{ fontSize: 14, fontWeight: 700, color: active ? cor : 'var(--text2)', marginTop: 6 }}>
+                          R$ {Number(pkg.valor).toLocaleString('pt-BR')}{!pontual ? '/mês' : ''}
                         </div>
                       </div>
                     )
