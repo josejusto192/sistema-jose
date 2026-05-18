@@ -42,6 +42,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [tagFilter, setTagFilter] = useState('')
+  const [cnaeFilter, setCnaeFilter] = useState([])
   const [pendingContrato, setPendingContrato] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const initialLoaded = useRef(false)
@@ -375,6 +376,10 @@ export default function App() {
     empresas.flatMap(e => e.tags || []).filter(Boolean)
   )).sort()
 
+  const allCnaes = Array.from(new Set(
+    empresas.map(e => e.cnae_principal_descricao).filter(Boolean)
+  )).sort()
+
   const filteredEmpresas = empresas.filter(e => {
     const matchSearch = !searchQuery ||
       e.razao_social?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -383,15 +388,16 @@ export default function App() {
       e.municipio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       e.cnae_principal_descricao?.toLowerCase().includes(searchQuery.toLowerCase())
 
-    const matchTag = !tagFilter || (e.tags || []).includes(tagFilter)
+    const matchTag  = !tagFilter || (e.tags || []).includes(tagFilter)
+    const matchCnae = cnaeFilter.length === 0 || cnaeFilter.includes(e.cnae_principal_descricao)
 
     if (statusFilter === 'followup') {
-      if (!matchSearch || !matchTag) return false
+      if (!matchSearch || !matchTag || !matchCnae) return false
       const today = new Date().toISOString().slice(0, 10)
       return tasks.some(t => t.empresa_id === e.id && !t.completed && t.due_date <= today)
     }
     const matchStatus = statusFilter === 'todos' || e.status_prospeccao === statusFilter
-    return matchSearch && matchStatus && matchTag
+    return matchSearch && matchStatus && matchTag && matchCnae
   })
 
   const isSuperAdmin = profile?.role === 'superadmin'
@@ -536,6 +542,9 @@ export default function App() {
               tagFilter={tagFilter}
               setTagFilter={setTagFilter}
               allTags={allTags}
+              cnaeFilter={cnaeFilter}
+              setCnaeFilter={setCnaeFilter}
+              allCnaes={allCnaes}
               onOpenLead={openLead}
               onUpdateEmpresa={updateEmpresa}
               onBulkUpdate={bulkUpdateEmpresas}
