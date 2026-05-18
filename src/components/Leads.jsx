@@ -268,8 +268,126 @@ function KanbanView({ leads, onOpenLead, onUpdateEmpresa, isSuperAdmin }) {
   )
 }
 
+/* ─── Bulk action bar ──────────────────────────────────────────────────────── */
+function BulkBar({ count, onClear, onStatusChange, onAssign, onDelete, vendedores, isSuperAdmin }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function handleStatus(status) {
+    if (!status) return
+    setBusy(true)
+    await onStatusChange(status)
+    setBusy(false)
+  }
+
+  async function handleAssign(vendedorId) {
+    if (!vendedorId) return
+    setBusy(true)
+    await onAssign(vendedorId)
+    setBusy(false)
+  }
+
+  async function handleDelete() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setBusy(true)
+    await onDelete()
+    setBusy(false)
+    setConfirmDelete(false)
+  }
+
+  return (
+    <div style={{
+      position: 'sticky', bottom: 0, zIndex: 30,
+      background: 'var(--bg2)', borderTop: '1px solid var(--border)',
+      padding: '10px 32px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      boxShadow: '0 -4px 16px rgba(0,0,0,0.12)',
+      animation: 'fadeIn 0.15s ease',
+    }}>
+      {/* Count + clear */}
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+        {count} selecionado{count !== 1 ? 's' : ''}
+      </span>
+      <button
+        onClick={onClear}
+        style={{ fontSize: 11, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+      >
+        limpar
+      </button>
+
+      <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+
+      {/* Mudar status */}
+      <select
+        disabled={busy}
+        defaultValue=""
+        onChange={e => { handleStatus(e.target.value); e.target.value = '' }}
+        style={{
+          padding: '6px 10px', borderRadius: 7, border: '1px solid var(--border)',
+          background: 'var(--bg3)', color: 'var(--text)', fontSize: 12,
+          cursor: 'pointer', outline: 'none', opacity: busy ? 0.5 : 1,
+        }}
+      >
+        <option value="" disabled>Mudar status…</option>
+        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+          <option key={key} value={key}>{cfg.label}</option>
+        ))}
+      </select>
+
+      {/* Atribuir vendedor (superadmin) */}
+      {isSuperAdmin && vendedores.length > 0 && (
+        <select
+          disabled={busy}
+          defaultValue=""
+          onChange={e => { handleAssign(e.target.value); e.target.value = '' }}
+          style={{
+            padding: '6px 10px', borderRadius: 7, border: '1px solid var(--border)',
+            background: 'var(--bg3)', color: 'var(--text)', fontSize: 12,
+            cursor: 'pointer', outline: 'none', opacity: busy ? 0.5 : 1,
+          }}
+        >
+          <option value="" disabled>Atribuir a…</option>
+          {vendedores.map(v => (
+            <option key={v.id} value={v.id}>{v.nome}</option>
+          ))}
+        </select>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      {/* Excluir */}
+      {confirmDelete ? (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#EF4444', fontWeight: 500 }}>Excluir {count} lead{count !== 1 ? 's' : ''}?</span>
+          <button
+            onClick={handleDelete}
+            disabled={busy}
+            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}
+          >
+            {busy ? 'Excluindo…' : 'Confirmar'}
+          </button>
+          <button
+            onClick={() => setConfirmDelete(false)}
+            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleDelete}
+          disabled={busy}
+          style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #EF444460', background: 'transparent', color: '#EF4444', fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: busy ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 5 }}
+        >
+          🗑 Excluir
+        </button>
+      )}
+    </div>
+  )
+}
+
 /* ─── Main component ───────────────────────────────────────────────────────── */
-export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, onOpenLead, onUpdateEmpresa, totalCount }) {
+export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, totalCount }) {
   const isMobile = useIsMobile()
   const isSuperAdmin = useIsSuperAdmin()
   const [sortField, setSortField] = useState('criado_em')
@@ -277,9 +395,13 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const [page, setPage] = useState(1)
   const [vendorFilter, setVendorFilter] = useState('')
   const [viewMode, setViewMode] = useState('list')
+  const [selectedIds, setSelectedIds] = useState([])
 
   // Reset para página 1 ao mudar filtro ou busca
   useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter, vendorFilter])
+
+  // Limpa seleção ao trocar modo ou filtros
+  useEffect(() => { setSelectedIds([]) }, [viewMode, statusFilter, searchQuery, tagFilter, vendorFilter])
 
   // Lista de vendedores únicos nos leads carregados (superadmin)
   const vendedoresDisponiveis = useMemo(() => {
@@ -325,6 +447,39 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
   const safePage = Math.min(page, totalPages)
   const pageItems = sorted.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+
+  // Seleção
+  const allPageIds = pageItems.map(e => e.id)
+  const allPageSelected = allPageIds.length > 0 && allPageIds.every(id => selectedIds.includes(id))
+  const somePageSelected = allPageIds.some(id => selectedIds.includes(id))
+
+  function toggleSelectAll() {
+    if (allPageSelected) {
+      setSelectedIds(prev => prev.filter(id => !allPageIds.includes(id)))
+    } else {
+      setSelectedIds(prev => [...new Set([...prev, ...allPageIds])])
+    }
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  async function handleBulkStatus(status) {
+    const ok = await onBulkUpdate(selectedIds, { status_prospeccao: status })
+    if (ok) setSelectedIds([])
+  }
+
+  async function handleBulkAssign(vendedorId) {
+    const vendor = vendedoresDisponiveis.find(v => v.id === vendedorId)
+    const ok = await onBulkUpdate(selectedIds, { vendedor_id: vendedorId, vendedor_nome: vendor?.nome || '' })
+    if (ok) setSelectedIds([])
+  }
+
+  async function handleBulkDelete() {
+    const ok = await onBulkDelete(selectedIds)
+    if (ok) setSelectedIds([])
+  }
 
   const statusTabs = ['todos', ...Object.keys(STATUS_CONFIG)]
 
@@ -496,6 +651,15 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               <table style={{ width: '100%', minWidth: 700, borderCollapse: 'separate', borderSpacing: '0 3px', marginTop: 14 }}>
                 <thead>
                   <tr>
+                    <th style={{ padding: '6px 10px 6px 16px', width: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={allPageSelected}
+                        ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected }}
+                        onChange={toggleSelectAll}
+                        style={{ cursor: 'pointer', width: 14, height: 14, accentColor: 'var(--accent)' }}
+                      />
+                    </th>
                     <SortHeader label="Empresa"    col="nome"      sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                     <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: 11, color: 'var(--text3)', fontWeight: 500 }}>CNPJ</th>
                     <SortHeader label="Cidade / UF" col="municipio" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
@@ -509,15 +673,28 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                 <tbody>
                   {pageItems.map((e, i) => {
                     const atencao = needsFollowup(e)
+                    const isSelected = selectedIds.includes(e.id)
                     return (
                       <tr
                         key={e.id}
                         onClick={() => onOpenLead(e)}
-                        style={{ cursor: 'pointer', animation: `fadeIn 0.2s ease ${Math.min(i, 15) * 0.02}s both` }}
+                        style={{ cursor: 'pointer', animation: `fadeIn 0.2s ease ${Math.min(i, 15) * 0.02}s both`, opacity: isSelected ? 0.92 : 1 }}
                         onMouseEnter={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = 'var(--bg3)')}
-                        onMouseLeave={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = 'var(--bg2)')}
+                        onMouseLeave={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = isSelected ? 'var(--bg3)' : 'var(--bg2)')}
                       >
-                        <td style={{ padding: '10px 12px', background: 'var(--bg2)', borderRadius: '8px 0 0 8px', maxWidth: 200, transition: 'background 0.1s' }}>
+                        <td
+                          onClick={ev => { ev.stopPropagation(); toggleSelect(e.id) }}
+                          style={{ padding: '10px 10px 10px 16px', background: isSelected ? 'var(--bg3)' : 'var(--bg2)', borderRadius: '8px 0 0 8px', transition: 'background 0.1s', cursor: 'default', width: 36 }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(e.id)}
+                            onClick={ev => ev.stopPropagation()}
+                            style={{ cursor: 'pointer', width: 14, height: 14, accentColor: 'var(--accent)' }}
+                          />
+                        </td>
+                        <td style={{ padding: '10px 12px', background: isSelected ? 'var(--bg3)' : 'var(--bg2)', maxWidth: 200, transition: 'background 0.1s', cursor: 'pointer' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {atencao && (
                               <span title={`Sem atualização há ${FOLLOWUP_DAYS}+ dias`} style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
@@ -604,6 +781,19 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           </div>
         )}
       </div>
+
+      {/* Barra de ações em lote */}
+      {viewMode === 'list' && selectedIds.length > 0 && (
+        <BulkBar
+          count={selectedIds.length}
+          onClear={() => setSelectedIds([])}
+          onStatusChange={handleBulkStatus}
+          onAssign={handleBulkAssign}
+          onDelete={handleBulkDelete}
+          vendedores={vendedoresDisponiveis}
+          isSuperAdmin={isSuperAdmin}
+        />
+      )}
 
       {/* Paginação — só na view de lista */}
       {viewMode === 'list' && !loading && sorted.length > PER_PAGE && (

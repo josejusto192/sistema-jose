@@ -185,6 +185,24 @@ export default function App() {
     return !error
   }
 
+  async function bulkUpdateEmpresas(ids, updates) {
+    const { error } = await supabase.from('empresas').update(updates).in('id', ids)
+    if (!error) {
+      setEmpresas(prev => prev.map(e => ids.includes(e.id) ? { ...e, ...updates } : e))
+      logAction('atualizar', 'empresas', `bulk:${ids.length}`, updates)
+    }
+    return !error
+  }
+
+  async function bulkDeleteEmpresas(ids) {
+    const { error } = await supabase.from('empresas').delete().in('id', ids)
+    if (!error) {
+      setEmpresas(prev => prev.filter(e => !ids.includes(e.id)))
+      logAction('deletar', 'empresas', `bulk:${ids.length}`, { count: ids.length })
+    }
+    return !error
+  }
+
   async function saveContrato(contrato) {
     if (contrato.id) {
       const { id, criado_em, atualizado_em, ...updates } = contrato
@@ -449,6 +467,8 @@ export default function App() {
               allTags={allTags}
               onOpenLead={openLead}
               onUpdateEmpresa={updateEmpresa}
+              onBulkUpdate={bulkUpdateEmpresas}
+              onBulkDelete={bulkDeleteEmpresas}
               totalCount={empresas.length}
             />
           )}
