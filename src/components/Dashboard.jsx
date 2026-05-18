@@ -48,15 +48,55 @@ function TrendBadge({ value }) {
   )
 }
 
-function StatCard({ label, value, sub, trendValue }) {
+function InfoIcon({ size = 13 }) {
   return (
-    <div className="card" style={{ padding: '22px 24px' }}>
-      <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 10, fontWeight: 400 }}>{label}</div>
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M7 6.5v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="7" cy="4.5" r="0.8" fill="currentColor"/>
+    </svg>
+  )
+}
+
+function StatCard({ label, value, sub, trendValue, tooltip }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div
+      className="card"
+      style={{ padding: '22px 24px', position: 'relative', transition: 'box-shadow 0.15s' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 400 }}>{label}</div>
+        {tooltip && (
+          <span style={{ color: 'var(--text3)', opacity: show ? 1 : 0.4, transition: 'opacity 0.15s', flexShrink: 0, lineHeight: 1 }}>
+            <InfoIcon size={13} />
+          </span>
+        )}
+      </div>
       <div style={{ fontWeight: 700, fontSize: 28, color: 'var(--text)', lineHeight: 1.1, marginBottom: 10 }}>{value}</div>
       {trendValue != null
         ? <TrendBadge value={trendValue} />
         : <span style={{ fontSize: 12, color: 'var(--text3)' }}>{sub}</span>
       }
+      {tooltip && show && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 8px)', left: 0,
+          background: '#1A1F2B', color: '#E2E8F0',
+          borderRadius: 8, padding: '10px 13px',
+          fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-line',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
+          zIndex: 50, width: 230, pointerEvents: 'none',
+        }}>
+          {tooltip}
+          <div style={{
+            position: 'absolute', top: '100%', left: 20,
+            borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+            borderTop: '6px solid #1A1F2B',
+          }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -222,23 +262,27 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
             label="MRR"
             value={fmtBRL(financeiro.mrr)}
             sub={`${financeiro.recorrentes} contrato${financeiro.recorrentes !== 1 ? 's' : ''} recorrente${financeiro.recorrentes !== 1 ? 's' : ''} ativo${financeiro.recorrentes !== 1 ? 's' : ''}`}
+            tooltip={`Receita Mensal Recorrente.\n\nSoma do valor_mensal de todos os contratos com status "ativo" e cobrança recorrente.\n\nNão inclui contratos pontuais (pagamento único).`}
           />
           <StatCard
             label="Contratos Ativos"
             value={financeiro.totalAtivos}
             sub={stats.contratosThisMonth > 0 ? `+${stats.contratosThisMonth} este mês` : `${financeiro.cancelados} cancelado${financeiro.cancelados !== 1 ? 's' : ''}`}
             trendValue={stats.trendContratos}
+            tooltip={`Total de contratos com status "ativo".\n\nA seta compara quantos contratos foram criados neste mês vs o mês anterior.`}
           />
           <StatCard
             label="Novos Leads (mês)"
             value={stats.leadsThisMonth}
             sub={`${stats.leadsLastMonth} no mês anterior`}
             trendValue={stats.trendLeads}
+            tooltip={`Leads cadastrados no mês atual.\n\nA seta compara com o total do mês anterior para indicar se a captação está crescendo ou caindo.`}
           />
           <StatCard
             label="Taxa de Conversão"
             value={`${stats.conversao}%`}
             sub={`${stats.fechados} fechados de ${stats.trabalhados} trabalhados`}
+            tooltip={`Percentual de leads que viraram clientes.\n\nFórmula: fechados ÷ trabalhados × 100\n\n"Trabalhados" = leads que saíram do status "novo" (foram contatados ou avançaram no funil).`}
           />
         </div>
 
@@ -500,21 +544,25 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
             value={stats.total}
             sub={`${stats.leadsThisMonth} captado${stats.leadsThisMonth !== 1 ? 's' : ''} este mês`}
             trendValue={stats.trendLeads}
+            tooltip={`Total de leads atribuídos a você.\n\nA seta compara os leads captados neste mês vs o mês anterior.`}
           />
           <StatCard
             label="Fechamentos"
             value={stats.fechados}
             sub={`meta: ${stats.meta} | progresso ${stats.progresso}%`}
+            tooltip={`Leads que você moveu para o status "fechou".\n\nMeta definida no seu perfil. A barra de progresso acima mostra o avanço em relação à meta mensal.`}
           />
           <StatCard
             label="Conversão"
             value={`${stats.conversao}%`}
             sub={`${stats.fechados} fechados de ${stats.trabalhados} trabalhados`}
+            tooltip={`Sua taxa de conversão pessoal.\n\nFórmula: fechados ÷ trabalhados × 100\n\n"Trabalhados" = leads que saíram do status "novo". Leads ainda em "novo" não entram no cálculo pois ainda não foram abordados.`}
           />
           <StatCard
             label="Comissão Pendente"
             value={fmtBRL(stats.totalPendente)}
-            sub={stats.totalPendente > 0 ? `a receber` : 'nenhuma pendente'}
+            sub={stats.totalPendente > 0 ? 'a receber' : 'nenhuma pendente'}
+            tooltip={`Soma das comissões dos seus contratos com status "pendente".\n\nQuando o admin marcar como paga, o valor sai daqui e vai para "Já recebido" na seção de comissões abaixo.`}
           />
         </div>
 
