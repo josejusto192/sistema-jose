@@ -6,6 +6,7 @@ import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
 import Briefing from './Briefing.jsx'
 import { IconSearch, IconInbox, IconLink, IconX } from './Icons.jsx'
+import { InfoTooltip } from './Tooltip.jsx'
 
 function parseDate(str) {
   if (!str) return null
@@ -343,13 +344,16 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
         {/* Métricas */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
           {[
-            { label: 'MRR', value: `R$ ${fmt(metrics.mrr)}`, sub: 'recorrente mensal', color: 'var(--green)' },
-            { label: 'ARR projetado', value: `R$ ${fmt(metrics.arr)}`, sub: 'MRR × 12', color: 'var(--cyan)' },
-            { label: 'Contratos ativos', value: metrics.totalAtivos, sub: `ticket médio R$ ${fmt(metrics.ticketMedio)}`, color: 'var(--purple)' },
-            { label: 'Churn rate', value: `${metrics.churnRate}%`, sub: `${metrics.cancelados} de ${metrics.cancelados + metrics.totalAtivos} contratos`, color: metrics.churnRate > 0 ? 'var(--red)' : 'var(--text3)' },
+            { label: 'MRR', value: `R$ ${fmt(metrics.mrr)}`, sub: 'recorrente mensal', color: 'var(--green)', tooltip: 'Receita Recorrente Mensal.\nSoma do valor mensal de todos os contratos recorrentes ativos.\nNão inclui serviços pontuais como Estrutura Digital.' },
+            { label: 'ARR projetado', value: `R$ ${fmt(metrics.arr)}`, sub: 'MRR × 12', color: 'var(--cyan)', tooltip: 'Receita Anual Recorrente projetada.\nCalculado como MRR × 12 meses.\nAssume que os contratos ativos serão mantidos.' },
+            { label: 'Contratos ativos', value: metrics.totalAtivos, sub: `ticket médio R$ ${fmt(metrics.ticketMedio)}`, color: 'var(--purple)', tooltip: 'Número de contratos com status Ativo.\nTicket médio = receita total ÷ nº de contratos ativos.' },
+            { label: 'Churn rate', value: `${metrics.churnRate}%`, sub: `${metrics.cancelados} de ${metrics.cancelados + metrics.totalAtivos} contratos`, color: metrics.churnRate > 0 ? 'var(--red)' : 'var(--text3)', tooltip: 'Percentual de contratos cancelados em relação ao total.\nCálculo: cancelados ÷ (ativos + cancelados).\nMeta: manter abaixo de 5%.' },
           ].map((m, i) => (
             <div key={i} className="card" style={{ padding: '12px 16px', borderLeft: `3px solid ${m.color}` }}>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{m.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {m.label}
+                {m.tooltip && <InfoTooltip text={m.tooltip} width={220} dir="down" />}
+              </div>
               <div style={{ fontSize: 20, fontWeight: 700, color: m.color, lineHeight: 1 }}>{m.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{m.sub}</div>
             </div>

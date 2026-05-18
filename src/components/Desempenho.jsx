@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase.js'
 import { STATUS_CONFIG, PACOTES } from '../constants.js'
 import { useIsMobile } from '../hooks/useIsMobile.js'
+import { InfoTooltip } from './Tooltip.jsx'
 
 // ─── Metric categories ───────────────────────────────────────────────────────
 const CONTATOS    = ['contatado']
@@ -77,11 +78,14 @@ function PeriodLabel({ periodo }) {
 }
 
 // ─── Big stat card ────────────────────────────────────────────────────────────
-function StatCard({ label, value, color, periodo }) {
+function StatCard({ label, value, color, periodo, tooltip }) {
   return (
     <div className="card" style={{ padding: 20, flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 28, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginTop: 6 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+        {label}
+        {tooltip && <InfoTooltip text={tooltip} dir="down" width={240} />}
+      </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
         <PeriodLabel periodo={periodo} />
       </div>
@@ -90,14 +94,17 @@ function StatCard({ label, value, color, periodo }) {
 }
 
 // ─── Metric chip (compact, for vendor cards) ──────────────────────────────────
-function MetricChip({ label, value, color }) {
+function MetricChip({ label, value, color, tooltip }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '5px 10px', background: 'var(--bg3)', borderRadius: 7, minWidth: 54,
     }}>
       <span style={{ fontSize: 15, fontWeight: 700, color, lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 3 }}>
+        {label}
+        {tooltip && <InfoTooltip text={tooltip} size={10} width={200} dir="down" />}
+      </span>
     </div>
   )
 }
@@ -139,10 +146,10 @@ function VendorCard({ profile: p, rows, isCurrentUser }) {
       </div>
       {/* Metrics */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <MetricChip label="Contatos"  value={contatos}    color="#3B82F6" />
-        <MetricChip label="Efetivos"  value={efetivos}    color="#06B6D4" />
-        <MetricChip label="Fecham."   value={fechamentos} color="#10B981" />
-        <MetricChip label="Perdidos"  value={perdidos}    color="#EF4444" />
+        <MetricChip label="Contatos"  value={contatos}    color="#3B82F6" tooltip={"Leads que receberam o primeiro contato.\nStatus: Contatado."} />
+        <MetricChip label="Efetivos"  value={efetivos}    color="#06B6D4" tooltip={"Leads com engajamento real: responderam, agendaram call ou receberam proposta."} />
+        <MetricChip label="Fecham."   value={fechamentos} color="#10B981" tooltip={"Leads convertidos em clientes.\nStatus: Fechou."} />
+        <MetricChip label="Perdidos"  value={perdidos}    color="#EF4444" tooltip={"Leads descartados ou sem interesse.\nStatus: Perdido, Descartado."} />
       </div>
     </div>
   )
@@ -320,7 +327,10 @@ function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
         marginBottom: 20,
       }}>
         <div className="card" style={{ padding: 20, borderLeft: '3px solid var(--accent)' }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Total fechado</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            Total fechado
+            <InfoTooltip text={"Soma do valor de todos os contratos atribuídos a você.\nInclui contratos ativos e cancelados."} width={220} dir="down" />
+          </div>
           <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>
             R$ {fmtBRL(totalFechado)}
           </div>
@@ -329,7 +339,10 @@ function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
           </div>
         </div>
         <div className="card" style={{ padding: 20, borderLeft: '3px solid #F59E0B' }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Comissão pendente</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            Comissão pendente
+            <InfoTooltip text={"Comissões aguardando pagamento pelo admin.\nCalculado como: valor do contrato × % de comissão."} width={230} dir="down" />
+          </div>
           <div style={{ fontSize: 22, fontWeight: 700, color: '#F59E0B', lineHeight: 1 }}>
             R$ {fmtBRL(pendente)}
           </div>
@@ -338,7 +351,10 @@ function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
           </div>
         </div>
         <div className="card" style={{ padding: 20, borderLeft: '3px solid var(--green)' }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Comissão recebida</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            Comissão recebida
+            <InfoTooltip text={"Total de comissões já pagas e confirmadas pelo admin.\nValores com status: Paga."} width={230} dir="down" />
+          </div>
           <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--green)', lineHeight: 1 }}>
             R$ {fmtBRL(pago)}
           </div>
@@ -665,10 +681,10 @@ export default function Desempenho({ session, profile, contratos = [] }) {
               gridTemplateColumns: `repeat(${statCols}, 1fr)`,
               gap: 12,
             }}>
-              <StatCard label="Contatos"    value={myContatos}    color="#3B82F6" periodo={periodo} />
-              <StatCard label="Efetivos"    value={myEfetivos}    color="#06B6D4" periodo={periodo} />
-              <StatCard label="Fechamentos" value={myFechamentos} color="#10B981" periodo={periodo} />
-              <StatCard label="Perdidos"    value={myPerdidos}    color="#EF4444" periodo={periodo} />
+              <StatCard label="Contatos"    value={myContatos}    color="#3B82F6" periodo={periodo} tooltip={"Leads que você marcou como Contatado no período.\nPrimeiro passo do funil de prospecção."} />
+              <StatCard label="Efetivos"    value={myEfetivos}    color="#06B6D4" periodo={periodo} tooltip={"Leads com engajamento real: responderam, agendaram call ou receberam proposta.\nStatus: Respondeu, Call agendada, Call realizada, Proposta enviada."} />
+              <StatCard label="Fechamentos" value={myFechamentos} color="#10B981" periodo={periodo} tooltip={"Leads que você converteu em clientes no período.\nStatus: Fechou."} />
+              <StatCard label="Perdidos"    value={myPerdidos}    color="#EF4444" periodo={periodo} tooltip={"Leads que saíram do funil sem fechar negócio.\nStatus: Perdido, Descartado."} />
             </div>
           </section>
 
