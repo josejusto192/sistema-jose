@@ -345,7 +345,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
 
         {/* Coluna direita — CRM */}
         <div>
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12, position: isMobile ? 'static' : 'sticky', top: 20 }}>
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>CRM</div>
 
             {/* Responsável */}
