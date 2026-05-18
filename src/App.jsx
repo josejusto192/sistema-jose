@@ -129,7 +129,7 @@ export default function App() {
   // Daily task due notification check
   useEffect(() => {
     if (!session || !tasks.length) return
-    if (Notification.permission !== 'granted') return
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
 
     const today = new Date().toISOString().slice(0, 10)
     if (localStorage.getItem(TASK_DUE_CHECK_KEY) === today) return

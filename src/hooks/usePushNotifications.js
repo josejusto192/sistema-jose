@@ -30,7 +30,7 @@ export function usePushNotifications(userId) {
   }, [userId])
 
   async function enable() {
-    if (!userId || !VAPID_PUBLIC_KEY) return
+    if (!userId || !VAPID_PUBLIC_KEY || !('Notification' in window)) return
     setLoading(true)
     try {
       const perm = await Notification.requestPermission()
