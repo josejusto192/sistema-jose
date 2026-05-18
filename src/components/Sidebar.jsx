@@ -7,7 +7,7 @@ function Avatar({ profile, size = 32 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
   if (profile?.foto_url) return <img src={profile.foto_url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
       {initials}
     </div>
   )
@@ -16,12 +16,12 @@ function Avatar({ profile, size = 32 }) {
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
 const S = {
-  sidebar: { width: 220, background: '#0F172A', borderRight: '1px solid #1E293B', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
-  logo: { padding: '18px 18px 14px', borderBottom: '1px solid #1E293B' },
+  sidebar: { width: 220, background: '#0F1115', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
+  logo: { padding: '18px 18px 14px', borderBottom: '1px solid #1A1F25' },
   nav: { padding: '8px 8px', flex: 1, overflowY: 'auto' },
-  section: { marginTop: 16, paddingTop: 14, borderTop: '1px solid #1E293B' },
+  section: { marginTop: 16, paddingTop: 14, borderTop: '1px solid #1A1F25' },
   sectionLabel: { fontSize: 10, fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', paddingLeft: 10, marginBottom: 6 },
-  footer: { padding: '10px 12px 14px', borderTop: '1px solid #1E293B' },
+  footer: { padding: '10px 12px 14px', borderTop: '1px solid #1A1F25' },
 }
 
 function NavBtn({ item, active, onClick }) {
@@ -32,14 +32,14 @@ function NavBtn({ item, active, onClick }) {
       style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 8, padding: '7px 10px', borderRadius: 5, border: 'none',
-        background: active ? '#1E293B' : 'transparent',
+        background: active ? '#1A1F25' : 'transparent',
         color: active ? '#F1F5F9' : '#64748B',
         fontSize: 13, fontWeight: active ? 500 : 400,
         cursor: 'pointer', marginBottom: 1, transition: 'background 0.1s, color 0.1s', textAlign: 'left',
       }}
     >
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Icon size={14} color={active ? '#3B82F6' : '#475569'} />
+        <Icon size={14} color={active ? '#00CB53' : '#475569'} />
         {item.label}
       </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -49,7 +49,7 @@ function NavBtn({ item, active, onClick }) {
           </span>
         )}
         {item.badge != null && (
-          <span style={{ background: active ? '#2563EB' : '#1E293B', color: active ? '#fff' : '#64748B', borderRadius: 3, padding: '1px 6px', fontSize: 10 }}>
+          <span style={{ background: active ? '#2563EB' : '#1A1F25', color: active ? '#fff' : '#64748B', borderRadius: 3, padding: '1px 6px', fontSize: 10 }}>
             {item.badge}
           </span>
         )}
@@ -118,10 +118,25 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     <aside style={S.sidebar}>
       {/* Logo */}
       <div style={S.logo}>
-        <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: '-0.4px', color: '#F1F5F9' }}>
-          Prosp<span style={{ color: '#3B82F6' }}>CRM</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <svg width="28" height="28" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="56" height="56" rx="12" fill="#00CB53" fillOpacity="0.12"/>
+            <path d="M28 10C21.373 10 16 15.373 16 22v2.5C13.791 25.674 12 27.8 12 30.5v2a3 3 0 0 0 2 2.83V36a8 8 0 0 0 8 8h.17A4.002 4.002 0 0 0 28 46a4.002 4.002 0 0 0 7.83-2H36a8 8 0 0 0 8-8v-.17A3 3 0 0 0 46 32.5v-2c0-2.7-1.791-4.826-4-5.998V22C42 15.373 36.627 10 28 10z" fill="#00CB53" opacity="0.2"/>
+            <path d="M28 12C22.477 12 18 16.477 18 22v2.815A6.5 6.5 0 0 0 13.5 31v1.5a3 3 0 0 0 2 2.83V36a8 8 0 0 0 8 8h.17A4.002 4.002 0 0 0 36 44h.33a8 8 0 0 0 8-8v-1.67A3 3 0 0 0 46.5 32.5V31A6.5 6.5 0 0 0 38 24.815V22C38 16.477 33.523 12 28 12z" stroke="#00CB53" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            <path d="M23 13.5C23 13.5 24.8 12 28 12s5 1.5 5 1.5" stroke="#00CB53" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
+            <circle cx="41" cy="15" r="3" fill="#00CB53"/>
+            <circle cx="44" cy="10" r="2" fill="#00CB53" opacity="0.5"/>
+          </svg>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
+              Tilim
+            </div>
+            <div style={{ fontSize: 9, color: '#00CB53', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>
+              O Som da Venda
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+        <div style={{ fontSize: 10, color: '#475569', marginTop: 8 }}>
           {isSuperAdmin ? 'Painel do Admin' : 'Área do Vendedor'}
         </div>
       </div>
@@ -164,7 +179,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
         {/* Stats grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
           {footerStats.map(s => (
-            <div key={s.label} style={{ background: '#1E293B', borderRadius: 4, padding: '6px 8px' }}>
+            <div key={s.label} style={{ background: '#1A1F25', borderRadius: 4, padding: '6px 8px' }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
               <div style={{ fontSize: 10, color: '#475569', marginTop: 2, lineHeight: 1.3 }}>{s.label}</div>
             </div>
@@ -176,8 +191,8 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
           onClick={() => setView('perfil')}
           style={{
             display: 'flex', alignItems: 'center', gap: 9, width: '100%', marginBottom: 6,
-            padding: '7px 8px', background: view === 'perfil' ? '#1E293B' : '#0F172A',
-            border: '1px solid #1E293B', borderRadius: 5, cursor: 'pointer', textAlign: 'left',
+            padding: '7px 8px', background: view === 'perfil' ? '#1A1F25' : '#0F1115',
+            border: '1px solid #1A1F25', borderRadius: 5, cursor: 'pointer', textAlign: 'left',
           }}
         >
           <Avatar profile={profile} size={32} />
@@ -185,7 +200,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
             <div style={{ fontSize: 12, color: '#E2E8F0', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {[profile?.nome, profile?.sobrenome].filter(Boolean).join(' ') || currentUser}
             </div>
-            <div style={{ fontSize: 10, color: isSuperAdmin ? '#3B82F6' : '#475569', fontWeight: 600, marginTop: 1 }}>
+            <div style={{ fontSize: 10, color: isSuperAdmin ? '#00CB53' : '#475569', fontWeight: 600, marginTop: 1 }}>
               {isSuperAdmin ? 'superadmin' : 'vendedor'}
             </div>
           </div>
@@ -194,14 +209,14 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
         <div style={{ display: 'flex', gap: 6 }}>
           <button
             onClick={onToggleTheme}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 5, border: '1px solid #1E293B', background: 'transparent', color: '#475569', fontSize: 11, cursor: 'pointer' }}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 5, border: '1px solid #1A1F25', background: 'transparent', color: '#475569', fontSize: 11, cursor: 'pointer' }}
           >
             {theme === 'light' ? <><IconMoon size={12} color="#475569" /> Escuro</> : <><IconSun size={12} color="#475569" /> Claro</>}
           </button>
           {onLogout && (
             <button
               onClick={onLogout}
-              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 5, border: '1px solid #1E293B', background: 'transparent', color: '#475569', fontSize: 11, cursor: 'pointer' }}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 5, border: '1px solid #1A1F25', background: 'transparent', color: '#475569', fontSize: 11, cursor: 'pointer' }}
             >
               <IconLogOut size={12} color="#475569" /> Sair
             </button>
