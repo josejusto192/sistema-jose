@@ -60,7 +60,6 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const [vendedores, setVendedores] = useState([])
   const [canal, setCanal] = useState(lead.canal_envio || '')
   const [obs, setObs] = useState(lead.observacoes || '')
-  const [followup, setFollowup] = useState(lead.data_followup || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [nota, setNota] = useState('')
@@ -121,7 +120,6 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
       status_prospeccao: status,
       canal_envio: canal,
       observacoes: obs,
-      data_followup: followup || null,
     }
     if (status !== lead.status_prospeccao && !lead.data_envio) {
       updates.data_envio = new Date().toISOString()
@@ -388,17 +386,6 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                   <option key={key} value={key}>{c.icon} {c.label}</option>
                 ))}
               </select>
-            </div>
-
-            {/* Data de follow-up */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Data de follow-up</label>
-              <input
-                type="date"
-                value={followup}
-                onChange={e => setFollowup(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-              />
             </div>
 
             {/* Tarefas vinculadas */}

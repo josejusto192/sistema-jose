@@ -5,6 +5,7 @@ const TYPE_CFG = {
   comissao_paga:{ color: '#F59E0B', emoji: '💰' },
   followup:     { color: '#F59E0B', emoji: '⏰' },
   novo_lead:    { color: '#3B82F6', emoji: '🟢' },
+  task_due:     { color: '#8B5CF6', emoji: '📋' },
   default:      { color: '#3B82F6', emoji: '🔔' },
 }
 

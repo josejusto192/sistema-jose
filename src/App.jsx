@@ -29,6 +29,7 @@ export const ThemeContext = AppContext
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 const FOLLOWUP_CHECK_KEY = 'tilim_followup_checked'
 const FOLLOWUP_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4h
+const TASK_DUE_CHECK_KEY = 'tilim_task_due_checked'
 
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -100,7 +101,7 @@ export default function App() {
     return () => supabase.removeChannel(channel)
   }, [session])
 
-  // Periodic follow-up notification check (every 4h, when tab is open)
+  // Periodic stale-lead follow-up check (every 4h)
   useEffect(() => {
     if (!session || !empresas.length) return
     if (Notification.permission !== 'granted') return
@@ -119,6 +120,26 @@ export default function App() {
       localStorage.setItem(FOLLOWUP_CHECK_KEY, String(Date.now()))
     }
   }, [empresas, session])
+
+  // Daily task due notification check
+  useEffect(() => {
+    if (!session || !tasks.length) return
+    if (Notification.permission !== 'granted') return
+
+    const today = new Date().toISOString().slice(0, 10)
+    if (localStorage.getItem(TASK_DUE_CHECK_KEY) === today) return
+
+    const due = tasks.filter(t =>
+      !t.completed &&
+      t.due_date <= today &&
+      t.user_id === session.user.id
+    )
+
+    if (due.length > 0) {
+      notify.taskDue(due.length, due.map(t => t.title), session.user.id)
+      localStorage.setItem(TASK_DUE_CHECK_KEY, today)
+    }
+  }, [tasks, session])
 
   async function fetchEmpresas() {
     if (!initialLoaded.current) setLoading(true)
@@ -482,6 +503,7 @@ export default function App() {
             <Dashboard
               empresas={empresas}
               contratos={contratos}
+              tasks={tasks}
               loading={loading}
               onViewLeads={() => navigate('leads')}
               onViewContratos={() => navigate('contratos')}

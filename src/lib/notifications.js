@@ -50,4 +50,14 @@ export const notify = {
       tag: 'followup',
       type: 'followup',
     }),
+
+  taskDue: (count, titles, userId) =>
+    sendPush({
+      userIds: [userId],
+      title: `📋 ${count} tarefa${count > 1 ? 's' : ''} para hoje`,
+      body: titles.slice(0, 2).join(' · '),
+      url: '/?view=agenda',
+      tag: 'task-due',
+      type: 'task_due',
+    }),
 }

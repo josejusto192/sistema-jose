@@ -434,7 +434,7 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
 /* ─── Vendedor Dashboard ───────────────────────────────────────────────────── */
 const FOLLOWUP_STATUSES_V = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
-function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLeads, onViewContratos, onNewLead }) {
+function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLead, onViewLeads, onViewContratos, onNewLead }) {
   const profile  = useProfile()
   const isMobile = useIsMobile()
   const theme    = useTheme()
@@ -456,12 +456,6 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
       const ref = e.atualizado_em || e.criado_em
       return ref && differenceInDays(now, new Date(ref)) >= 3
     })
-
-    const agendados = meus
-      .filter(e => e.data_followup)
-      .map(e => ({ ...e, _date: parseFollowupDate(e.data_followup) }))
-      .sort((a, b) => a._date - b._date)
-      .slice(0, 5)
 
     const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
     const totalPendente = meusContratos.filter(c => c.comissao_status === 'pendente').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
@@ -486,7 +480,7 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
       return { dia: format(date, 'dd/MM'), count }
     })
 
-    return { total, fechados, trabalhados, perdidos, conversao, followups, agendados, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads, chartData }
+    return { total, fechados, trabalhados, perdidos, conversao, followups, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads, chartData }
   }, [empresas, contratos, profile])
 
   if (loading) return (
@@ -573,39 +567,55 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
           </div>
 
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
-              <IconClock size={14} color="var(--text3)" />
-              Follow-ups pendentes
-              {stats.followups.length > 0 && (
-                <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
-                  {stats.followups.length}
-                </span>
-              )}
-            </div>
-            {stats.followups.length === 0
-              ? <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Tudo em dia! ✓</div>
-              : stats.followups.slice(0, 5).map((e, i) => {
-                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
-                return (
-                  <div key={e.id} onClick={() => onOpenLead(e)} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
-                    borderBottom: i < Math.min(stats.followups.length, 5) - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer',
-                  }}
-                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
-                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
-                  >
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {e.nome_fantasia || e.razao_social}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
-                    </div>
-                    <span style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>Ver →</span>
+            {(() => {
+              const today = format(new Date(), 'yyyy-MM-dd')
+              const proximas = tasks
+                .filter(t => !t.completed && t.due_date <= today)
+                .sort((a, b) => a.due_date.localeCompare(b.due_date))
+                .slice(0, 6)
+              const futuras = tasks
+                .filter(t => !t.completed && t.due_date > today)
+                .sort((a, b) => a.due_date.localeCompare(b.due_date))
+                .slice(0, 6 - proximas.length)
+              const lista = [...proximas, ...futuras]
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
+                    <IconClock size={14} color="var(--text3)" />
+                    Tarefas
+                    {proximas.length > 0 && (
+                      <span style={{ background: '#8B5CF6', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                        {proximas.length} hoje
+                      </span>
+                    )}
                   </div>
-                )
-              })
-            }
+                  {lista.length === 0
+                    ? <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Sem tarefas pendentes ✓</div>
+                    : lista.map((t, i) => {
+                      const isOverdue = t.due_date < today
+                      const isToday2  = t.due_date === today
+                      return (
+                        <div key={t.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+                          borderBottom: i < lista.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: isOverdue ? '#EF4444' : isToday2 ? '#8B5CF6' : 'var(--border)', flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {t.title}
+                            </div>
+                            <div style={{ fontSize: 11, color: isOverdue ? '#EF4444' : 'var(--text3)', marginTop: 1 }}>
+                              {isOverdue ? 'Atrasada · ' : ''}{t.due_date ? format(parseISO(t.due_date), 'dd/MM') : ''}
+                              {t.empresa_nome ? ` · ${t.empresa_nome}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  }
+                </>
+              )
+            })()}
           </div>
         </div>
 
@@ -634,12 +644,12 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
 }
 
 /* ─── Export ───────────────────────────────────────────────────────────────── */
-export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead, onNewLead }) {
+export default function Dashboard({ empresas, contratos = [], tasks = [], loading, onViewLeads, onViewContratos, onOpenLead, onNewLead }) {
   const isSuperAdmin = useIsSuperAdmin()
 
   if (!isSuperAdmin) return (
     <VendedorDashboard
-      empresas={empresas} contratos={contratos} loading={loading}
+      empresas={empresas} contratos={contratos} tasks={tasks} loading={loading}
       onOpenLead={onOpenLead} onViewLeads={onViewLeads} onViewContratos={onViewContratos}
       onNewLead={onNewLead}
     />
