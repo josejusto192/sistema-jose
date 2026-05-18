@@ -1,325 +1,176 @@
-import React, { useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import React, { useMemo, useState, useEffect } from 'react'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme, useIsSuperAdmin, useProfile } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, subDays, isPast, isToday, parseISO, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { IconMail, IconPhone, IconClock } from './Icons.jsx'
+import { IconClock, IconBell, IconTrendUp, IconTrendDown } from './Icons.jsx'
+import { supabase } from '../supabase.js'
 
 function parseFollowupDate(str) {
   if (!str) return null
   return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
 }
 
-function getStatusStyle(cfg, theme) {
-  return theme === 'dark'
-    ? { color: cfg.darkColor, background: cfg.darkBg }
-    : { color: cfg.color, background: cfg.bg }
-}
-
-function StatCard({ label, value, sub, accent, onClick }) {
-  return (
-    <div
-      onClick={onClick}
-      className="card"
-      style={{
-        padding: '18px 20px',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'box-shadow 0.15s',
-        borderLeft: `3px solid ${accent || 'var(--accent)'}`,
-      }}
-      onMouseEnter={e => onClick && (e.currentTarget.style.boxShadow = 'var(--shadow-md)')}
-      onMouseLeave={e => onClick && (e.currentTarget.style.boxShadow = 'var(--shadow)')}
-    >
-      <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontWeight: 700, fontSize: 30, color: accent || 'var(--text)', lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>{sub}</div>}
-    </div>
-  )
-}
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="card" style={{ padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ color: 'var(--text2)', marginBottom: 3 }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: 'var(--accent)', fontWeight: 500 }}>{p.value} leads</div>
-      ))}
-    </div>
-  )
-}
-
 function fmt(n) {
   return n?.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '0'
 }
 
-/* ─── Dashboard do Vendedor ──────────────────────────────────────────────── */
-const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
+function fmtBRL(n) {
+  return 'R$ ' + fmt(n)
+}
 
-function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLeads, onViewContratos }) {
-  const profile  = useProfile()
-  const isMobile = useIsMobile()
-  const theme    = useTheme()
+function trend(curr, prev) {
+  if (!prev || prev === 0) return null
+  return Math.round(((curr - prev) / prev) * 100)
+}
 
-  const stats = useMemo(() => {
-    const meus     = empresas // já filtrado por RLS
-    const total    = meus.length
-    const fechados = meus.filter(e => e.status_prospeccao === 'fechou').length
-    const trabalhados = meus.filter(e => e.status_prospeccao !== 'novo').length
-    const perdidos = meus.filter(e => ['perdido', 'descartado'].includes(e.status_prospeccao)).length
-    const conversao = trabalhados > 0 ? Math.round((fechados / trabalhados) * 100) : 0
-
-    const followups = meus
-      .filter(e => {
-        if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-        const ref = e.atualizado_em || e.criado_em
-        return ref && differenceInDays(new Date(), new Date(ref)) >= 3
-      })
-      .slice(0, 5)
-
-    const agendados = meus
-      .filter(e => e.data_followup)
-      .map(e => ({ ...e, _date: parseFollowupDate(e.data_followup) }))
-      .sort((a, b) => a._date - b._date)
-      .slice(0, 5)
-
-    const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
-    const comPendente   = meusContratos.filter(c => c.comissao_status === 'pendente')
-    const comPaga       = meusContratos.filter(c => c.comissao_status === 'paga')
-    const totalPendente = comPendente.reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
-    const totalPago     = comPaga.reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
-
-    const meta       = profile?.meta_mensal || 5
-    const progresso  = meta > 0 ? Math.min(100, Math.round((fechados / meta) * 100)) : 0
-
-    return { total, fechados, trabalhados, perdidos, conversao, followups, agendados, meusContratos, comPendente, totalPendente, totalPago, meta, progresso }
-  }, [empresas, contratos, profile])
-
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)' }}>
-      <div style={{ fontSize: 13 }}>Carregando...</div>
-    </div>
-  )
-
-  const nome = profile?.nome || 'Vendedor'
-  const hora  = new Date().getHours()
-  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
-
+function Avatar({ profile, size = 36 }) {
+  const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
+  if (profile?.foto_url) return <img src={profile.foto_url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
   return (
-    <div style={{ padding: isMobile ? '16px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header pessoal */}
-      <div>
-        <h1 style={{ fontWeight: 700, fontSize: 20, color: 'var(--text)', marginBottom: 2 }}>
-          {saudacao}, {nome}!
-        </h1>
-        <div style={{ fontSize: 13, color: 'var(--text3)' }}>
-          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-        </div>
-      </div>
-
-      {/* Meta mensal */}
-      <div className="card" style={{ padding: '18px 20px', borderLeft: '3px solid var(--accent)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 3 }}>Meta mensal de fechamentos</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
-              {stats.fechados} <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text3)' }}>/ {stats.meta}</span>
-            </div>
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: stats.progresso >= 100 ? 'var(--green)' : 'var(--accent)' }}>
-            {stats.progresso}%
-          </div>
-        </div>
-        <div style={{ height: 6, background: 'var(--bg3)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${stats.progresso}%`, background: stats.progresso >= 100 ? 'var(--green)' : 'var(--accent)', borderRadius: 4, transition: 'width 0.5s' }} />
-        </div>
-        {stats.progresso >= 100 && (
-          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8, fontWeight: 500 }}>Meta atingida! 🎉</div>
-        )}
-      </div>
-
-      {/* KPIs pessoais */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 10 }}>
-        {[
-          { label: 'Meus leads',    value: stats.total,     color: 'var(--accent)',  sub: 'atribuídos a mim' },
-          { label: 'Fechamentos',   value: stats.fechados,  color: 'var(--green)',   sub: 'este período' },
-          { label: 'Conversão',     value: `${stats.conversao}%`, color: 'var(--purple)', sub: `de ${stats.trabalhados} trabalhados` },
-          { label: 'Perdidos',      value: stats.perdidos,  color: 'var(--red)',     sub: 'descartados' },
-        ].map((k, i) => (
-          <div key={i} className="card" style={{ padding: '14px 16px', borderLeft: `3px solid ${k.color}` }}>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>{k.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-        {/* Comissões */}
-        <div className="card" style={{ padding: '18px 20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-            Minhas comissões
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--text3)' }}>Pendente de pagamento</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--yellow)' }}>
-                R$ {stats.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--text3)' }}>Já recebido</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>
-                R$ {stats.totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            {stats.comPendente.length > 0 && (
-              <div style={{ marginTop: 4, padding: '8px 10px', background: 'var(--yellow-bg)', borderRadius: 5, fontSize: 12, color: 'var(--yellow)' }}>
-                {stats.comPendente.length} contrato{stats.comPendente.length > 1 ? 's' : ''} com comissão a receber
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Follow-ups com atenção */}
-        <div className="card" style={{ padding: '18px 20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <IconClock size={14} color="var(--text3)" />
-            Precisam de atenção
-            {stats.followups.length > 0 && (
-              <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 3, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
-                {stats.followups.length}
-              </span>
-            )}
-          </div>
-          {stats.followups.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Tudo em dia!</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {stats.followups.map((e, i) => {
-                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
-                return (
-                  <div key={e.id} onClick={() => onOpenLead(e)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: i < stats.followups.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
-                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
-                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
-                  >
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {e.nome_fantasia || e.razao_social}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
-                    </div>
-                    <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600, flexShrink: 0 }}>Ver</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Próximos follow-ups agendados */}
-      {stats.agendados.length > 0 && (
-        <div className="card" style={{ padding: '18px 20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-            Próximos follow-ups agendados
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {stats.agendados.map((e, i) => {
-              const atrasado = isPast(e._date) && !isToday(e._date)
-              const hoje     = isToday(e._date)
-              const cor      = atrasado ? 'var(--red)' : hoje ? 'var(--yellow)' : 'var(--text3)'
-              return (
-                <div key={e.id} onClick={() => onOpenLead(e)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: i < stats.agendados.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
-                  onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
-                  onMouseLeave={el => el.currentTarget.style.opacity = '1'}
-                >
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: cor, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{e.nome_fantasia || e.razao_social}</div>
-                  </div>
-                  <div style={{ fontSize: 12, color: cor, fontWeight: atrasado || hoje ? 600 : 400, flexShrink: 0 }}>
-                    {atrasado ? 'Atrasado · ' : hoje ? 'Hoje · ' : ''}{format(e._date, 'dd/MM')}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.36, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+      {initials}
     </div>
   )
 }
 
-/* ─── Dashboard do Admin ─────────────────────────────────────────────────── */
-export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead }) {
-  const isSuperAdmin = useIsSuperAdmin()
-  // Follow-ups: leads com data_followup preenchido, ordenados por data
-  const followups = useMemo(() => {
-    return empresas
-      .filter(e => e.data_followup)
-      .map(e => ({ ...e, _date: parseFollowupDate(e.data_followup) }))
-      .sort((a, b) => a._date - b._date)
-  }, [empresas])
-  const theme = useTheme()
+function TrendBadge({ value }) {
+  if (value === null || value === undefined) {
+    return <span style={{ fontSize: 12, color: 'var(--text3)' }}>— vs mês anterior</span>
+  }
+  const pos = value >= 0
+  const Icon = pos ? IconTrendUp : IconTrendDown
+  const color = pos ? 'var(--green)' : 'var(--red)'
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color, fontWeight: 500 }}>
+      <Icon size={12} color={color} />
+      {pos ? '+' : ''}{value}% vs mês anterior
+    </span>
+  )
+}
+
+function StatCard({ label, value, trendValue }) {
+  return (
+    <div className="card" style={{ padding: '22px 24px' }}>
+      <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 10, fontWeight: 400 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 28, color: 'var(--text)', lineHeight: 1.1, marginBottom: 10 }}>{value}</div>
+      <TrendBadge value={trendValue} />
+    </div>
+  )
+}
+
+function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead }) {
+  const emojis = { 'Bom dia': '👋', 'Boa tarde': '☀️', 'Boa noite': '🌙' }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '18px 32px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
+      flexShrink: 0, position: 'sticky', top: 0, zIndex: 10,
+    }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 20, color: 'var(--text)', lineHeight: 1.2 }}>
+          {saudacao}, {nome}! {emojis[saudacao] || '👋'}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 3 }}>
+          Aqui está o desempenho do seu time hoje.
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ position: 'relative' }}>
+          <button style={{
+            width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--border)',
+            background: 'var(--bg2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <IconBell size={18} color="var(--text2)" />
+          </button>
+          {followupCount > 0 && (
+            <span style={{
+              position: 'absolute', top: 1, right: 1, width: 9, height: 9,
+              borderRadius: '50%', background: '#EF4444', border: '2px solid var(--bg2)',
+            }} />
+          )}
+        </div>
+        <Avatar profile={profile} size={38} />
+        <button
+          onClick={onNewLead}
+          style={{
+            background: '#00CB53', color: '#fff', border: 'none', borderRadius: 8,
+            padding: '9px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+          }}
+        >
+          + Novo Lead
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="card" style={{ padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ color: 'var(--text3)', marginBottom: 3 }}>{label}</div>
+      <div style={{ color: '#00CB53', fontWeight: 600 }}>{payload[0]?.value}</div>
+    </div>
+  )
+}
+
+/* ─── Admin Dashboard ──────────────────────────────────────────────────────── */
+function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContratos, onOpenLead, onNewLead }) {
+  const theme    = useTheme()
   const isMobile = useIsMobile()
+  const profile  = useProfile()
+  const [profiles, setProfiles] = useState([])
+
+  useEffect(() => {
+    supabase.from('profiles').select('id, nome, sobrenome, foto_url').then(({ data }) => setProfiles(data || []))
+  }, [])
+
+  const now = new Date()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
 
   const financeiro = useMemo(() => {
     const ativos = contratos.filter(c => c.status === 'ativo')
-    const mrr = ativos
-      .filter(c => c.valor_mensal > 0)
-      .reduce((sum, c) => sum + (c.valor_mensal || 0), 0)
+    const mrr = ativos.filter(c => c.valor_mensal > 0).reduce((s, c) => s + (c.valor_mensal || 0), 0)
     const totalAtivos = ativos.length
-    const ticketMedioRec  = ativos.filter(c => c.valor_mensal > 0).length > 0
-      ? ativos.filter(c => c.valor_mensal > 0).reduce((s, c) => s + (c.valor_mensal || 0), 0) / ativos.filter(c => c.valor_mensal > 0).length
-      : 0
-    const ticketMedioPont = ativos.filter(c => !(c.valor_mensal > 0)).length > 0
-      ? ativos.filter(c => !(c.valor_mensal > 0)).reduce((s, c) => s + (c.valor_total || 0), 0) / ativos.filter(c => !(c.valor_mensal > 0)).length
-      : 0
-    const ticketMedio = totalAtivos > 0
-      ? ativos.reduce((sum, c) => sum + (c.valor_mensal || c.valor_total || 0), 0) / totalAtivos
-      : 0
     const cancelados = contratos.filter(c => c.status === 'cancelado').length
     const baseChurn = ativos.length + cancelados
-    const churnRate = baseChurn > 0
-      ? Math.round((cancelados / baseChurn) * 100)
-      : 0
-    return { mrr, arr: mrr * 12, totalAtivos, ticketMedio, ticketMedioRec, ticketMedioPont, churnRate, cancelados }
+    const churnRate = baseChurn > 0 ? Math.round((cancelados / baseChurn) * 100) : 0
+    const totalComissoes = contratos
+      .filter(c => c.comissao_status === 'pendente')
+      .reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
+    return { mrr, totalAtivos, cancelados, churnRate, totalComissoes }
   }, [contratos])
 
   const stats = useMemo(() => {
-    const total = empresas.length
-    const novos = empresas.filter(e => e.status_prospeccao === 'novo').length
-    const contatados = empresas.filter(e => ['contatado', 'aguardando', 'respondeu', 'call_agendada', 'call_realizada', 'proposta_enviada'].includes(e.status_prospeccao)).length
+    const total   = empresas.length
     const fechados = empresas.filter(e => e.status_prospeccao === 'fechou').length
-    const perdidos = empresas.filter(e => e.status_prospeccao === 'perdido').length
-    const comEmail = empresas.filter(e => e.email).length
-    const comTel = empresas.filter(e => e.telefone).length
+    const trabalhados = empresas.filter(e => e.status_prospeccao !== 'novo').length
+    const conversao = trabalhados > 0 ? +((fechados / trabalhados) * 100).toFixed(1) : 0
 
-    const porUF = {}
-    empresas.forEach(e => { if (e.uf) porUF[e.uf] = (porUF[e.uf] || 0) + 1 })
-    const topUF = Object.entries(porUF).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([uf, count]) => ({ uf, count }))
+    const leadsThisMonth = empresas.filter(e => e.criado_em && new Date(e.criado_em) >= thisMonthStart).length
+    const leadsLastMonth = empresas.filter(e => {
+      if (!e.criado_em) return false
+      const d = new Date(e.criado_em)
+      return d >= lastMonthStart && d < thisMonthStart
+    }).length
+    const trendLeads = trend(leadsThisMonth, leadsLastMonth)
 
-    const porCnae = {}
-    empresas.forEach(e => {
-      const key = e.cnae_principal_descricao?.slice(0, 35) || 'Não informado'
-      porCnae[key] = (porCnae[key] || 0) + 1
-    })
-    const topCnae = Object.entries(porCnae).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([cnae, count]) => ({ cnae, count }))
+    const contratosThisMonth = contratos.filter(c => c.criado_em && new Date(c.criado_em) >= thisMonthStart).length
+    const contratosLastMonth = contratos.filter(c => {
+      if (!c.criado_em) return false
+      const d = new Date(c.criado_em)
+      return d >= lastMonthStart && d < thisMonthStart
+    }).length
+    const trendContratos = trend(contratosThisMonth, contratosLastMonth)
 
-    const porStatus = Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
-      name: cfg.label,
-      value: empresas.filter(e => e.status_prospeccao === key).length,
-      color: cfg.dot,
-    })).filter(s => s.value > 0)
-
-    const today = new Date()
-    const porDia = Array.from({ length: 14 }, (_, i) => {
-      const date = subDays(today, 13 - i)
+    // Chart: leads por dia, 30 dias
+    const chartData = Array.from({ length: 30 }, (_, i) => {
+      const date = subDays(now, 29 - i)
       const dateStr = format(date, 'yyyy-MM-dd')
       const count = empresas.filter(e => {
         if (!e.criado_em) return false
@@ -328,252 +179,432 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       return { dia: format(date, 'dd/MM'), count }
     })
 
-    return { total, novos, contatados, fechados, perdidos, comEmail, comTel, topUF, topCnae, porStatus, porDia, recentes: [...empresas].slice(0, 5) }
-  }, [empresas])
+    return { total, fechados, trabalhados, conversao, trendLeads, trendContratos, chartData }
+  }, [empresas, contratos])
+
+  // Ranking de vendedores por contratos
+  const ranking = useMemo(() => {
+    return profiles
+      .map(p => {
+        const meusContratos = contratos.filter(c => c.vendedor_id === p.id)
+        const qtd   = meusContratos.length
+        const valor = meusContratos.reduce((s, c) => s + (c.valor_mensal || c.valor_total || 0), 0)
+        return { ...p, qtd, valor }
+      })
+      .filter(p => p.qtd > 0)
+      .sort((a, b) => b.qtd - a.qtd || b.valor - a.valor)
+      .slice(0, 5)
+  }, [profiles, contratos])
+
+  const nome = profile?.nome || 'Admin'
+  const hora = now.getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+
+  const followupCount = useMemo(() =>
+    empresas.filter(e => {
+      const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
+      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
+      const ref = e.atualizado_em || e.criado_em
+      return ref && differenceInDays(now, new Date(ref)) >= 3
+    }).length
+  , [empresas])
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)', fontSize: 13 }}>
+      Carregando...
+    </div>
+  )
+
+  const chartColor = '#00CB53'
+  const tickColor  = theme === 'dark' ? '#4B5563' : '#9CA3AF'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={followupCount} profile={profile} onNewLead={onNewLead} />
+
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+        {/* 4 stat cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
+          <StatCard
+            label="MRR"
+            value={fmtBRL(financeiro.mrr)}
+            trendValue={null}
+          />
+          <StatCard
+            label="Negócios"
+            value={financeiro.totalAtivos}
+            trendValue={stats.trendContratos}
+          />
+          <StatCard
+            label="Taxa de Conversão"
+            value={`${stats.conversao}%`}
+            trendValue={null}
+          />
+          <StatCard
+            label="Comissões"
+            value={fmtBRL(financeiro.totalComissoes)}
+            trendValue={null}
+          />
+        </div>
+
+        {/* Gráfico + Ranking */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: 14 }}>
+          {/* Area chart */}
+          <div className="card" style={{ padding: '22px 22px 14px' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 18 }}>
+              Leads no Período
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={stats.chartData} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="areaGreen" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={chartColor} stopOpacity={0.18} />
+                    <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="dia"
+                  tick={{ fill: tickColor, fontSize: 11 }}
+                  axisLine={false} tickLine={false}
+                  interval={4}
+                />
+                <YAxis hide />
+                <Tooltip content={<ChartTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke={chartColor}
+                  strokeWidth={2.5}
+                  fill="url(#areaGreen)"
+                  dot={false}
+                  activeDot={{ r: 5, fill: chartColor, strokeWidth: 0 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Ranking de Vendedores */}
+          <div className="card" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>Ranking de Vendedores</div>
+              <button
+                onClick={() => {}}
+                style={{ fontSize: 12, color: '#00CB53', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+              >
+                Ver todos
+              </button>
+            </div>
+            {ranking.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '24px 0' }}>
+                Nenhum contrato registrado
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {ranking.map((v, i) => (
+                  <div key={v.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '11px 0',
+                    borderBottom: i < ranking.length - 1 ? '1px solid var(--border)' : 'none',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)', width: 16, flexShrink: 0 }}>{i + 1}</div>
+                    <Avatar profile={v} size={34} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {[v.nome, v.sobrenome].filter(Boolean).join(' ')}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{v.qtd} contrato{v.qtd !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#00CB53', flexShrink: 0 }}>
+                      {fmtBRL(v.valor)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Follow-ups e recentes */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+          {/* Leads recentes */}
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>Últimos leads</div>
+            {empresas.slice(0, 5).length === 0
+              ? <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Nenhum lead</div>
+              : empresas.slice(0, 5).map((e, i) => {
+                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
+                return (
+                  <div key={e.id} onClick={() => onOpenLead(e)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+                    borderBottom: i < 4 ? '1px solid var(--border)' : 'none', cursor: 'pointer',
+                  }}
+                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--text3)', flexShrink: 0 }}>
+                      {(e.razao_social || e.nome_fantasia || '?')[0].toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {e.nome_fantasia || e.razao_social}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{e.municipio}{e.uf ? ` · ${e.uf}` : ''}</div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: cfg.dot, background: theme === 'dark' ? cfg.darkBg : cfg.bg, borderRadius: 4, padding: '2px 7px', flexShrink: 0 }}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                )
+              })
+            }
+          </div>
+
+          {/* Follow-ups com atenção */}
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
+              <IconClock size={14} color="var(--text3)" />
+              Follow-ups pendentes
+              {followupCount > 0 && (
+                <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{followupCount}</span>
+              )}
+            </div>
+            {(() => {
+              const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
+              const list = empresas.filter(e => {
+                if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
+                const ref = e.atualizado_em || e.criado_em
+                return ref && differenceInDays(now, new Date(ref)) >= 3
+              }).slice(0, 5)
+              if (!list.length) return <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Tudo em dia! ✓</div>
+              return list.map((e, i) => {
+                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
+                return (
+                  <div key={e.id} onClick={() => onOpenLead(e)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+                    borderBottom: i < list.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer',
+                  }}
+                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
+                  >
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {e.nome_fantasia || e.razao_social}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>Ver →</span>
+                  </div>
+                )
+              })
+            })()}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+/* ─── Vendedor Dashboard ───────────────────────────────────────────────────── */
+const FOLLOWUP_STATUSES_V = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
+
+function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLeads, onViewContratos, onNewLead }) {
+  const profile  = useProfile()
+  const isMobile = useIsMobile()
+  const theme    = useTheme()
+  const now = new Date()
+  const hora = now.getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+  const nome = profile?.nome || 'Vendedor'
+
+  const stats = useMemo(() => {
+    const meus        = empresas
+    const total       = meus.length
+    const fechados    = meus.filter(e => e.status_prospeccao === 'fechou').length
+    const trabalhados = meus.filter(e => e.status_prospeccao !== 'novo').length
+    const perdidos    = meus.filter(e => ['perdido', 'descartado'].includes(e.status_prospeccao)).length
+    const conversao   = trabalhados > 0 ? +((fechados / trabalhados) * 100).toFixed(1) : 0
+
+    const followups = meus.filter(e => {
+      if (!FOLLOWUP_STATUSES_V.includes(e.status_prospeccao)) return false
+      const ref = e.atualizado_em || e.criado_em
+      return ref && differenceInDays(now, new Date(ref)) >= 3
+    })
+
+    const agendados = meus
+      .filter(e => e.data_followup)
+      .map(e => ({ ...e, _date: parseFollowupDate(e.data_followup) }))
+      .sort((a, b) => a._date - b._date)
+      .slice(0, 5)
+
+    const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
+    const totalPendente = meusContratos.filter(c => c.comissao_status === 'pendente').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
+    const totalPago     = meusContratos.filter(c => c.comissao_status === 'paga').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
+    const meta     = profile?.meta_mensal || 5
+    const progresso = meta > 0 ? Math.min(100, Math.round((fechados / meta) * 100)) : 0
+
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const leadsThisMonth = meus.filter(e => e.criado_em && new Date(e.criado_em) >= thisMonthStart).length
+    const leadsLastMonth = meus.filter(e => {
+      if (!e.criado_em) return false
+      const d = new Date(e.criado_em)
+      return d >= lastMonthStart && d < thisMonthStart
+    }).length
+    const trendLeads = trend(leadsThisMonth, leadsLastMonth)
+
+    const chartData = Array.from({ length: 30 }, (_, i) => {
+      const date = subDays(now, 29 - i)
+      const dateStr = format(date, 'yyyy-MM-dd')
+      const count = meus.filter(e => e.criado_em && format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr).length
+      return { dia: format(date, 'dd/MM'), count }
+    })
+
+    return { total, fechados, trabalhados, perdidos, conversao, followups, agendados, meusContratos, totalPendente, totalPago, meta, progresso, trendLeads, chartData }
+  }, [empresas, contratos, profile])
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)', fontSize: 13 }}>
+      Carregando...
+    </div>
+  )
+
+  const chartColor = '#00CB53'
+  const tickColor  = theme === 'dark' ? '#4B5563' : '#9CA3AF'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={stats.followups.length} profile={profile} onNewLead={onNewLead} />
+
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+        {/* Meta mensal */}
+        <div className="card" style={{ padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 4 }}>Meta mensal de fechamentos</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+                {stats.fechados} <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text3)' }}>/ {stats.meta}</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 800, color: stats.progresso >= 100 ? 'var(--green)' : '#00CB53' }}>
+              {stats.progresso}%
+            </div>
+          </div>
+          <div style={{ height: 7, background: 'var(--bg3)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${stats.progresso}%`, background: stats.progresso >= 100 ? 'var(--green)' : '#00CB53', borderRadius: 4, transition: 'width 0.5s' }} />
+          </div>
+          {stats.progresso >= 100 && <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8, fontWeight: 500 }}>Meta atingida! 🎉</div>}
+        </div>
+
+        {/* 4 KPI cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
+          <StatCard label="Meus Leads" value={stats.total} trendValue={stats.trendLeads} />
+          <StatCard label="Fechamentos" value={stats.fechados} trendValue={null} />
+          <StatCard label="Conversão" value={`${stats.conversao}%`} trendValue={null} />
+          <StatCard label="Comissão Pendente" value={fmtBRL(stats.totalPendente)} trendValue={null} />
+        </div>
+
+        {/* Gráfico + follow-ups */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: 14 }}>
+          <div className="card" style={{ padding: '22px 22px 14px' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 18 }}>Minha Atividade (30 dias)</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={stats.chartData} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="areaGreenV" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={chartColor} stopOpacity={0.18} />
+                    <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="dia" tick={{ fill: tickColor, fontSize: 11 }} axisLine={false} tickLine={false} interval={4} />
+                <YAxis hide />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="count" stroke={chartColor} strokeWidth={2.5} fill="url(#areaGreenV)" dot={false} activeDot={{ r: 5, fill: chartColor, strokeWidth: 0 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
+              <IconClock size={14} color="var(--text3)" />
+              Follow-ups pendentes
+              {stats.followups.length > 0 && (
+                <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                  {stats.followups.length}
+                </span>
+              )}
+            </div>
+            {stats.followups.length === 0
+              ? <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Tudo em dia! ✓</div>
+              : stats.followups.slice(0, 5).map((e, i) => {
+                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
+                return (
+                  <div key={e.id} onClick={() => onOpenLead(e)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+                    borderBottom: i < Math.min(stats.followups.length, 5) - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer',
+                  }}
+                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
+                  >
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {e.nome_fantasia || e.razao_social}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>Ver →</span>
+                  </div>
+                )
+              })
+            }
+          </div>
+        </div>
+
+        {/* Comissões */}
+        <div className="card" style={{ padding: '20px 24px' }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>Minhas comissões</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>Pendente de pagamento</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--yellow)' }}>
+                {fmtBRL(stats.totalPendente)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>Já recebido</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--green)' }}>
+                {fmtBRL(stats.totalPago)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+/* ─── Export ───────────────────────────────────────────────────────────────── */
+export default function Dashboard({ empresas, contratos = [], loading, onViewLeads, onViewContratos, onOpenLead, onNewLead }) {
+  const isSuperAdmin = useIsSuperAdmin()
 
   if (!isSuperAdmin) return (
     <VendedorDashboard
       empresas={empresas} contratos={contratos} loading={loading}
       onOpenLead={onOpenLead} onViewLeads={onViewLeads} onViewContratos={onViewContratos}
+      onNewLead={onNewLead}
     />
   )
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)' }}>
-      <div style={{ fontSize: 13, animation: 'pulse 1.5s infinite' }}>Carregando...</div>
-    </div>
-  )
-
-  const accentColor = theme === 'dark' ? '#3B82F6' : '#2563EB'
-  const chartTickColor = theme === 'dark' ? '#636366' : '#9CA3AF'
-
   return (
-    <div style={{ padding: isMobile ? '16px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeIn 0.25s ease' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-        <div>
-          <h1 style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-0.3px', color: 'var(--text)' }}>Dashboard</h1>
-          <div style={{ color: 'var(--text3)', fontSize: 13, marginTop: 2 }}>Visão geral da prospecção</div>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '5px 12px', borderRadius: 20 }}>
-          {format(new Date(), "dd 'de' MMMM, yyyy", { locale: ptBR })}
-        </div>
-      </div>
-
-      {/* Follow-ups */}
-      {followups.length > 0 && (
-        <div className="card" style={{ padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 14 }}>
-            <IconClock size={14} color="var(--text3)" />
-            Follow-ups agendados
-            <span style={{ fontSize: 11, background: 'var(--bg3)', color: 'var(--text3)', borderRadius: 20, padding: '1px 8px', marginLeft: 2 }}>{followups.length}</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {followups.map((e, i) => {
-              const date = e._date
-              const atrasado = date && isPast(date) && !isToday(date)
-              const hoje = date && isToday(date)
-              const indicatorColor = atrasado ? '#EF4444' : hoje ? '#F59E0B' : 'var(--text3)'
-              const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
-              return (
-                <div
-                  key={e.id}
-                  onClick={() => onOpenLead(e)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '9px 0',
-                    borderBottom: i < followups.length - 1 ? '1px solid var(--border)' : 'none',
-                    cursor: 'pointer', transition: 'opacity 0.1s',
-                  }}
-                  onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
-                  onMouseLeave={el => el.currentTarget.style.opacity = '1'}
-                >
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: indicatorColor, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {e.nome_fantasia || e.razao_social}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
-                  </div>
-                  <div style={{ fontSize: 12, color: indicatorColor, fontWeight: atrasado || hoje ? 600 : 400, flexShrink: 0, textAlign: 'right' }}>
-                    {atrasado ? 'Atrasado · ' : hoje ? 'Hoje · ' : ''}
-                    {date ? format(date, 'dd/MM/yy') : ''}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Financeiro — MRR / ARR */}
-      <div>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, fontWeight: 500 }}>Financeiro</div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
-          <div className="card" onClick={onViewContratos} style={{ padding: '16px 18px', cursor: 'pointer', borderLeft: '3px solid var(--green)' }}
-            onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
-            onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
-          >
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>MRR</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--green)', lineHeight: 1 }}>R$ {fmt(financeiro.mrr)}</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>recorrente mensal</div>
-          </div>
-          <div className="card" style={{ padding: '16px 18px', borderLeft: '3px solid var(--cyan)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>ARR projetado</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--cyan)', lineHeight: 1 }}>R$ {fmt(financeiro.arr)}</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>MRR × 12</div>
-          </div>
-          <div className="card" onClick={onViewContratos} style={{ padding: '16px 18px', cursor: 'pointer', borderLeft: '3px solid var(--purple)' }}
-            onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
-            onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
-          >
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Contratos ativos</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--purple)', lineHeight: 1 }}>{financeiro.totalAtivos}</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>ticket médio R$ {fmt(financeiro.ticketMedio)}</div>
-          </div>
-          <div className="card" style={{ padding: '16px 18px', borderLeft: '3px solid var(--red)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Churn rate</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: financeiro.churnRate > 0 ? 'var(--red)' : 'var(--text3)', lineHeight: 1 }}>{financeiro.churnRate}%</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>{financeiro.cancelados} cancelado{financeiro.cancelados !== 1 ? 's' : ''} de {financeiro.totalAtivos + financeiro.cancelados}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Prospecção */}
-      <div>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, fontWeight: 500 }}>Prospecção</div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
-          <StatCard label="Total de leads" value={stats.total} sub="empresas captadas" accent={accentColor} onClick={onViewLeads} />
-          <StatCard label="Novos" value={stats.novos} sub="aguardando contato" accent={accentColor} />
-          <StatCard label="Em andamento" value={stats.contatados} sub="contatados ou negociando" accent="var(--yellow)" />
-          <StatCard label="Fechados" value={stats.fechados} sub={`${stats.perdidos} perdidos`} accent="var(--green)" />
-        </div>
-      </div>
-
-      {/* Info rápida */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 10 }}>
-        {[
-          { Icon: IconMail,  value: stats.comEmail, label: 'com e-mail',   color: 'var(--accent)' },
-          { Icon: IconPhone, value: stats.comTel,   label: 'com telefone', color: 'var(--purple)' },
-          { Icon: null, value: `${(stats.total - stats.novos) > 0 ? Math.round((stats.fechados / (stats.total - stats.novos)) * 100) : 0}%`, label: 'conversão (excl. novos)', color: 'var(--yellow)' },
-        ].map((item, i) => (
-          <div key={i} className="card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {item.Icon
-                ? <item.Icon size={18} color="var(--text3)" />
-                : <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text3)' }}>%</span>
-              }
-            </div>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 600, color: item.color, lineHeight: 1 }}>{item.value}</div>
-              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>{item.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Gráficos */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Leads por dia (14 dias)</div>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={stats.porDia} barSize={12}>
-              <XAxis dataKey="dia" tick={{ fill: chartTickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="count" fill={accentColor} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Funil por status</div>
-          {stats.porStatus.length === 0 ? (
-            <div style={{ color: 'var(--text3)', fontSize: 13, textAlign: 'center', paddingTop: 40 }}>Sem dados</div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-              <PieChart width={130} height={130}>
-                <Pie data={stats.porStatus} cx={60} cy={60} innerRadius={38} outerRadius={60} dataKey="value" strokeWidth={0}>
-                  {stats.porStatus.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-              </PieChart>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {stats.porStatus.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{s.name}</span>
-                    </div>
-                    <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500 }}>{s.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Top UF + Segmentos */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Top estados</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {stats.topUF.slice(0, 6).map(item => (
-              <div key={item.uf} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ fontSize: 12, color: 'var(--text3)', width: 22 }}>{item.uf}</div>
-                <div style={{ flex: 1, height: 5, background: 'var(--bg3)', borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(item.count / stats.topUF[0].count) * 100}%`, background: accentColor, borderRadius: 10, transition: 'width 0.5s' }} />
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text2)', width: 22, textAlign: 'right', fontWeight: 500 }}>{item.count}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Top segmentos</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {stats.topCnae.map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, fontSize: 12, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.cnae}</div>
-                <div style={{ background: 'var(--bg3)', borderRadius: 20, padding: '2px 9px', fontSize: 11, color: 'var(--accent)', fontWeight: 500, flexShrink: 0 }}>{item.count}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Recentes */}
-      <div className="card" style={{ padding: '20px' }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 16 }}>Últimos leads captados</div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {stats.recentes.map((e, i) => {
-            const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
-            const style = getStatusStyle(cfg, theme)
-            return (
-              <div
-                key={e.id}
-                onClick={() => onOpenLead(e)}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < stats.recentes.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer', transition: 'opacity 0.1s' }}
-                onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={el => el.currentTarget.style.opacity = '1'}
-              >
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--text2)', flexShrink: 0 }}>
-                  {(e.razao_social || e.nome_fantasia || '?')[0]}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.nome_fantasia || e.razao_social}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>{e.municipio} · {e.uf} · {e.cnae_principal_descricao?.slice(0, 40)}</div>
-                </div>
-                <span className="badge" style={{ background: style.background, color: style.color, flexShrink: 0 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot }} />
-                  {cfg.label}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
+    <AdminDashboard
+      empresas={empresas} contratos={contratos} loading={loading}
+      onViewLeads={onViewLeads} onViewContratos={onViewContratos} onOpenLead={onOpenLead}
+      onNewLead={onNewLead}
+    />
   )
 }
