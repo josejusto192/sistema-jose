@@ -32,6 +32,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [session, setSession] = useState(undefined) // undefined = loading, null = no session
   const [profile, setProfile] = useState(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [view, setView] = useState('dashboard')
   const [selectedLead, setSelectedLead] = useState(null)
   const [empresas, setEmpresas] = useState([])
@@ -80,6 +81,7 @@ export default function App() {
       .eq('id', userId)
       .single()
     setProfile(data || null)
+    setProfileLoaded(true)
   }
 
   // Data loading — only when authenticated
@@ -87,7 +89,6 @@ export default function App() {
     if (!session) return
     fetchEmpresas()
     fetchContratos()
-    fetchTasks()
 
     const channel = supabase
       .channel('realtime-changes')
@@ -97,6 +98,33 @@ export default function App() {
 
     return () => supabase.removeChannel(channel)
   }, [session])
+
+  // Tasks — carrega e assina realtime após perfil estar disponível (filtro por role)
+  useEffect(() => {
+    if (!session || !profileLoaded) return
+
+    const isAdmin = profile?.role === 'superadmin'
+    const userId  = session.user.id
+
+    async function loadTasks() {
+      let q = supabase.from('tasks').select('*').order('due_date', { ascending: true })
+      if (!isAdmin) q = q.eq('user_id', userId)
+      const { data, error } = await q
+      if (!error) setTasks(data || [])
+    }
+
+    loadTasks()
+
+    const cfg = { event: '*', schema: 'public', table: 'tasks' }
+    if (!isAdmin) cfg.filter = `user_id=eq.${userId}`
+
+    const taskChannel = supabase
+      .channel('tasks-realtime')
+      .on('postgres_changes', cfg, loadTasks)
+      .subscribe()
+
+    return () => supabase.removeChannel(taskChannel)
+  }, [session?.user?.id, profileLoaded, profile?.role])
 
   // Daily task due notification check
   useEffect(() => {
@@ -135,14 +163,6 @@ export default function App() {
       .select('*')
       .order('criado_em', { ascending: false })
     if (!error) setContratos(data || [])
-  }
-
-  async function fetchTasks() {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .order('due_date', { ascending: true })
-    if (!error) setTasks(data || [])
   }
 
   async function saveTask(task) {
@@ -288,6 +308,9 @@ export default function App() {
     initialLoaded.current = false
     setEmpresas([])
     setContratos([])
+    setTasks([])
+    setProfile(null)
+    setProfileLoaded(false)
   }
 
   function navigate(v) {
