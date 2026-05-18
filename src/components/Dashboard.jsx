@@ -271,7 +271,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
   const financeiro = useMemo(() => {
     const ativos = contratos.filter(c => c.status === 'ativo')
     const mrr = ativos
-      .filter(c => c.pacote === 'gestao_trafego')
+      .filter(c => c.valor_mensal > 0)
       .reduce((sum, c) => sum + (c.valor_mensal || 0), 0)
     const totalAtivos = ativos.length
     const ticketMedio = totalAtivos > 0
