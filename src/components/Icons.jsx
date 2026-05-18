@@ -273,3 +273,30 @@ export function IconBarChart({ size = 16, color = 'currentColor' }) {
     </svg>
   )
 }
+
+export function IconBell({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1.5A1 1 0 0 0 7 2.5v.35A4.5 4.5 0 0 0 3.5 7v2.5L2 11h12l-1.5-1.5V7A4.5 4.5 0 0 0 9 2.85V2.5a1 1 0 0 0-1-1Z" fill={color} opacity="0.9"/>
+      <path d="M6.5 11.5a1.5 1.5 0 0 0 3 0" stroke={color} strokeWidth="1" fill="none"/>
+    </svg>
+  )
+}
+
+export function IconTrendUp({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <polyline points="1,10 5,6 8,8 13,3" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points="9,3 13,3 13,7" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+export function IconTrendDown({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <polyline points="1,4 5,8 8,6 13,11" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points="9,11 13,11 13,7" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}

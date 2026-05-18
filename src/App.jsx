@@ -361,9 +361,7 @@ export default function App() {
               >
                 <IconMenu size={20} color="var(--text)" />
               </button>
-              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>
-                Prosp<span style={{ color: 'var(--accent)' }}>CRM</span>
-              </span>
+              <span style={{ fontWeight: 800, fontSize: 17, color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>Tilim</span>
             </div>
           )}
 
@@ -375,6 +373,7 @@ export default function App() {
               onViewLeads={() => navigate('leads')}
               onViewContratos={() => navigate('contratos')}
               onOpenLead={openLead}
+              onNewLead={() => navigate('leads')}
             />
           )}
           {view === 'leads' && (
