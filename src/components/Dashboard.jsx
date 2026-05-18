@@ -82,19 +82,19 @@ function StatCard({ label, value, sub, trendValue, tooltip }) {
       }
       {tooltip && show && (
         <div style={{
-          position: 'absolute', bottom: 'calc(100% + 8px)', left: 0,
+          position: 'absolute', top: 'calc(100% + 8px)', left: 0,
           background: '#1A1F2B', color: '#E2E8F0',
           borderRadius: 8, padding: '10px 13px',
           fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-line',
           boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
           zIndex: 50, width: 230, pointerEvents: 'none',
         }}>
-          {tooltip}
           <div style={{
-            position: 'absolute', top: '100%', left: 20,
+            position: 'absolute', bottom: '100%', left: 20,
             borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-            borderTop: '6px solid #1A1F2B',
+            borderBottom: '6px solid #1A1F2B',
           }} />
+          {tooltip}
         </div>
       )}
     </div>
