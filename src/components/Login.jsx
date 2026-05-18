@@ -34,14 +34,11 @@ export default function Login() {
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
-            <TilimIcon size={32} color="#00CB53" />
-            <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
+            <TilimIcon size={34} color="#00CB53" />
+            <div style={{ fontWeight: 800, fontSize: 26, letterSpacing: '-0.5px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
               Tilim
             </div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-            O Som da Venda
           </div>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>Acesse sua conta</div>
         </div>

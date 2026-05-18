@@ -17,11 +17,11 @@ function Avatar({ profile, size = 32 }) {
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
 const S = {
-  sidebar: { width: 220, background: '#0F1115', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
-  logo: { padding: '18px 18px 14px', borderBottom: '1px solid #1A1F25' },
-  nav: { padding: '8px 8px', flex: 1, overflowY: 'auto' },
-  section: { marginTop: 16, paddingTop: 14, borderTop: '1px solid #1A1F25' },
-  sectionLabel: { fontSize: 10, fontWeight: 600, color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', paddingLeft: 10, marginBottom: 6 },
+  sidebar: { width: 228, background: '#0F1115', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
+  logo: { padding: '20px 18px 16px', borderBottom: '1px solid #1A1F25' },
+  nav: { padding: '10px 10px', flex: 1, overflowY: 'auto' },
+  section: { marginTop: 18, paddingTop: 14, borderTop: '1px solid #1A1F25' },
+  sectionLabel: { fontSize: 10, fontWeight: 600, color: '#3D4A5C', letterSpacing: '0.08em', textTransform: 'uppercase', paddingLeft: 10, marginBottom: 6 },
   footer: { padding: '10px 12px 14px', borderTop: '1px solid #1A1F25' },
 }
 
@@ -32,25 +32,25 @@ function NavBtn({ item, active, onClick }) {
       onClick={onClick}
       style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 8, padding: '7px 10px', borderRadius: 5, border: 'none',
-        background: active ? '#1A1F25' : 'transparent',
-        color: active ? '#F1F5F9' : '#64748B',
-        fontSize: 13, fontWeight: active ? 500 : 400,
-        cursor: 'pointer', marginBottom: 1, transition: 'background 0.1s, color 0.1s', textAlign: 'left',
+        gap: 8, padding: '8px 12px', borderRadius: 8, border: 'none',
+        background: active ? '#00CB53' : 'transparent',
+        color: active ? '#fff' : '#8896A9',
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        cursor: 'pointer', marginBottom: 2, transition: 'background 0.15s, color 0.15s', textAlign: 'left',
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Icon size={14} color={active ? '#00CB53' : '#475569'} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <Icon size={15} color={active ? '#fff' : '#4D5E73'} />
         {item.label}
       </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
         {item.alert != null && (
-          <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 3, padding: '1px 5px', fontSize: 10, fontWeight: 700 }}>
+          <span style={{ background: active ? 'rgba(255,255,255,0.25)' : '#F59E0B', color: '#fff', borderRadius: 4, padding: '1px 5px', fontSize: 10, fontWeight: 700 }}>
             {item.alert}
           </span>
         )}
         {item.badge != null && (
-          <span style={{ background: active ? '#2563EB' : '#1A1F25', color: active ? '#fff' : '#64748B', borderRadius: 3, padding: '1px 6px', fontSize: 10 }}>
+          <span style={{ background: active ? 'rgba(255,255,255,0.2)' : '#1A1F25', color: active ? '#fff' : '#64748B', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>
             {item.badge}
           </span>
         )}
@@ -74,7 +74,6 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     ? contratos.filter(c => c.vendedor_id === profile?.id && c.comissao_status === 'pendente' && (c.comissao_valor || 0) > 0).length
     : 0
 
-  /* ── NAV POR PERFIL ─────────────────────────────── */
   const navAdmin = [
     { id: 'dashboard',  label: 'Dashboard',      icon: IconGrid },
     { id: 'leads',      label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
@@ -119,18 +118,13 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     <aside style={S.sidebar}>
       {/* Logo */}
       <div style={S.logo}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <TilimIcon size={28} color="#00CB53" />
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
-              Tilim
-            </div>
-            <div style={{ fontSize: 9, color: '#00CB53', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>
-              O Som da Venda
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <TilimIcon size={30} color="#00CB53" />
+          <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
+            Tilim
           </div>
         </div>
-        <div style={{ fontSize: 10, color: '#475569', marginTop: 8 }}>
+        <div style={{ fontSize: 10, color: '#3D4A5C', marginTop: 10, fontWeight: 500 }}>
           {isSuperAdmin ? 'Painel do Admin' : 'Área do Vendedor'}
         </div>
       </div>
@@ -157,11 +151,11 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
             <div style={S.sectionLabel}>Por status</div>
             {statusCounts.map(({ key, cfg, count }) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 10px', marginBottom: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#64748B' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#4D5E73' }}>
                   <div style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
                   {cfg.label}
                 </div>
-                <span style={{ fontSize: 11, color: '#475569' }}>{count}</span>
+                <span style={{ fontSize: 11, color: '#3D4A5C' }}>{count}</span>
               </div>
             ))}
           </div>
@@ -173,9 +167,9 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
         {/* Stats grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
           {footerStats.map(s => (
-            <div key={s.label} style={{ background: '#1A1F25', borderRadius: 4, padding: '6px 8px' }}>
+            <div key={s.label} style={{ background: '#161B22', borderRadius: 6, padding: '6px 8px' }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: '#475569', marginTop: 2, lineHeight: 1.3 }}>{s.label}</div>
+              <div style={{ fontSize: 10, color: '#3D4A5C', marginTop: 2, lineHeight: 1.3 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -185,8 +179,8 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
           onClick={() => setView('perfil')}
           style={{
             display: 'flex', alignItems: 'center', gap: 9, width: '100%', marginBottom: 6,
-            padding: '7px 8px', background: view === 'perfil' ? '#1A1F25' : '#0F1115',
-            border: '1px solid #1A1F25', borderRadius: 5, cursor: 'pointer', textAlign: 'left',
+            padding: '7px 8px', background: view === 'perfil' ? '#1A1F25' : 'transparent',
+            border: '1px solid #1A1F25', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
           }}
         >
           <Avatar profile={profile} size={32} />
@@ -194,8 +188,8 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
             <div style={{ fontSize: 12, color: '#E2E8F0', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {[profile?.nome, profile?.sobrenome].filter(Boolean).join(' ') || currentUser}
             </div>
-            <div style={{ fontSize: 10, color: isSuperAdmin ? '#00CB53' : '#475569', fontWeight: 600, marginTop: 1 }}>
-              {isSuperAdmin ? 'superadmin' : 'vendedor'}
+            <div style={{ fontSize: 10, color: isSuperAdmin ? '#00CB53' : '#3D4A5C', fontWeight: 600, marginTop: 1 }}>
+              {isSuperAdmin ? 'Admin' : 'Vendedor'}
             </div>
           </div>
         </button>
@@ -203,16 +197,16 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
         <div style={{ display: 'flex', gap: 6 }}>
           <button
             onClick={onToggleTheme}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 5, border: '1px solid #1A1F25', background: 'transparent', color: '#475569', fontSize: 11, cursor: 'pointer' }}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 6, border: '1px solid #1A1F25', background: 'transparent', color: '#3D4A5C', fontSize: 11, cursor: 'pointer' }}
           >
-            {theme === 'light' ? <><IconMoon size={12} color="#475569" /> Escuro</> : <><IconSun size={12} color="#475569" /> Claro</>}
+            {theme === 'light' ? <><IconMoon size={12} color="#3D4A5C" /> Escuro</> : <><IconSun size={12} color="#3D4A5C" /> Claro</>}
           </button>
           {onLogout && (
             <button
               onClick={onLogout}
-              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 5, border: '1px solid #1A1F25', background: 'transparent', color: '#475569', fontSize: 11, cursor: 'pointer' }}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 0', borderRadius: 6, border: '1px solid #1A1F25', background: 'transparent', color: '#3D4A5C', fontSize: 11, cursor: 'pointer' }}
             >
-              <IconLogOut size={12} color="#475569" /> Sair
+              <IconLogOut size={12} color="#3D4A5C" /> Sair
             </button>
           )}
         </div>
