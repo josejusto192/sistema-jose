@@ -258,13 +258,11 @@ function UserModal({ user, currentUserId, onClose, onSaved }) {
 
 function SistemaTab({ session }) {
   const [nomeEmpresa, setNomeEmpresa] = useState(() => localStorage.getItem('cfg_nome_empresa') || 'José Justo')
-  const [followupDias, setFollowupDias] = useState(() => Number(localStorage.getItem('cfg_followup_dias')) || 3)
   const [comissaoPadrao, setComissaoPadrao] = useState(() => Number(localStorage.getItem('cfg_comissao_padrao')) || 10)
   const [saved, setSaved] = useState(false)
 
   function handleSave() {
     localStorage.setItem('cfg_nome_empresa', nomeEmpresa)
-    localStorage.setItem('cfg_followup_dias', followupDias)
     localStorage.setItem('cfg_comissao_padrao', comissaoPadrao)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -287,11 +285,6 @@ function SistemaTab({ session }) {
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Regras de negócio</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 500 }}>
-          <div>
-            <label style={lbl}>Dias para alerta de follow-up</label>
-            <input style={inp()} type="number" min={1} max={30} value={followupDias} onChange={e => setFollowupDias(e.target.value)} />
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Leads sem atualização após X dias entram no alerta</div>
-          </div>
           <div>
             <label style={lbl}>Comissão padrão (%)</label>
             <input style={inp()} type="number" min={0} max={100} step={0.5} value={comissaoPadrao} onChange={e => setComissaoPadrao(e.target.value)} />

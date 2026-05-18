@@ -3,15 +3,10 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { STATUS_CONFIG } from '../constants.js'
 import { useTheme, useIsSuperAdmin, useProfile } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
-import { format, subDays, isPast, isToday, parseISO, differenceInDays } from 'date-fns'
+import { format, subDays, isPast, isToday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { IconClock, IconTrendUp, IconTrendDown } from './Icons.jsx'
 import { supabase } from '../supabase.js'
-
-function parseFollowupDate(str) {
-  if (!str) return null
-  return str.includes('T') ? new Date(str) : parseISO(str + 'T12:00:00')
-}
 
 function fmt(n) {
   return n?.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '0'
@@ -145,7 +140,7 @@ const ChartTooltip = ({ active, payload, label }) => {
 }
 
 /* ─── Admin Dashboard ──────────────────────────────────────────────────────── */
-function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContratos, onOpenLead, onNewLead }) {
+function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads, onViewContratos, onOpenLead, onNewLead }) {
   const theme    = useTheme()
   const isMobile = useIsMobile()
   const profile  = useProfile()
@@ -218,14 +213,10 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
   const hora = now.getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
+  const today = format(now, 'yyyy-MM-dd')
   const followupCount = useMemo(() =>
-    empresas.filter(e => {
-      const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-      const ref = e.atualizado_em || e.criado_em
-      return ref && differenceInDays(now, new Date(ref)) >= 3
-    }).length
-  , [empresas])
+    tasks.filter(t => !t.completed && t.due_date <= today).length
+  , [tasks, today])
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text3)', fontSize: 13 }}>
@@ -384,44 +375,55 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
             }
           </div>
 
-          {/* Follow-ups com atenção */}
+          {/* Tarefas pendentes */}
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
-              <IconClock size={14} color="var(--text3)" />
-              Follow-ups pendentes
-              {followupCount > 0 && (
-                <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{followupCount}</span>
-              )}
-            </div>
             {(() => {
-              const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-              const list = empresas.filter(e => {
-                if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-                const ref = e.atualizado_em || e.criado_em
-                return ref && differenceInDays(now, new Date(ref)) >= 3
-              }).slice(0, 5)
-              if (!list.length) return <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Tudo em dia! ✓</div>
-              return list.map((e, i) => {
-                const cfg = STATUS_CONFIG[e.status_prospeccao] || STATUS_CONFIG.novo
-                return (
-                  <div key={e.id} onClick={() => onOpenLead(e)} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
-                    borderBottom: i < list.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer',
-                  }}
-                    onMouseEnter={el => el.currentTarget.style.opacity = '0.7'}
-                    onMouseLeave={el => el.currentTarget.style.opacity = '1'}
-                  >
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {e.nome_fantasia || e.razao_social}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{cfg.label}</div>
-                    </div>
-                    <span style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>Ver →</span>
+              const proximas = tasks
+                .filter(t => !t.completed && t.due_date <= today)
+                .sort((a, b) => a.due_date.localeCompare(b.due_date))
+                .slice(0, 6)
+              const futuras = tasks
+                .filter(t => !t.completed && t.due_date > today)
+                .sort((a, b) => a.due_date.localeCompare(b.due_date))
+                .slice(0, 6 - proximas.length)
+              const lista = [...proximas, ...futuras]
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
+                    <IconClock size={14} color="var(--text3)" />
+                    Tarefas
+                    {proximas.length > 0 && (
+                      <span style={{ background: '#8B5CF6', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                        {proximas.length} pendente{proximas.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
-                )
-              })
+                  {lista.length === 0
+                    ? <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '16px 0' }}>Sem tarefas pendentes ✓</div>
+                    : lista.map((t, i) => {
+                      const isOverdue = t.due_date < today
+                      const isToday2  = t.due_date === today
+                      return (
+                        <div key={t.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+                          borderBottom: i < lista.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: isOverdue ? '#EF4444' : isToday2 ? '#8B5CF6' : 'var(--border)', flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {t.title}
+                            </div>
+                            <div style={{ fontSize: 11, color: isOverdue ? '#EF4444' : 'var(--text3)', marginTop: 1 }}>
+                              {isOverdue ? 'Atrasada · ' : ''}{t.due_date ? format(parseISO(t.due_date), 'dd/MM') : ''}
+                              {t.empresa_nome ? ` · ${t.empresa_nome}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  }
+                </>
+              )
             })()}
           </div>
         </div>
@@ -432,8 +434,6 @@ function AdminDashboard({ empresas, contratos, loading, onViewLeads, onViewContr
 }
 
 /* ─── Vendedor Dashboard ───────────────────────────────────────────────────── */
-const FOLLOWUP_STATUSES_V = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-
 function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLead, onViewLeads, onViewContratos, onNewLead }) {
   const profile  = useProfile()
   const isMobile = useIsMobile()
@@ -451,11 +451,6 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
     const perdidos    = meus.filter(e => ['perdido', 'descartado'].includes(e.status_prospeccao)).length
     const conversao   = trabalhados > 0 ? +((fechados / trabalhados) * 100).toFixed(1) : 0
 
-    const followups = meus.filter(e => {
-      if (!FOLLOWUP_STATUSES_V.includes(e.status_prospeccao)) return false
-      const ref = e.atualizado_em || e.criado_em
-      return ref && differenceInDays(now, new Date(ref)) >= 3
-    })
 
     const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
     const totalPendente = meusContratos.filter(c => c.comissao_status === 'pendente').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
@@ -480,7 +475,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
       return { dia: format(date, 'dd/MM'), count }
     })
 
-    return { total, fechados, trabalhados, perdidos, conversao, followups, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads, chartData }
+    return { total, fechados, trabalhados, perdidos, conversao, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads, chartData }
   }, [empresas, contratos, profile])
 
   if (loading) return (
@@ -494,7 +489,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={stats.followups.length} profile={profile} onNewLead={onNewLead} />
+      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={tasks.filter(t => !t.completed && t.due_date <= format(new Date(), 'yyyy-MM-dd')).length} profile={profile} onNewLead={onNewLead} />
 
       <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 

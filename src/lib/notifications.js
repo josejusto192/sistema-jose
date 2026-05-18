@@ -41,16 +41,6 @@ export const notify = {
       type: 'comissao_paga',
     }),
 
-  followupAlert: (count, userIds) =>
-    sendPush({
-      userIds,
-      title: '⏰ Follow-up pendente',
-      body: `${count} lead${count > 1 ? 's' : ''} sem atualização há 3+ dias`,
-      url: '/?view=leads',
-      tag: 'followup',
-      type: 'followup',
-    }),
-
   taskDue: (count, titles, userId) =>
     sendPush({
       userIds: [userId],
