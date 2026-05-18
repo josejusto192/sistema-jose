@@ -13,6 +13,8 @@ import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
 import { notify } from './lib/notifications.js'
+import { useNotifications } from './hooks/useNotifications.js'
+import NotificationBell from './components/NotificationBell.jsx'
 
 export const AppContext = createContext({ theme: 'light', currentUser: '', isSuperAdmin: false, profile: null })
 export const useTheme = () => useContext(AppContext).theme
@@ -110,7 +112,7 @@ export default function App() {
     }).length
 
     if (count > 0) {
-      notify.followupAlert(count)
+      notify.followupAlert(count, [session.user.id])
       localStorage.setItem(FOLLOWUP_CHECK_KEY, String(Date.now()))
     }
   }, [empresas, session])
@@ -310,6 +312,7 @@ export default function App() {
 
   const isSuperAdmin = profile?.role === 'superadmin'
   const currentUser = profile?.nome || ''
+  const notif = useNotifications(session?.user?.id)
 
   async function updateProfile(updates) {
     const { error } = await supabase.rpc('update_my_profile', {
@@ -387,6 +390,18 @@ export default function App() {
           <Sidebar {...sidebarProps} />
         )}
 
+        {/* Bell — desktop: fixed top-right */}
+        {!isMobile && (
+          <div style={{ position: 'fixed', top: 14, right: 18, zIndex: 300 }}>
+            <NotificationBell
+              notifications={notif.notifications}
+              unreadCount={notif.unreadCount}
+              markRead={notif.markRead}
+              markAllRead={notif.markAllRead}
+            />
+          </div>
+        )}
+
         <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* Barra superior mobile */}
           {isMobile && (
@@ -402,6 +417,14 @@ export default function App() {
                 <IconMenu size={20} color="var(--text)" />
               </button>
               <span style={{ fontWeight: 800, fontSize: 17, color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>Tilim</span>
+              <div style={{ marginLeft: 'auto' }}>
+                <NotificationBell
+                  notifications={notif.notifications}
+                  unreadCount={notif.unreadCount}
+                  markRead={notif.markRead}
+                  markAllRead={notif.markAllRead}
+                />
+              </div>
             </div>
           )}
 
