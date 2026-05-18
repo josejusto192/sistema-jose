@@ -54,13 +54,13 @@ export default function NotificationBell({ notifications, unreadCount, markRead,
         style={{
           position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 36, height: 36, borderRadius: '50%',
-          background: open ? 'var(--bg3)' : 'transparent',
-          border: '1px solid var(--border)',
-          cursor: 'pointer', color: 'var(--text2)',
+          background: open ? '#1A1F25' : 'transparent',
+          border: '1px solid #1A1F25',
+          cursor: 'pointer', color: '#8896A9',
           transition: 'background 0.15s',
         }}
       >
-        <BellIcon size={17} color="var(--text2)" />
+        <BellIcon size={17} color="#8896A9" />
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute', top: -2, right: -2,
