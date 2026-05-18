@@ -170,9 +170,9 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const telefoneLink = lead.telefone ? `https://wa.me/55${lead.telefone.replace(/\D/g, '')}` : null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{ padding: isMobile ? '12px 16px' : '18px 32px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg2)', zIndex: 10 }}>
+      <div style={{ padding: isMobile ? '12px 16px' : '18px 32px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', zIndex: 10, flexShrink: 0 }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
           ← Voltar para leads
         </button>
@@ -219,7 +219,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
 
 
       {/* Content */}
-      <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)' }}>
+      <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)', overflow: 'auto' }}>
         {/* Coluna esquerda */}
         <div>
           <Section title="Dados cadastrais">
