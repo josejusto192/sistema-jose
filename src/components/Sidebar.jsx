@@ -2,6 +2,7 @@ import React from 'react'
 import { differenceInDays } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
 import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser } from './Icons.jsx'
+import TilimIcon from './TilimIcon.jsx'
 
 function Avatar({ profile, size = 32 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
@@ -119,14 +120,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
       {/* Logo */}
       <div style={S.logo}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <svg width="28" height="28" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="56" height="56" rx="12" fill="#00CB53" fillOpacity="0.12"/>
-            <path d="M28 10C21.373 10 16 15.373 16 22v2.5C13.791 25.674 12 27.8 12 30.5v2a3 3 0 0 0 2 2.83V36a8 8 0 0 0 8 8h.17A4.002 4.002 0 0 0 28 46a4.002 4.002 0 0 0 7.83-2H36a8 8 0 0 0 8-8v-.17A3 3 0 0 0 46 32.5v-2c0-2.7-1.791-4.826-4-5.998V22C42 15.373 36.627 10 28 10z" fill="#00CB53" opacity="0.2"/>
-            <path d="M28 12C22.477 12 18 16.477 18 22v2.815A6.5 6.5 0 0 0 13.5 31v1.5a3 3 0 0 0 2 2.83V36a8 8 0 0 0 8 8h.17A4.002 4.002 0 0 0 36 44h.33a8 8 0 0 0 8-8v-1.67A3 3 0 0 0 46.5 32.5V31A6.5 6.5 0 0 0 38 24.815V22C38 16.477 33.523 12 28 12z" stroke="#00CB53" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <path d="M23 13.5C23 13.5 24.8 12 28 12s5 1.5 5 1.5" stroke="#00CB53" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
-            <circle cx="41" cy="15" r="3" fill="#00CB53"/>
-            <circle cx="44" cy="10" r="2" fill="#00CB53" opacity="0.5"/>
-          </svg>
+          <TilimIcon size={28} color="#00CB53" />
           <div>
             <div style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
               Tilim
