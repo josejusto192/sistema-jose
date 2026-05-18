@@ -1,19 +1,19 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #F4F5F7;
+  --bg:      #F5F7FA;
   --bg2:     #FFFFFF;
-  --bg3:     #F0F2F5;
-  --bg4:     #E4E8EF;
-  --border:  #DDE1E9;
-  --border2: #C8CDD8;
+  --bg3:     #EEF1F6;
+  --bg4:     #E2E7EF;
+  --border:  #D9DFE9;
+  --border2: #C2CAD8;
 
-  --text:    #0D1117;
+  --text:    #0F1115;
   --text2:   #374151;
-  --text3:   #6B7280;
+  --text3:   #64748B;
 
-  --accent:  #2563EB;
-  --accent2: #1D4ED8;
+  --accent:  #00CB53;
+  --accent2: #00A844;
 
   --green:      #059669;
   --green-bg:   #ECFDF5;
@@ -28,7 +28,7 @@
   --shadow:    0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
 
-  --font-body: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Satoshi', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'DM Mono', 'SF Mono', monospace;
 
   --radius:    4px;
@@ -36,19 +36,19 @@
 }
 
 [data-theme="dark"] {
-  --bg:      #0A0A0B;
-  --bg2:     #111113;
-  --bg3:     #18181B;
-  --bg4:     #1F1F23;
-  --border:  #27272A;
-  --border2: #3F3F46;
+  --bg:      #0A0B0D;
+  --bg2:     #111318;
+  --bg3:     #181C22;
+  --bg4:     #1F242D;
+  --border:  #252B35;
+  --border2: #374151;
 
-  --text:    #FAFAFA;
-  --text2:   #A1A1AA;
-  --text3:   #52525B;
+  --text:    #F5F7FA;
+  --text2:   #9CA3AF;
+  --text3:   #4B5563;
 
-  --accent:  #3B82F6;
-  --accent2: #2563EB;
+  --accent:  #00CB53;
+  --accent2: #00A844;
 
   --green:      #34D399;
   --green-bg:   #052E16;
