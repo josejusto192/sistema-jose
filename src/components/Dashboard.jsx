@@ -67,9 +67,9 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
     const meus     = empresas // já filtrado por RLS
     const total    = meus.length
     const fechados = meus.filter(e => e.status_prospeccao === 'fechou').length
-    const contatos = meus.filter(e => e.status_prospeccao === 'contatado').length
+    const trabalhados = meus.filter(e => e.status_prospeccao !== 'novo').length
     const perdidos = meus.filter(e => ['perdido', 'descartado'].includes(e.status_prospeccao)).length
-    const conversao = contatos > 0 ? Math.round((fechados / contatos) * 100) : 0
+    const conversao = trabalhados > 0 ? Math.round((fechados / trabalhados) * 100) : 0
 
     const followups = meus
       .filter(e => {
@@ -92,9 +92,9 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
     const totalPago     = comPaga.reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
 
     const meta       = profile?.meta_mensal || 5
-    const progresso  = Math.min(100, Math.round((fechados / meta) * 100))
+    const progresso  = meta > 0 ? Math.min(100, Math.round((fechados / meta) * 100)) : 0
 
-    return { total, fechados, contatos, perdidos, conversao, followups, agendados, meusContratos, comPendente, totalPendente, totalPago, meta, progresso }
+    return { total, fechados, trabalhados, perdidos, conversao, followups, agendados, meusContratos, comPendente, totalPendente, totalPago, meta, progresso }
   }, [empresas, contratos, profile])
 
   if (loading) return (
@@ -145,7 +145,7 @@ function VendedorDashboard({ empresas, contratos, loading, onOpenLead, onViewLea
         {[
           { label: 'Meus leads',    value: stats.total,     color: 'var(--accent)',  sub: 'atribuídos a mim' },
           { label: 'Fechamentos',   value: stats.fechados,  color: 'var(--green)',   sub: 'este período' },
-          { label: 'Conversão',     value: `${stats.conversao}%`, color: 'var(--purple)', sub: `${stats.contatos} contatados` },
+          { label: 'Conversão',     value: `${stats.conversao}%`, color: 'var(--purple)', sub: `de ${stats.trabalhados} trabalhados` },
           { label: 'Perdidos',      value: stats.perdidos,  color: 'var(--red)',     sub: 'descartados' },
         ].map((k, i) => (
           <div key={i} className="card" style={{ padding: '14px 16px', borderLeft: `3px solid ${k.color}` }}>
@@ -274,14 +274,21 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
       .filter(c => c.valor_mensal > 0)
       .reduce((sum, c) => sum + (c.valor_mensal || 0), 0)
     const totalAtivos = ativos.length
+    const ticketMedioRec  = ativos.filter(c => c.valor_mensal > 0).length > 0
+      ? ativos.filter(c => c.valor_mensal > 0).reduce((s, c) => s + (c.valor_mensal || 0), 0) / ativos.filter(c => c.valor_mensal > 0).length
+      : 0
+    const ticketMedioPont = ativos.filter(c => !(c.valor_mensal > 0)).length > 0
+      ? ativos.filter(c => !(c.valor_mensal > 0)).reduce((s, c) => s + (c.valor_total || 0), 0) / ativos.filter(c => !(c.valor_mensal > 0)).length
+      : 0
     const ticketMedio = totalAtivos > 0
       ? ativos.reduce((sum, c) => sum + (c.valor_mensal || c.valor_total || 0), 0) / totalAtivos
       : 0
     const cancelados = contratos.filter(c => c.status === 'cancelado').length
-    const churnRate = contratos.length > 0
-      ? Math.round((cancelados / contratos.length) * 100)
+    const baseChurn = ativos.length + cancelados
+    const churnRate = baseChurn > 0
+      ? Math.round((cancelados / baseChurn) * 100)
       : 0
-    return { mrr, arr: mrr * 12, totalAtivos, ticketMedio, churnRate }
+    return { mrr, arr: mrr * 12, totalAtivos, ticketMedio, ticketMedioRec, ticketMedioPont, churnRate, cancelados }
   }, [contratos])
 
   const stats = useMemo(() => {
@@ -314,7 +321,10 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
     const porDia = Array.from({ length: 14 }, (_, i) => {
       const date = subDays(today, 13 - i)
       const dateStr = format(date, 'yyyy-MM-dd')
-      const count = empresas.filter(e => e.criado_em?.slice(0, 10) === dateStr).length
+      const count = empresas.filter(e => {
+        if (!e.criado_em) return false
+        return format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr
+      }).length
       return { dia: format(date, 'dd/MM'), count }
     })
 
@@ -424,7 +434,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
           <div className="card" style={{ padding: '16px 18px', borderLeft: '3px solid var(--red)' }}>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>Churn rate</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: financeiro.churnRate > 0 ? 'var(--red)' : 'var(--text3)', lineHeight: 1 }}>{financeiro.churnRate}%</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>contratos cancelados</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>{financeiro.cancelados} cancelado{financeiro.cancelados !== 1 ? 's' : ''} de {financeiro.totalAtivos + financeiro.cancelados}</div>
           </div>
         </div>
       </div>
@@ -445,7 +455,7 @@ export default function Dashboard({ empresas, contratos = [], loading, onViewLea
         {[
           { Icon: IconMail,  value: stats.comEmail, label: 'com e-mail',   color: 'var(--accent)' },
           { Icon: IconPhone, value: stats.comTel,   label: 'com telefone', color: 'var(--purple)' },
-          { Icon: null, value: `${stats.total > 0 ? Math.round((stats.fechados / stats.total) * 100) : 0}%`, label: 'taxa de conversão leads', color: 'var(--yellow)' },
+          { Icon: null, value: `${(stats.total - stats.novos) > 0 ? Math.round((stats.fechados / (stats.total - stats.novos)) * 100) : 0}%`, label: 'conversão (excl. novos)', color: 'var(--yellow)' },
         ].map((item, i) => (
           <div key={i} className="card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
