@@ -12,6 +12,7 @@ import Desempenho from './components/Desempenho.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
+import { notify } from './lib/notifications.js'
 
 export const AppContext = createContext({ theme: 'light', currentUser: '', isSuperAdmin: false, profile: null })
 export const useTheme = () => useContext(AppContext).theme
@@ -21,6 +22,10 @@ export const useProfile = () => useContext(AppContext).profile
 
 // Keep ThemeContext as alias so any existing import still works
 export const ThemeContext = AppContext
+
+const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
+const FOLLOWUP_CHECK_KEY = 'tilim_followup_checked'
+const FOLLOWUP_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4h
 
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -44,6 +49,13 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  // Register Service Worker for push notifications
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
+  }, [])
 
   // Auth listener
   useEffect(() => {
@@ -82,6 +94,26 @@ export default function App() {
 
     return () => supabase.removeChannel(channel)
   }, [session])
+
+  // Periodic follow-up notification check (every 4h, when tab is open)
+  useEffect(() => {
+    if (!session || !empresas.length) return
+    if (Notification.permission !== 'granted') return
+
+    const lastCheck = Number(localStorage.getItem(FOLLOWUP_CHECK_KEY) || 0)
+    if (Date.now() - lastCheck < FOLLOWUP_CHECK_INTERVAL_MS) return
+
+    const count = empresas.filter(e => {
+      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
+      const ref = e.atualizado_em || e.criado_em
+      return ref && (Date.now() - new Date(ref)) / 86400000 >= 3
+    }).length
+
+    if (count > 0) {
+      notify.followupAlert(count)
+      localStorage.setItem(FOLLOWUP_CHECK_KEY, String(Date.now()))
+    }
+  }, [empresas, session])
 
   async function fetchEmpresas() {
     if (!initialLoaded.current) setLoading(true)
@@ -133,11 +165,19 @@ export default function App() {
     if (!error) {
       setEmpresas(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e))
       if (selectedLead?.id === id) setSelectedLead(prev => ({ ...prev, ...updates }))
-      // Log
       logAction('atualizar', 'empresas', id, updates)
-      // Status history
       if (updates.status_prospeccao && empresa && updates.status_prospeccao !== empresa.status_prospeccao) {
         insertStatusHistory(id, empresa.status_prospeccao, updates.status_prospeccao)
+        // Notify: lead fechou
+        if (updates.status_prospeccao === 'fechou') {
+          const nome = empresa.nome_fantasia || empresa.razao_social || 'Lead'
+          // Fetch superadmin IDs to notify them
+          supabase.from('profiles').select('id').eq('role', 'superadmin').then(({ data: admins }) => {
+            const adminIds = (admins || []).map(a => a.id)
+            const recipients = [...new Set([...adminIds, session.user.id])]
+            notify.leadFechou(nome, recipients)
+          })
+        }
       }
     }
     return !error
@@ -150,6 +190,10 @@ export default function App() {
       if (!error) {
         setContratos(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
         logAction('atualizar', 'contratos', id, updates)
+        // Notify vendor when commission is marked as paid
+        if (updates.comissao_status === 'paga' && updates.vendedor_id && updates.comissao_valor > 0) {
+          notify.comissaoPaga(updates.vendedor_id, updates.cliente_nome || '', updates.comissao_valor)
+        }
       }
       return !error
     } else {
@@ -243,7 +287,6 @@ export default function App() {
     empresas.flatMap(e => e.tags || []).filter(Boolean)
   )).sort()
 
-  const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
   const filteredEmpresas = empresas.filter(e => {
     const matchSearch = !searchQuery ||
       e.razao_social?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -269,7 +312,6 @@ export default function App() {
   const currentUser = profile?.nome || ''
 
   async function updateProfile(updates) {
-    // Usa RPC SECURITY DEFINER para evitar conflitos de RLS
     const { error } = await supabase.rpc('update_my_profile', {
       p_nome:        updates.nome        ?? profile?.nome        ?? '',
       p_sobrenome:   updates.sobrenome   ?? profile?.sobrenome   ?? '',
@@ -289,7 +331,6 @@ export default function App() {
 
   const contextValue = { theme, currentUser, isSuperAdmin, profile }
 
-  // Still loading auth state
   if (session === undefined) {
     return (
       <AppContext.Provider value={contextValue}>
@@ -300,7 +341,6 @@ export default function App() {
     )
   }
 
-  // Not authenticated
   if (!session) {
     return (
       <AppContext.Provider value={contextValue}>

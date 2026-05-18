@@ -3,6 +3,7 @@ import { supabase } from '../supabase.js'
 import { format } from 'date-fns'
 import { IconCamera, IconCheck, IconWhatsApp } from './Icons.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
+import { usePushNotifications } from '../hooks/usePushNotifications.js'
 
 export default function Perfil({ profile, session, onUpdateProfile }) {
   const [nome,       setNome]       = useState(profile?.nome        || '')
@@ -29,6 +30,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
   const email        = session?.user?.email || ''
   const userId       = session?.user?.id    || ''
   const isSuperAdmin = profile?.role === 'superadmin'
+  const push = usePushNotifications(userId)
   const displayUrl   = previewUrl || fotoUrl
   const initials     = [nome, sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
   const memberSince  = profile?.criado_em ? format(new Date(profile.criado_em), 'MMM yyyy') : ''
@@ -242,6 +244,43 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
               </div>
             </div>
           </div>
+
+          {/* Seção: Notificações */}
+          {push.supported && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Notificações</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--bg3)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginBottom: 3 }}>
+                    Notificações push
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.4 }}>
+                    {push.permission === 'denied'
+                      ? 'Bloqueado pelo navegador. Habilite nas configurações do site.'
+                      : push.subscribed
+                      ? 'Ativo — você receberá alertas de follow-up, fechamentos e comissões.'
+                      : 'Receba alertas mesmo com a aba em segundo plano.'}
+                  </div>
+                </div>
+                {push.permission !== 'denied' && (
+                  <button
+                    onClick={push.subscribed ? push.disable : push.enable}
+                    disabled={push.loading}
+                    style={{
+                      marginLeft: 16, flexShrink: 0,
+                      padding: '8px 16px', borderRadius: 8, border: 'none', cursor: push.loading ? 'default' : 'pointer',
+                      fontSize: 12, fontWeight: 600, opacity: push.loading ? 0.6 : 1,
+                      background: push.subscribed ? 'var(--bg2)' : '#00CB53',
+                      color: push.subscribed ? 'var(--text3)' : '#fff',
+                      border: push.subscribed ? '1px solid var(--border)' : 'none',
+                    }}
+                  >
+                    {push.loading ? '...' : push.subscribed ? 'Desativar' : 'Ativar'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Seção: Chave PIX */}
           <div>
