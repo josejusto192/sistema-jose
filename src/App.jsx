@@ -9,6 +9,7 @@ import Logs from './components/Logs.jsx'
 import Perfil from './components/Perfil.jsx'
 import Configuracoes from './components/Configuracoes.jsx'
 import Desempenho from './components/Desempenho.jsx'
+import Agenda from './components/Agenda.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
@@ -37,6 +38,7 @@ export default function App() {
   const [selectedLead, setSelectedLead] = useState(null)
   const [empresas, setEmpresas] = useState([])
   const [contratos, setContratos] = useState([])
+  const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
@@ -87,6 +89,7 @@ export default function App() {
     if (!session) return
     fetchEmpresas()
     fetchContratos()
+    fetchTasks()
 
     const channel = supabase
       .channel('realtime-changes')
@@ -134,6 +137,37 @@ export default function App() {
       .select('*')
       .order('criado_em', { ascending: false })
     if (!error) setContratos(data || [])
+  }
+
+  async function fetchTasks() {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('due_date', { ascending: true })
+    if (!error) setTasks(data || [])
+  }
+
+  async function saveTask(task) {
+    if (task.id) {
+      const { id, created_at, ...updates } = task
+      const { data, error } = await supabase.from('tasks').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+      if (!error && data) setTasks(prev => prev.map(t => t.id === id ? data : t))
+    } else {
+      const { data, error } = await supabase.from('tasks').insert(task).select().single()
+      if (!error && data) setTasks(prev => [...prev, data].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+    }
+  }
+
+  async function deleteTask(id) {
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (!error) setTasks(prev => prev.filter(t => t.id !== id))
+  }
+
+  async function toggleTask(task) {
+    const completed = !task.completed
+    const updates = { completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from('tasks').update(updates).eq('id', task.id)
+    if (!error) setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t))
   }
 
   // Fire-and-forget log
@@ -375,6 +409,7 @@ export default function App() {
     setView: navigate,
     empresas,
     contratos,
+    tasks,
     theme,
     onToggleTheme: () => setTheme(t => t === 'light' ? 'dark' : 'light'),
     currentUser,
@@ -478,6 +513,22 @@ export default function App() {
               onBack={closeLead}
               onUpdate={updateEmpresa}
               onCreateContrato={handleCreateContrato}
+              tasks={tasks.filter(t => t.empresa_id === selectedLead.id)}
+              onSaveTask={saveTask}
+              onDeleteTask={deleteTask}
+              onToggleTask={toggleTask}
+              userId={session?.user?.id}
+              empresas={empresas}
+            />
+          )}
+          {view === 'agenda' && (
+            <Agenda
+              tasks={tasks}
+              empresas={empresas}
+              userId={session?.user?.id}
+              onSave={saveTask}
+              onDelete={deleteTask}
+              onToggle={toggleTask}
             />
           )}
           {view === 'desempenho' && (

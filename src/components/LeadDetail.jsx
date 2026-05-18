@@ -4,7 +4,8 @@ import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
-import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory } from './Icons.jsx'
+import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory, IconPlus, IconTrash, IconEdit, IconClock } from './Icons.jsx'
+import { TASK_TYPES } from './Agenda.jsx'
 
 function parseDate(str) {
   if (!str) return null
@@ -50,7 +51,7 @@ function tagColor(tag) {
   return TAG_PALETTE[Math.abs(hash) % TAG_PALETTE.length]
 }
 
-export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato }) {
+export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, tasks = [], onSaveTask, onDeleteTask, onToggleTask, userId, empresas = [] }) {
   const theme = useTheme()
   const isSuperAdmin = useIsSuperAdmin()
   const isMobile = useIsMobile()
@@ -67,6 +68,9 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
     try { return JSON.parse(lead.observacoes_json || '[]') } catch { return [] }
   })
   const [scriptsCopied, setScriptsCopied] = useState({})
+  const [taskModal, setTaskModal] = useState(null) // null | { task? }
+  const [taskForm, setTaskForm] = useState({ title: '', type: 'followup', due_date: '', due_time: '', notes: '' })
+  const [taskSaving, setTaskSaving] = useState(false)
   const [scriptsOpen, setScriptsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dados') // eslint-disable-line
 
@@ -397,6 +401,56 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
               />
             </div>
 
+            {/* Tarefas vinculadas */}
+            {onSaveTask && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>Tarefas ({tasks.length})</label>
+                  <button
+                    type="button"
+                    onClick={() => setTaskModal({ task: { empresa_id: lead.id, empresa_nome: lead.nome_fantasia || lead.razao_social, due_date: '' } })}
+                    style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0 }}
+                  >
+                    <IconPlus size={11} color="var(--accent)" /> Nova tarefa
+                  </button>
+                </div>
+                {tasks.length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text3)', padding: '10px 0', textAlign: 'center' }}>Nenhuma tarefa ainda</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {tasks.sort((a, b) => {
+                      if (a.completed !== b.completed) return a.completed ? 1 : -1
+                      return a.due_date.localeCompare(b.due_date)
+                    }).map(t => {
+                      const cfg = TASK_TYPES[t.type] || TASK_TYPES.tarefa
+                      return (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', background: 'var(--bg3)', borderRadius: 8, opacity: t.completed ? 0.55 : 1 }}>
+                          <button
+                            onClick={() => onToggleTask(t)}
+                            style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${t.completed ? cfg.dot : 'var(--border)'}`, background: t.completed ? cfg.dot : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}
+                          >
+                            {t.completed && <IconCheck size={9} color="#fff" />}
+                          </button>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text)', textDecoration: t.completed ? 'line-through' : 'none', fontWeight: 500 }}>{t.title}</div>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 2, alignItems: 'center' }}>
+                              <span style={{ fontSize: 10, color: cfg.color }}>{cfg.emoji} {cfg.label}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text3)' }}>{t.due_date}{t.due_time ? ` às ${t.due_time.slice(0,5)}` : ''}</span>
+                            </div>
+                            {t.notes && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{t.notes}</div>}
+                          </div>
+                          <div style={{ display: 'flex', gap: 2 }}>
+                            <button onClick={() => setTaskModal({ task: t })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text3)', display: 'flex' }}><IconEdit size={11} color="var(--text3)" /></button>
+                            <button onClick={() => onDeleteTask(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text3)', display: 'flex' }}><IconTrash size={11} color="var(--text3)" /></button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Observações</label>
               <textarea value={obs} onChange={e => setObs(e.target.value)} rows={4} placeholder="Notas sobre este lead..."
@@ -518,6 +572,96 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato })
           </div>
         </div>
       </div>
+
+      {/* Task modal */}
+      {taskModal !== null && onSaveTask && (
+        <div
+          onClick={() => setTaskModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 420, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+                {taskModal.task?.id ? 'Editar tarefa' : 'Nova tarefa'}
+              </h3>
+              <button onClick={() => setTaskModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+                <IconX size={17} color="var(--text3)" />
+              </button>
+            </div>
+            <form
+              onSubmit={async e => {
+                e.preventDefault()
+                const f = taskModal.task?.id
+                  ? { ...taskModal.task }
+                  : { ...taskModal.task, user_id: userId }
+                const tf = new FormData(e.target)
+                setTaskSaving(true)
+                await onSaveTask({
+                  ...f,
+                  title: tf.get('title'),
+                  type: tf.get('type'),
+                  due_date: tf.get('due_date'),
+                  due_time: tf.get('due_time') || null,
+                  notes: tf.get('notes') || null,
+                })
+                setTaskSaving(false)
+                setTaskModal(null)
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+            >
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Título *</label>
+                <input name="title" defaultValue={taskModal.task?.title || ''} required autoFocus placeholder="Ex: Ligar para confirmar proposta"
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Tipo</label>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {Object.entries(TASK_TYPES).map(([key, cfg]) => (
+                    <label key={key} style={{ cursor: 'pointer' }}>
+                      <input type="radio" name="type" value={key} defaultChecked={(taskModal.task?.type || 'followup') === key} style={{ display: 'none' }} />
+                      <span style={{ padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', display: 'block' }}
+                        onClick={e => { e.currentTarget.parentElement.querySelector('input').checked = true }}>
+                        {cfg.emoji} {cfg.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Data *</label>
+                  <input name="due_date" type="date" defaultValue={taskModal.task?.due_date || ''} required
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ width: 110 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Hora</label>
+                  <input name="due_time" type="time" defaultValue={taskModal.task?.due_time || ''}
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Notas</label>
+                <textarea name="notes" defaultValue={taskModal.task?.notes || ''} rows={2} placeholder="Detalhes adicionais..."
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setTaskModal(null)}
+                  style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={taskSaving}
+                  style={{ padding: '7px 18px', borderRadius: 7, border: 'none', background: '#00CB53', color: '#fff', fontSize: 12, fontWeight: 600, cursor: taskSaving ? 'not-allowed' : 'pointer', opacity: taskSaving ? 0.7 : 1 }}>
+                  {taskSaving ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

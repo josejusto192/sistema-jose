@@ -1,7 +1,7 @@
 import React from 'react'
-import { differenceInDays } from 'date-fns'
+import { differenceInDays, isToday, parseISO } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar } from './Icons.jsx'
 import TilimIcon from './TilimIcon.jsx'
 
 function Avatar({ profile, size = 32 }) {
@@ -59,7 +59,7 @@ function NavBtn({ item, active, onClick }) {
   )
 }
 
-export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile, bellSlot }) {
+export default function Sidebar({ view, setView, empresas, contratos, tasks = [], theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile, bellSlot }) {
   const total = empresas.length
   const followupCount = empresas.filter(e => {
     if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
@@ -72,12 +72,14 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
   const minhasComissoesPendentes = !isSuperAdmin
     ? contratos.filter(c => c.vendedor_id === profile?.id && c.comissao_status === 'pendente' && (c.comissao_valor || 0) > 0).length
     : 0
+  const tasksDueToday = tasks.filter(t => !t.completed && isToday(parseISO(t.due_date))).length
 
   const navAdmin = [
     { id: 'dashboard',  label: 'Dashboard',      icon: IconGrid },
     { id: 'leads',      label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
     { id: 'contratos',  label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },
     { id: 'desempenho', label: 'Equipe',           icon: IconBarChart },
+    { id: 'agenda',     label: 'Agenda',           icon: IconCalendar, alert: tasksDueToday || null },
   ]
   const navAdminTools = [
     { id: 'logs',          label: 'Logs',          icon: IconFileText },
@@ -89,6 +91,7 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     { id: 'leads',      label: 'Meus Leads',        icon: IconList, badge: total, alert: followupCount || null },
     { id: 'contratos',  label: 'Meus Contratos',    icon: IconContract, badge: minhasComissoesPendentes || null },
     { id: 'desempenho', label: 'Meu Desempenho',    icon: IconBarChart },
+    { id: 'agenda',     label: 'Agenda',             icon: IconCalendar, alert: tasksDueToday || null },
     { id: 'perfil',     label: 'Meu Perfil',        icon: IconUser },
   ]
 
