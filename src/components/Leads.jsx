@@ -6,7 +6,7 @@ import { format, differenceInDays, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox, IconList, IconKanban } from './Icons.jsx'
 
 const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-const FOLLOWUP_DAYS = 3
+const FOLLOWUP_DAYS = Number(localStorage.getItem('cfg_followup_dias')) || 3
 const PER_PAGE = 20
 
 const KANBAN_STATUSES = [
@@ -158,7 +158,7 @@ function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, is
 }
 
 /* ─── Kanban board ─────────────────────────────────────────────────────────── */
-function KanbanView({ leads, onOpenLead, onUpdateEmpresa, isSuperAdmin }) {
+function KanbanView({ leads, onOpenLead, onUpdateEmpresa, isSuperAdmin, isMobile }) {
   const [dragId, setDragId] = useState(null)
   const [dragOver, setDragOver] = useState(null)
   const dragCounters = useRef({})
@@ -187,7 +187,7 @@ function KanbanView({ leads, onOpenLead, onUpdateEmpresa, isSuperAdmin }) {
 
   return (
     <div style={{
-      display: 'flex', gap: 10, padding: '14px 32px 20px',
+      display: 'flex', gap: 10, padding: isMobile ? '12px 16px 16px' : '14px 32px 20px',
       overflowX: 'auto', overflowY: 'hidden',
       flex: 1, alignItems: 'stretch', minHeight: 0,
     }}>
@@ -498,8 +498,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             </span>
           )}
 
-          {/* View toggle */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, padding: 3 }}>
+          {/* View toggle — só desktop */}
+          {!isMobile && <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, padding: 3 }}>
             <button
               onClick={() => handleViewMode('list')}
               title="Visualização em lista"
@@ -528,7 +528,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             >
               <IconKanban size={14} color={viewMode === 'kanban' ? 'var(--text)' : 'var(--text3)'} />
             </button>
-          </div>
+          </div>}
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: viewMode === 'kanban' ? 0 : 12 }}>
@@ -635,6 +635,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               onOpenLead={onOpenLead}
               onUpdateEmpresa={onUpdateEmpresa}
               isSuperAdmin={isSuperAdmin}
+              isMobile={isMobile}
             />
           )
         ) : (
