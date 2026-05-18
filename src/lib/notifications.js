@@ -1,18 +1,15 @@
 import { supabase } from '../supabase.js'
 
-// Sends a push notification to one or more users via the Edge Function.
-// userIds: string[] — if omitted, sends to ALL subscribed users (superadmin only).
-export async function sendPush({ userIds, title, body, url = '/', tag }) {
+export async function sendPush({ userIds, title, body, url = '/', tag, type }) {
   try {
     await supabase.functions.invoke('send-push', {
-      body: { user_ids: userIds ?? null, title, body, url, tag },
+      body: { user_ids: userIds ?? null, title, body, url, tag, type },
     })
   } catch (err) {
     console.warn('sendPush failed:', err)
   }
 }
 
-// Helpers for specific events
 export const notify = {
   novoLead: (nome, adminIds) =>
     sendPush({
@@ -21,6 +18,7 @@ export const notify = {
       body: nome,
       url: '/?view=leads',
       tag: 'novo-lead',
+      type: 'novo_lead',
     }),
 
   leadFechou: (nome, recipientIds) =>
@@ -30,6 +28,7 @@ export const notify = {
       body: nome,
       url: '/?view=leads',
       tag: 'lead-fechou',
+      type: 'lead_fechou',
     }),
 
   comissaoPaga: (vendedorId, clienteNome, valor) =>
@@ -39,13 +38,16 @@ export const notify = {
       body: `${clienteNome} — R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       url: '/?view=desempenho',
       tag: 'comissao-paga',
+      type: 'comissao_paga',
     }),
 
-  followupAlert: (count) =>
+  followupAlert: (count, userIds) =>
     sendPush({
+      userIds,
       title: '⏰ Follow-up pendente',
       body: `${count} lead${count > 1 ? 's' : ''} sem atualização há 3+ dias`,
-      url: '/?view=leads&status=followup',
+      url: '/?view=leads',
       tag: 'followup',
+      type: 'followup',
     }),
 }

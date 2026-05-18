@@ -20,10 +20,23 @@ serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
   try {
-    const { user_ids, title, body, url, tag } = await req.json()
+    const { user_ids, title, body, url, tag, type } = await req.json()
 
     const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
+    // 1. Save to in-app notifications table for each recipient
+    if (user_ids && user_ids.length > 0) {
+      const rows = user_ids.map((uid: string) => ({
+        user_id: uid,
+        title,
+        body: body || null,
+        url: url || '/',
+        type: type || tag || 'default',
+      }))
+      await db.from('notifications').insert(rows)
+    }
+
+    // 2. Send push to subscribed users
     let query = db.from('push_subscriptions').select('*')
     if (user_ids && user_ids.length > 0) query = query.in('user_id', user_ids)
 
@@ -50,7 +63,7 @@ serve(async (req) => {
       return r.status === 'rejected' && (r.reason?.statusCode === 410 || r.reason?.statusCode === 404)
     })
     if (expired.length > 0) {
-      await db.from('push_subscriptions').delete().in('endpoint', expired.map(s => s.endpoint))
+      await db.from('push_subscriptions').delete().in('endpoint', expired.map((s: any) => s.endpoint))
     }
 
     const sent = results.filter(r => r.status === 'fulfilled').length
