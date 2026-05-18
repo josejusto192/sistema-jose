@@ -596,7 +596,7 @@ export default function Desempenho({ session, profile, contratos = [] }) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: isMobile ? '16px' : '24px 28px', maxWidth: 1000, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : '24px 28px' }}>
 
       {/* Header */}
       <div style={{
