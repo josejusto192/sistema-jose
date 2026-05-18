@@ -300,3 +300,13 @@ export function IconTrendDown({ size = 14, color = 'currentColor' }) {
     </svg>
   )
 }
+
+export function IconKanban({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="3" width="5" height="18" rx="1" />
+      <rect x="9.5" y="3" width="5" height="12" rx="1" />
+      <rect x="17" y="3" width="5" height="15" rx="1" />
+    </svg>
+  )
+}
