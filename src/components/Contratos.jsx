@@ -123,7 +123,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
 
   const metrics = useMemo(() => {
     const ativos = contratos.filter(c => c.status === 'ativo')
-    const mrr = ativos.filter(c => c.pacote === 'gestao_trafego').reduce((s, c) => s + (c.valor_mensal || 0), 0)
+    const mrr = ativos.filter(c => !isPontual(c.pacote)).reduce((s, c) => s + (c.valor_mensal || 0), 0)
     const totalAtivos = ativos.length
     const cancelados = contratos.filter(c => c.status === 'cancelado').length
     const churnRate = contratos.length > 0 ? Math.round((cancelados / contratos.length) * 100) : 0
@@ -131,7 +131,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       ? ativos.reduce((s, c) => s + (c.valor_mensal || c.valor_total || 0), 0) / totalAtivos
       : 0
     return { mrr, arr: mrr * 12, totalAtivos, cancelados, churnRate, ticketMedio }
-  }, [contratos])
+  }, [contratos, pacotesList])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
