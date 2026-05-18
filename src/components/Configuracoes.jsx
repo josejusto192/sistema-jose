@@ -330,6 +330,330 @@ function SistemaTab({ session }) {
   )
 }
 
+/* ─── Aba Serviços (Pacotes) ──────────────────────────────────────────────── */
+
+const EMPTY_FORM = { codigo: '', nome: '', descricao: '', tipo: 'pontual', valor: '', cor: '#3B82F6', ativo: true }
+
+function toSlug(str) {
+  return str.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+}
+
+function PacotesTab() {
+  const [pacotes,    setPacotes]    = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [modal,      setModal]      = useState(null)   // null | 'new' | objeto
+  const [form,       setForm]       = useState(EMPTY_FORM)
+  const [saving,     setSaving]     = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [error,      setError]      = useState(null)
+
+  const isNew = modal === 'new'
+
+  useEffect(() => { fetchPacotes() }, [])
+
+  async function fetchPacotes() {
+    setLoading(true)
+    const { data, error: err } = await supabase.from('pacotes').select('*').order('criado_em')
+    if (!err) setPacotes(data || [])
+    setLoading(false)
+  }
+
+  function openNew() {
+    setForm(EMPTY_FORM)
+    setError(null)
+    setConfirmDel(false)
+    setModal('new')
+  }
+
+  function openEdit(pacote) {
+    setForm({
+      codigo:    pacote.codigo    || '',
+      nome:      pacote.nome      || '',
+      descricao: pacote.descricao || '',
+      tipo:      pacote.tipo      || 'pontual',
+      valor:     pacote.valor     ?? '',
+      cor:       pacote.cor       || '#3B82F6',
+      ativo:     pacote.ativo !== false,
+    })
+    setError(null)
+    setConfirmDel(false)
+    setModal(pacote)
+  }
+
+  function closeModal() {
+    setModal(null)
+    setConfirmDel(false)
+    setError(null)
+  }
+
+  function handleNomeChange(e) {
+    const nome = e.target.value
+    setForm(f => ({ ...f, nome, ...(isNew ? { codigo: toSlug(nome) } : {}) }))
+  }
+
+  function validate() {
+    if (!form.nome.trim())   return 'Nome é obrigatório.'
+    if (!form.codigo.trim()) return 'Código é obrigatório.'
+    if (!form.valor || Number(form.valor) <= 0) return 'Valor deve ser maior que 0.'
+    return null
+  }
+
+  async function handleSave() {
+    const err = validate()
+    if (err) { setError(err); return }
+    setSaving(true); setError(null)
+    const payload = {
+      codigo:    form.codigo.trim(),
+      nome:      form.nome.trim(),
+      descricao: form.descricao.trim(),
+      tipo:      form.tipo,
+      valor:     Number(form.valor),
+      cor:       form.cor,
+      ativo:     form.ativo,
+    }
+    let dbErr
+    if (isNew) {
+      const { error: e } = await supabase.from('pacotes').insert(payload)
+      dbErr = e
+    } else {
+      const { error: e } = await supabase.from('pacotes').upsert({ id: modal.id, ...payload }, { onConflict: 'id' })
+      dbErr = e
+    }
+    setSaving(false)
+    if (dbErr) { setError(dbErr.message); return }
+    await fetchPacotes()
+    closeModal()
+  }
+
+  async function handleDelete() {
+    if (!confirmDel) { setConfirmDel(true); return }
+    setSaving(true)
+    const { error: dbErr } = await supabase.from('pacotes').delete().eq('id', modal.id)
+    setSaving(false)
+    if (dbErr) { setError(dbErr.message); return }
+    await fetchPacotes()
+    closeModal()
+  }
+
+  const lbl = { fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>
+          {pacotes.length} serviço{pacotes.length !== 1 ? 's' : ''} cadastrado{pacotes.length !== 1 ? 's' : ''}
+        </div>
+        <button
+          onClick={openNew}
+          style={{ padding: '8px 16px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          + Novo serviço
+        </button>
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+      ) : pacotes.length === 0 ? (
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Nenhum serviço cadastrado ainda.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {pacotes.map(p => (
+            <div
+              key={p.id}
+              className="card"
+              style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', opacity: p.ativo !== false ? 1 : 0.5, transition: 'box-shadow 0.12s' }}
+              onClick={() => openEdit(p)}
+              onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
+            >
+              {/* Cor dot */}
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: p.cor || '#3B82F6', flexShrink: 0, border: '1.5px solid var(--border)' }} />
+
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.nome}</span>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 3, fontSize: 11, fontWeight: 600,
+                    background: p.tipo === 'recorrente' ? 'var(--green-bg)' : 'var(--bg3)',
+                    color: p.tipo === 'recorrente' ? 'var(--green)' : 'var(--accent)',
+                  }}>
+                    {p.tipo === 'recorrente' ? 'Recorrente' : 'Pontual'}
+                  </span>
+                  {p.ativo === false && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 3, fontSize: 11, fontWeight: 600, background: 'var(--red-bg)', color: 'var(--red)' }}>
+                      Inativo
+                    </span>
+                  )}
+                </div>
+                {p.descricao && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descricao}</div>}
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>{p.codigo}</div>
+              </div>
+
+              {/* Valor */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                  {Number(p.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+              </div>
+
+              <div style={{ flexShrink: 0, color: 'var(--text3)', fontSize: 18, paddingLeft: 4 }}>›</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {modal !== null && (
+        <div
+          onClick={closeModal}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', animation: 'fadeIn 0.15s ease' }}
+          >
+            {/* Header */}
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                {isNew ? 'Novo serviço' : 'Editar serviço'}
+              </div>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: '4px 8px' }}>×</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Nome */}
+              <div>
+                <label style={lbl}>Nome <span style={{ color: 'var(--red)' }}>*</span></label>
+                <input style={inp()} value={form.nome} onChange={handleNomeChange} placeholder="Ex: Gestão de Tráfego" />
+              </div>
+
+              {/* Código */}
+              <div>
+                <label style={lbl}>Código (slug) <span style={{ color: 'var(--red)' }}>*</span></label>
+                <input
+                  style={inp({ fontFamily: 'var(--font-mono)', opacity: isNew ? 1 : 0.6, cursor: isNew ? 'text' : 'not-allowed' })}
+                  value={form.codigo}
+                  onChange={e => isNew && setForm(f => ({ ...f, codigo: toSlug(e.target.value) }))}
+                  readOnly={!isNew}
+                  placeholder="gestao_de_trafego"
+                />
+                {!isNew && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>O código não pode ser alterado após a criação.</div>}
+              </div>
+
+              {/* Descrição */}
+              <div>
+                <label style={lbl}>Descrição</label>
+                <textarea
+                  style={{ ...inp(), resize: 'vertical', minHeight: 64 }}
+                  value={form.descricao}
+                  onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+                  placeholder="Descreva o serviço..."
+                />
+              </div>
+
+              {/* Tipo + Valor */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Tipo</label>
+                  <select style={inp({ cursor: 'pointer' })} value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+                    <option value="pontual">Pontual</option>
+                    <option value="recorrente">Recorrente</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Valor (R$) <span style={{ color: 'var(--red)' }}>*</span></label>
+                  <input style={inp()} type="number" min={0} step={0.01} value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" />
+                </div>
+              </div>
+
+              {/* Cor + Ativo */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div>
+                  <label style={lbl}>Cor</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="color"
+                      value={form.cor}
+                      onChange={e => setForm(f => ({ ...f, cor: e.target.value }))}
+                      style={{ width: 36, height: 32, borderRadius: 5, border: '1px solid var(--border)', cursor: 'pointer', padding: 2, background: 'var(--bg3)' }}
+                    />
+                    <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text3)' }}>{form.cor}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, ativo: !f.ativo }))}
+                    style={{
+                      padding: '6px 14px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                      background: form.ativo ? 'var(--green-bg)' : 'var(--red-bg)',
+                      color: form.ativo ? 'var(--green)' : 'var(--red)',
+                      fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                    }}
+                  >
+                    {form.ativo ? 'Ativo' : 'Inativo'}
+                  </button>
+                  <span style={{ fontSize: 12, color: 'var(--text3)' }}>Status do serviço</span>
+                </div>
+              </div>
+
+              {/* Erro */}
+              {error && (
+                <div style={{ padding: '9px 12px', background: 'var(--red-bg)', borderRadius: 5, fontSize: 12, color: 'var(--red)', border: '1px solid var(--red)30' }}>
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              {/* Excluir (só em edição) */}
+              <div>
+                {!isNew && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={saving}
+                    style={{
+                      padding: '8px 16px', borderRadius: 5, border: '1px solid var(--red)40', cursor: saving ? 'default' : 'pointer',
+                      background: confirmDel ? 'var(--red)' : 'var(--red-bg)',
+                      color: confirmDel ? '#fff' : 'var(--red)',
+                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit', opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {confirmDel ? 'Confirmar exclusão' : 'Excluir'}
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={closeModal}
+                  style={{ padding: '8px 18px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{ padding: '8px 22px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}
+                >
+                  {saving ? 'Salvando...' : isNew ? 'Criar serviço' : 'Salvar alterações'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
 export default function Configuracoes({ session, profile, isSuperAdmin }) {
@@ -376,7 +700,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin }) {
   })
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ padding: '28px 32px' }}>
 
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
@@ -388,6 +712,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin }) {
       <div style={{ display: 'flex', gap: 2, marginBottom: 20, background: 'var(--bg2)', borderRadius: 5, padding: 3, width: 'fit-content', border: '1px solid var(--border)' }}>
         <button style={tabStyle('usuarios')} onClick={() => setActiveTab('usuarios')}>Usuários</button>
         <button style={tabStyle('sistema')} onClick={() => setActiveTab('sistema')}>Sistema</button>
+        <button style={tabStyle('servicos')} onClick={() => setActiveTab('servicos')}>Serviços</button>
       </div>
 
       {/* ── Usuários ── */}
@@ -466,6 +791,9 @@ export default function Configuracoes({ session, profile, isSuperAdmin }) {
       {activeTab === 'sistema' && (
         <SistemaTab session={session} />
       )}
+
+      {/* ── Serviços ── */}
+      {activeTab === 'servicos' && <PacotesTab />}
 
       {/* Modal */}
       {selectedUser && (
