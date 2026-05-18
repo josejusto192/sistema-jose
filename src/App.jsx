@@ -149,23 +149,36 @@ export default function App() {
     if (task.id) {
       const { id, created_at, ...updates } = task
       const { data, error } = await supabase.from('tasks').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
-      if (!error && data) setTasks(prev => prev.map(t => t.id === id ? data : t))
+      if (!error && data) {
+        setTasks(prev => prev.map(t => t.id === id ? data : t))
+        logAction('atualizar', 'tasks', id, { title: task.title, type: task.type, due_date: task.due_date, empresa_nome: task.empresa_nome || null })
+      }
     } else {
       const { data, error } = await supabase.from('tasks').insert(task).select().single()
-      if (!error && data) setTasks(prev => [...prev, data].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+      if (!error && data) {
+        setTasks(prev => [...prev, data].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+        logAction('criar', 'tasks', data.id, { title: data.title, type: data.type, due_date: data.due_date, empresa_nome: data.empresa_nome || null })
+      }
     }
   }
 
   async function deleteTask(id) {
+    const task = tasks.find(t => t.id === id)
     const { error } = await supabase.from('tasks').delete().eq('id', id)
-    if (!error) setTasks(prev => prev.filter(t => t.id !== id))
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== id))
+      logAction('deletar', 'tasks', id, { title: task?.title, empresa_nome: task?.empresa_nome || null })
+    }
   }
 
   async function toggleTask(task) {
     const completed = !task.completed
     const updates = { completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() }
     const { error } = await supabase.from('tasks').update(updates).eq('id', task.id)
-    if (!error) setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t))
+    if (!error) {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t))
+      logAction(completed ? 'concluir' : 'reabrir', 'tasks', task.id, { title: task.title, empresa_nome: task.empresa_nome || null })
+    }
   }
 
   // Fire-and-forget log
@@ -376,7 +389,10 @@ export default function App() {
       p_tipo_pix:    updates.tipo_pix    ?? profile?.tipo_pix    ?? null,
       p_chave_pix:   updates.chave_pix   ?? profile?.chave_pix   ?? null,
     })
-    if (!error) setProfile(prev => ({ ...prev, ...updates }))
+    if (!error) {
+      setProfile(prev => ({ ...prev, ...updates }))
+      logAction('atualizar', 'perfil', session.user.id, { nome: updates.nome, sobrenome: updates.sobrenome, cargo: updates.cargo })
+    }
     return { ok: !error, errorMsg: error?.message || null }
   }
 
@@ -553,7 +569,7 @@ export default function App() {
             />
           )}
           {view === 'configuracoes' && (
-            <Configuracoes session={session} profile={profile} isSuperAdmin={isSuperAdmin} />
+            <Configuracoes session={session} profile={profile} isSuperAdmin={isSuperAdmin} logAction={logAction} />
           )}
         </main>
       </div>

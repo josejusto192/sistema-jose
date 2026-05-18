@@ -39,7 +39,7 @@ function inp(extra = {}) {
 
 /* ─── Modal de usuário ────────────────────────────────────────────────────── */
 
-function UserModal({ user, currentUserId, onClose, onSaved }) {
+function UserModal({ user, currentUserId, onClose, onSaved, logAction }) {
   const isSelf = user.id === currentUserId
   const [nome,       setNome]       = useState(user.nome       || '')
   const [sobrenome,  setSobrenome]  = useState(user.sobrenome  || '')
@@ -64,7 +64,9 @@ function UserModal({ user, currentUserId, onClose, onSaved }) {
     setSaving(false)
     if (err) { setError(err.message); return }
     setOk('Salvo com sucesso!')
-    onSaved({ ...user, nome, sobrenome, cargo, comissao_percentual: Number(comissao), role, ativo })
+    const updated = { ...user, nome, sobrenome, cargo, comissao_percentual: Number(comissao), role, ativo }
+    onSaved(updated)
+    logAction?.('atualizar', 'users', user.id, { nome, sobrenome, cargo, role, ativo, comissao_percentual: Number(comissao) })
     setTimeout(() => setOk(null), 2500)
   }
 
@@ -331,7 +333,7 @@ function toSlug(str) {
   return str.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
 }
 
-function PacotesTab() {
+function PacotesTab({ logAction }) {
   const [pacotes,    setPacotes]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [modal,      setModal]      = useState(null)   // null | 'new' | objeto
@@ -414,6 +416,7 @@ function PacotesTab() {
     }
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
+    logAction?.(isNew ? 'criar' : 'atualizar', 'pacotes', isNew ? payload.codigo : modal.id, { nome: payload.nome, tipo: payload.tipo, valor: payload.valor })
     await fetchPacotes()
     closeModal()
   }
@@ -424,6 +427,7 @@ function PacotesTab() {
     const { error: dbErr } = await supabase.from('pacotes').delete().eq('id', modal.id)
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
+    logAction?.('deletar', 'pacotes', modal.id, { nome: modal.nome })
     await fetchPacotes()
     closeModal()
   }
@@ -649,7 +653,7 @@ function PacotesTab() {
 
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
-export default function Configuracoes({ session, profile, isSuperAdmin }) {
+export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
   const [activeTab,    setActiveTab]    = useState('usuarios')
   const [users,        setUsers]        = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -786,13 +790,14 @@ export default function Configuracoes({ session, profile, isSuperAdmin }) {
       )}
 
       {/* ── Serviços ── */}
-      {activeTab === 'servicos' && <PacotesTab />}
+      {activeTab === 'servicos' && <PacotesTab logAction={logAction} />}
 
       {/* Modal */}
       {selectedUser && (
         <UserModal
           user={selectedUser}
           currentUserId={currentUserId}
+          logAction={logAction}
           onClose={() => setSelectedUser(null)}
           onSaved={updated => {
             setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))

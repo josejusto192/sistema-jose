@@ -68,7 +68,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   })
   const [scriptsCopied, setScriptsCopied] = useState({})
   const [taskModal, setTaskModal] = useState(null) // null | { task? }
-  const [taskForm, setTaskForm] = useState({ title: '', type: 'followup', due_date: '', due_time: '', notes: '' })
+  const [taskType, setTaskType] = useState('followup')
   const [taskSaving, setTaskSaving] = useState(false)
   const [scriptsOpen, setScriptsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dados') // eslint-disable-line
@@ -106,6 +106,10 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
     }
     fetchHistory()
   }, [lead.id])
+
+  useEffect(() => {
+    if (taskModal !== null) setTaskType(taskModal.task?.type || 'followup')
+  }, [taskModal])
 
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.novo
   const badgeStyle = theme === 'dark'
@@ -607,15 +611,27 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Tipo</label>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                  {Object.entries(TASK_TYPES).map(([key, cfg]) => (
-                    <label key={key} style={{ cursor: 'pointer' }}>
-                      <input type="radio" name="type" value={key} defaultChecked={(taskModal.task?.type || 'followup') === key} style={{ display: 'none' }} />
-                      <span style={{ padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', display: 'block' }}
-                        onClick={e => { e.currentTarget.parentElement.querySelector('input').checked = true }}>
+                  {Object.entries(TASK_TYPES).map(([key, cfg]) => {
+                    const active = taskType === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setTaskType(key)}
+                        style={{
+                          padding: '5px 11px', borderRadius: 20, border: `1px solid ${active ? cfg.dot + '90' : 'var(--border)'}`,
+                          fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                          background: active ? (theme === 'dark' ? cfg.darkBg : cfg.bg) : 'transparent',
+                          color: active ? (theme === 'dark' ? cfg.darkColor : cfg.color) : 'var(--text3)',
+                          fontWeight: active ? 600 : 400,
+                          transition: 'all 0.12s',
+                        }}
+                      >
                         {cfg.emoji} {cfg.label}
-                      </span>
-                    </label>
-                  ))}
+                      </button>
+                    )
+                  })}
+                  <input type="hidden" name="type" value={taskType} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
