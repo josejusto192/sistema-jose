@@ -83,7 +83,7 @@ function tagColor(tag) {
 }
 
 /* ─── Kanban card ──────────────────────────────────────────────────────────── */
-function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, isSuperAdmin }) {
+function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, isSuperAdmin, tasks }) {
   const atencao = hasOverdueTask(e.id, tasks)
   return (
     <div
@@ -154,7 +154,7 @@ function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, is
 }
 
 /* ─── Kanban board ─────────────────────────────────────────────────────────── */
-function KanbanView({ leads, onOpenLead, onUpdateEmpresa, isSuperAdmin, isMobile }) {
+function KanbanView({ leads, tasks, onOpenLead, onUpdateEmpresa, isSuperAdmin, isMobile }) {
   const [dragId, setDragId] = useState(null)
   const [dragOver, setDragOver] = useState(null)
   const dragCounters = useRef({})
@@ -239,6 +239,7 @@ function KanbanView({ leads, onOpenLead, onUpdateEmpresa, isSuperAdmin, isMobile
                 <KanbanCard
                   key={e.id}
                   empresa={e}
+                  tasks={tasks}
                   onOpen={onOpenLead}
                   onDragStart={() => setDragId(e.id)}
                   onDragEnd={() => { setDragId(null); setDragOver(null); dragCounters.current = {} }}
@@ -749,6 +750,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           ) : (
             <KanbanView
               leads={sorted}
+              tasks={tasks}
               onOpenLead={onOpenLead}
               onUpdateEmpresa={onUpdateEmpresa}
               isSuperAdmin={isSuperAdmin}
