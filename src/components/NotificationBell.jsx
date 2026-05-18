@@ -29,7 +29,7 @@ function BellIcon({ size = 20, color = 'currentColor' }) {
   )
 }
 
-export default function NotificationBell({ notifications, unreadCount, markRead, markAllRead }) {
+export default function NotificationBell({ notifications, unreadCount, markRead, markAllRead, dropdownAlign = 'right' }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -78,7 +78,7 @@ export default function NotificationBell({ notifications, unreadCount, markRead,
       {/* Dropdown */}
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          position: 'absolute', top: 'calc(100% + 8px)', ...(dropdownAlign === 'right' ? { right: 0 } : { left: 0 }),
           width: 340, maxHeight: 480,
           background: 'var(--bg2)', border: '1px solid var(--border)',
           borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.2)',

@@ -59,7 +59,7 @@ function NavBtn({ item, active, onClick }) {
   )
 }
 
-export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile }) {
+export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile, bellSlot }) {
   const total = empresas.length
   const followupCount = empresas.filter(e => {
     if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
@@ -103,11 +103,14 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     <aside style={S.sidebar}>
       {/* Logo */}
       <div style={S.logo}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <TilimIcon size={30} color="#00CB53" />
-          <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
-            Tilim
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <TilimIcon size={30} color="#00CB53" />
+            <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
+              Tilim
+            </div>
           </div>
+          {bellSlot}
         </div>
         <div style={{ fontSize: 10, color: '#3D4A5C', marginTop: 10, fontWeight: 500 }}>
           {isSuperAdmin ? 'Painel do Admin' : 'Área do Vendedor'}

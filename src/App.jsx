@@ -363,6 +363,15 @@ export default function App() {
     isSuperAdmin,
     onLogout: handleLogout,
     profile,
+    bellSlot: (
+      <NotificationBell
+        notifications={notif.notifications}
+        unreadCount={notif.unreadCount}
+        markRead={notif.markRead}
+        markAllRead={notif.markAllRead}
+        dropdownAlign="left"
+      />
+    ),
   }
 
   return (
@@ -388,18 +397,6 @@ export default function App() {
           </div>
         ) : (
           <Sidebar {...sidebarProps} />
-        )}
-
-        {/* Bell — desktop: fixed top-right */}
-        {!isMobile && (
-          <div style={{ position: 'fixed', top: 14, right: 18, zIndex: 300 }}>
-            <NotificationBell
-              notifications={notif.notifications}
-              unreadCount={notif.unreadCount}
-              markRead={notif.markRead}
-              markAllRead={notif.markAllRead}
-            />
-          </div>
         )}
 
         <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
