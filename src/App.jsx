@@ -11,6 +11,7 @@ import Perfil from './components/Perfil.jsx'
 import Configuracoes from './components/Configuracoes.jsx'
 import Desempenho from './components/Desempenho.jsx'
 import Agenda from './components/Agenda.jsx'
+import BuscaAvancada from './components/BuscaAvancada.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
@@ -617,6 +618,13 @@ export default function App() {
               onDelete={deleteTask}
               onToggle={toggleTask}
               onOpenLead={openLead}
+            />
+          )}
+          {view === 'busca-avancada' && (
+            <BuscaAvancada
+              onCreateLead={createEmpresa}
+              existingCnpjs={empresas.map(e => (e.cnpj || '').replace(/\D/g, '')).filter(Boolean)}
+              profiles={profiles}
             />
           )}
           {view === 'desempenho' && (

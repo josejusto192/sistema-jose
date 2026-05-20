@@ -1,7 +1,7 @@
 import React from 'react'
 import { isToday, parseISO } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar, IconSearch } from './Icons.jsx'
 import TilimIcon from './TilimIcon.jsx'
 
 function Avatar({ profile, size = 32 }) {
@@ -70,11 +70,12 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
   const tasksDueToday = tasks.filter(t => !t.completed && isToday(parseISO(t.due_date))).length
 
   const navAdmin = [
-    { id: 'dashboard',  label: 'Dashboard',      icon: IconGrid },
-    { id: 'leads',      label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
-    { id: 'contratos',  label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },
-    { id: 'desempenho', label: 'Equipe',           icon: IconBarChart },
-    { id: 'agenda',     label: 'Agenda',           icon: IconCalendar, alert: tasksDueToday || null },
+    { id: 'dashboard',       label: 'Dashboard',      icon: IconGrid },
+    { id: 'leads',           label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
+    { id: 'busca-avancada',  label: 'Busca Avançada',  icon: IconSearch },
+    { id: 'contratos',       label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },
+    { id: 'desempenho',      label: 'Equipe',          icon: IconBarChart },
+    { id: 'agenda',          label: 'Agenda',          icon: IconCalendar, alert: tasksDueToday || null },
   ]
   const navAdminTools = [
     { id: 'logs',          label: 'Logs',          icon: IconFileText },
@@ -82,12 +83,13 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
   ]
 
   const navVendedor = [
-    { id: 'dashboard',  label: 'Início',           icon: IconGrid },
-    { id: 'leads',      label: 'Meus Leads',        icon: IconList, badge: total, alert: followupCount || null },
-    { id: 'contratos',  label: 'Meus Contratos',    icon: IconContract, badge: minhasComissoesPendentes || null },
-    { id: 'desempenho', label: 'Meu Desempenho',    icon: IconBarChart },
-    { id: 'agenda',     label: 'Agenda',             icon: IconCalendar, alert: tasksDueToday || null },
-    { id: 'perfil',     label: 'Meu Perfil',        icon: IconUser },
+    { id: 'dashboard',      label: 'Início',          icon: IconGrid },
+    { id: 'leads',          label: 'Meus Leads',      icon: IconList, badge: total, alert: followupCount || null },
+    { id: 'busca-avancada', label: 'Busca Avançada',  icon: IconSearch },
+    { id: 'contratos',      label: 'Meus Contratos',  icon: IconContract, badge: minhasComissoesPendentes || null },
+    { id: 'desempenho',     label: 'Meu Desempenho',  icon: IconBarChart },
+    { id: 'agenda',         label: 'Agenda',          icon: IconCalendar, alert: tasksDueToday || null },
+    { id: 'perfil',         label: 'Meu Perfil',      icon: IconUser },
   ]
 
   const navItems    = isSuperAdmin ? navAdmin     : navVendedor
