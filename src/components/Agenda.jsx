@@ -186,7 +186,7 @@ function TaskModal({ task, empresas, userId, onSave, onClose }) {
 }
 
 /* ─── Task card ────────────────────────────────────────────────────────────── */
-function TaskCard({ task, onToggle, onEdit, onDelete, onClickEmpresa }) {
+function TaskCard({ task, onToggle, onEdit, onDelete, onClickEmpresa, userName }) {
   const theme = useTheme()
   const cfg = TASK_TYPES[task.type] || TASK_TYPES.tarefa
   const color = theme === 'dark' ? cfg.darkColor : cfg.color
@@ -236,6 +236,11 @@ function TaskCard({ task, onToggle, onEdit, onDelete, onClickEmpresa }) {
             {task.empresa_nome}
           </div>
         )}
+        {userName && (
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ opacity: 0.6 }}>👤</span> {userName}
+          </div>
+        )}
         {task.notes && (
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, lineHeight: 1.4 }}>{task.notes}</div>
         )}
@@ -255,9 +260,17 @@ function TaskCard({ task, onToggle, onEdit, onDelete, onClickEmpresa }) {
 }
 
 /* ─── Main Agenda component ────────────────────────────────────────────────── */
-export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onToggle, onOpenLead }) {
+export default function Agenda({ tasks, empresas, userId, profiles = [], onSave, onDelete, onToggle, onOpenLead }) {
   const isMobile = useIsMobile()
   const theme = useTheme()
+  const isAdmin = profiles.length > 0
+
+  function getUserName(taskUserId) {
+    if (!isAdmin || !taskUserId || taskUserId === userId) return null
+    const p = profiles.find(p => p.id === taskUserId)
+    if (!p) return null
+    return [p.nome, p.sobrenome].filter(Boolean).join(' ') || null
+  }
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [modal, setModal] = useState(null) // null | { task? }
@@ -490,6 +503,7 @@ export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onTo
                 onEdit={t => setModal({ task: t })}
                 onDelete={onDelete}
                 onClickEmpresa={onOpenLead ? handleClickEmpresa : undefined}
+                userName={getUserName(task.user_id)}
               />
             ))
           )}
@@ -527,6 +541,7 @@ export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onTo
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
                         {task.empresa_nome && <div style={{ fontSize: 10, color: 'var(--accent)' }}>{task.empresa_nome}</div>}
+                        {getUserName(task.user_id) && <div style={{ fontSize: 10, color: 'var(--text3)' }}>👤 {getUserName(task.user_id)}</div>}
                       </div>
                       <span style={{ fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>
                         {format(parseISO(task.due_date), "d MMM", { locale: ptBR })}

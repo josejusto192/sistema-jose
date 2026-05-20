@@ -30,7 +30,8 @@ function toDateKey(date) {
 }
 
 function countByCategory(rows, categories) {
-  return rows.filter(r => categories.includes(r.status_novo)).length
+  const ids = new Set(rows.filter(r => categories.includes(r.status_novo)).map(r => r.empresa_id))
+  return ids.size
 }
 
 function Avatar({ profile, size = 36 }) {

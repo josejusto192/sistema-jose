@@ -39,6 +39,7 @@ export default function App() {
   const [empresas, setEmpresas] = useState([])
   const [contratos, setContratos] = useState([])
   const [tasks, setTasks] = useState([])
+  const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
@@ -85,6 +86,14 @@ export default function App() {
     setProfile(data || null)
     setProfileLoaded(true)
   }
+
+  // Fetch all profiles for superadmin (needed for Agenda user labels)
+  useEffect(() => {
+    if (!profileLoaded || profile?.role !== 'superadmin') return
+    supabase.from('profiles').select('id, nome, sobrenome').then(({ data }) => {
+      setProfiles(data || [])
+    })
+  }, [profileLoaded, profile?.role])
 
   // Data loading — aguarda perfil para aplicar filtro por role
   useEffect(() => {
@@ -603,6 +612,7 @@ export default function App() {
               tasks={tasks}
               empresas={empresas}
               userId={session?.user?.id}
+              profiles={profiles}
               onSave={saveTask}
               onDelete={deleteTask}
               onToggle={toggleTask}
