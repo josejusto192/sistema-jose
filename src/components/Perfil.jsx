@@ -268,7 +268,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
                     disabled={push.loading}
                     style={{
                       marginLeft: 16, flexShrink: 0,
-                      padding: '8px 16px', borderRadius: 8, border: 'none', cursor: push.loading ? 'default' : 'pointer',
+                      padding: '8px 16px', borderRadius: 8, cursor: push.loading ? 'default' : 'pointer',
                       fontSize: 12, fontWeight: 600, opacity: push.loading ? 0.6 : 1,
                       background: push.subscribed ? 'var(--bg2)' : '#00CB53',
                       color: push.subscribed ? 'var(--text3)' : '#fff',

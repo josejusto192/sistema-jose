@@ -216,7 +216,7 @@ function TaskCard({ task, onToggle, onEdit, onDelete }) {
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 2 }}>
-          <span style={{ fontSize: 12, color: bg, padding: '1px 7px', borderRadius: 10, background: bg, color, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 10, background: bg, color, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>
             {cfg.emoji} {cfg.label}
           </span>
           {task.due_time && (
