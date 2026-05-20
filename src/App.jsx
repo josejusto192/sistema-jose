@@ -86,20 +86,41 @@ export default function App() {
     setProfileLoaded(true)
   }
 
-  // Data loading — only when authenticated
+  // Data loading — aguarda perfil para aplicar filtro por role
   useEffect(() => {
-    if (!session) return
-    fetchEmpresas()
-    fetchContratos()
+    if (!session || !profileLoaded) return
+
+    const isAdmin = profile?.role === 'superadmin'
+    const userId  = session.user.id
+
+    async function loadLeads() {
+      if (!initialLoaded.current) setLoading(true)
+      let q = supabase.from('leads').select('*').order('criado_em', { ascending: false })
+      if (!isAdmin) q = q.eq('vendedor_id', userId)
+      const { data } = await q
+      if (data) setEmpresas(data)
+      setLoading(false)
+      initialLoaded.current = true
+    }
+
+    async function loadContratos() {
+      let q = supabase.from('contratos').select('*').order('criado_em', { ascending: false })
+      if (!isAdmin) q = q.eq('vendedor_id', userId)
+      const { data } = await q
+      if (data) setContratos(data)
+    }
+
+    loadLeads()
+    loadContratos()
 
     const channel = supabase
       .channel('realtime-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchEmpresas)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contratos' }, fetchContratos)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, loadLeads)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contratos' }, loadContratos)
       .subscribe()
 
     return () => supabase.removeChannel(channel)
-  }, [session])
+  }, [session?.user?.id, profileLoaded, profile?.role])
 
   // Tasks — carrega e assina realtime após perfil estar disponível (filtro por role)
   useEffect(() => {
@@ -147,25 +168,6 @@ export default function App() {
       localStorage.setItem(TASK_DUE_CHECK_KEY, today)
     }
   }, [tasks, session])
-
-  async function fetchEmpresas() {
-    if (!initialLoaded.current) setLoading(true)
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .order('criado_em', { ascending: false })
-    if (!error) setEmpresas(data || [])
-    setLoading(false)
-    initialLoaded.current = true
-  }
-
-  async function fetchContratos() {
-    const { data, error } = await supabase
-      .from('contratos')
-      .select('*')
-      .order('criado_em', { ascending: false })
-    if (!error) setContratos(data || [])
-  }
 
   async function saveTask(task) {
     if (task.id) {
