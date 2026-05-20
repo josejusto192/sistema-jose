@@ -154,7 +154,6 @@ export default function App() {
       .from('leads')
       .select('*')
       .order('criado_em', { ascending: false })
-    if (error) console.error('[fetchEmpresas] error:', error)
     if (!error) setEmpresas(data || [])
     setLoading(false)
     initialLoaded.current = true
