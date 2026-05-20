@@ -32,6 +32,7 @@ export function mapCnpjToLead(item) {
     data_abertura:            abertura,
     situacao_cadastral:       sit,
     eh_mei:                   item.mei?.optante                    || false,
+    optante_simples:          item.simples?.optante                || false,
 
     // atividade
     cnae_principal_codigo:    item.atividade_principal?.codigo     || null,
