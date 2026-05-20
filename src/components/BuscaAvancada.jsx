@@ -2,10 +2,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useIsSuperAdmin, useProfile } from '../App.jsx'
 import { IconSearch, IconPlus, IconCheck } from './Icons.jsx'
 import { CNAES as CNAES_FALLBACK } from '../data/cnaes.js'
+import { API_KEY, API_BUSCA_URL, API_CONSULTA_URL, consultarCnpj, mapCnpjToLead } from '../lib/casaDados.js'
 
-export const API_BUSCA_URL   = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa'
-export const API_CONSULTA_URL = 'https://api.casadosdados.com.br/v4/cnpj'
-export const API_KEY = import.meta.env.VITE_CASA_DADOS_KEY
+export { API_KEY, API_BUSCA_URL, API_CONSULTA_URL, consultarCnpj, mapCnpjToLead }
 
 const UF_LIST  = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']
 const SITUACOES = ['ATIVA','INAPTA','BAIXADA','SUSPENSA','NULA']
@@ -43,40 +42,6 @@ async function loadMunicipios(ufs) {
   return [...new Set(all)].sort((a, b) => a.localeCompare(b, 'pt'))
 }
 
-// ─── CNPJ consultation ───────────────────────────────────────────────────────
-export async function consultarCnpj(cnpj) {
-  const raw = (cnpj || '').replace(/\D/g, '')
-  if (!API_KEY) throw new Error('VITE_CASA_DADOS_KEY não configurada')
-  const res = await fetch(`${API_CONSULTA_URL}/${raw}`, {
-    headers: { 'api-key': API_KEY },
-  })
-  if (!res.ok) throw new Error(`Erro ${res.status}`)
-  return res.json()
-}
-
-export function mapCnpjToLead(item) {
-  const sit = item.situacao_cadastral?.situacao_atual || item.situacao_cadastral?.situacao_cadastral || null
-  const abertura = item.data_abertura ? item.data_abertura.slice(0, 10) : null
-  const email    = item.contato_email?.[0]?.email || null
-  const telefone = item.contato_telefonico?.[0]?.completo || null
-  return {
-    razao_social:             item.razao_social             || null,
-    nome_fantasia:            item.nome_fantasia            || null,
-    municipio:                item.endereco?.municipio      || null,
-    uf:                       item.endereco?.uf             || null,
-    email,
-    telefone,
-    cnae_principal_codigo:    item.atividade_principal?.codigo   || null,
-    cnae_principal_descricao: item.atividade_principal?.descricao || null,
-    porte_descricao:          item.porte_empresa?.descricao || null,
-    eh_mei:                   item.mei?.optante             || false,
-    capital_social:           item.capital_social           || null,
-    data_abertura:            abertura,
-    situacao_cadastral:       sit,
-    matriz_filial:            item.matriz_filial            || null,
-    cnpj_raiz:                item.cnpj_raiz                || null,
-  }
-}
 
 const EMPTY_FORM = {
   termo: '', tipo_busca: 'radical',

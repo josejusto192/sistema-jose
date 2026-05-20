@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
 import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory, IconPlus, IconTrash, IconEdit, IconClock, IconSearch } from './Icons.jsx'
 import { TASK_TYPES } from './Agenda.jsx'
-import { consultarCnpj, mapCnpjToLead, API_KEY } from './BuscaAvancada.jsx'
+import { consultarCnpj, mapCnpjToLead, API_KEY } from '../lib/casaDados.js'
 
 function parseDate(str) {
   if (!str) return null
