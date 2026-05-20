@@ -442,6 +442,29 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
   const hora = now.getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
   const nome = profile?.nome || 'Vendedor'
+  const [activityChartData, setActivityChartData] = useState([])
+
+  useEffect(() => {
+    if (!profile?.id) return
+    async function loadActivityChart() {
+      const from = subDays(now, 29)
+      from.setHours(0, 0, 0, 0)
+      const { data } = await supabase
+        .from('status_history')
+        .select('criado_em')
+        .eq('usuario_id', profile.id)
+        .gte('criado_em', from.toISOString())
+      const rows = data || []
+      const built = Array.from({ length: 30 }, (_, i) => {
+        const date    = subDays(now, 29 - i)
+        const dateStr = format(date, 'yyyy-MM-dd')
+        const count   = rows.filter(r => r.criado_em.slice(0, 10) === dateStr).length
+        return { dia: format(date, 'dd/MM'), count }
+      })
+      setActivityChartData(built)
+    }
+    loadActivityChart()
+  }, [profile?.id])
 
   const stats = useMemo(() => {
     const meus        = empresas
@@ -450,7 +473,6 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
     const trabalhados = meus.filter(e => e.status_prospeccao !== 'novo').length
     const perdidos    = meus.filter(e => ['perdido', 'descartado'].includes(e.status_prospeccao)).length
     const conversao   = trabalhados > 0 ? +((fechados / trabalhados) * 100).toFixed(1) : 0
-
 
     const meusContratos = contratos.filter(c => c.vendedor_id === profile?.id)
     const totalPendente = meusContratos.filter(c => c.comissao_status === 'pendente').reduce((s, c) => s + (Number(c.comissao_valor) || 0), 0)
@@ -468,14 +490,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
     }).length
     const trendLeads = trend(leadsThisMonth, leadsLastMonth)
 
-    const chartData = Array.from({ length: 30 }, (_, i) => {
-      const date    = subDays(now, 29 - i)
-      const dateStr = format(date, 'yyyy-MM-dd')
-      const count   = meus.filter(e => e.criado_em && format(new Date(e.criado_em), 'yyyy-MM-dd') === dateStr).length
-      return { dia: format(date, 'dd/MM'), count }
-    })
-
-    return { total, fechados, trabalhados, perdidos, conversao, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads, chartData }
+    return { total, fechados, trabalhados, perdidos, conversao, meusContratos, totalPendente, totalPago, meta, progresso, leadsThisMonth, leadsLastMonth, trendLeads }
   }, [empresas, contratos, profile])
 
   if (loading) return (
@@ -546,7 +561,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
           <div className="card" style={{ padding: '22px 22px 14px' }}>
             <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 18 }}>Minha Atividade (30 dias)</div>
             <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={stats.chartData} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+              <AreaChart data={activityChartData} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
                 <defs>
                   <linearGradient id="areaGreenV" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={chartColor} stopOpacity={0.18} />

@@ -23,7 +23,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
   const [saved,      setSaved]      = useState(false)
   const [error,      setError]      = useState(null)
   const [hover,      setHover]      = useState(false)
-  const [stats,      setStats]      = useState({ fechamentos: 0, valorTotal: 0, contatos: 0 })
+  const [stats,      setStats]      = useState({ fechamentos: 0, valorTotal: 0, trabalhados: 0 })
   const fileRef  = useRef(null)
   const isMobile = useIsMobile()
 
@@ -34,18 +34,19 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
   const displayUrl   = previewUrl || fotoUrl
   const initials     = [nome, sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
   const memberSince  = profile?.criado_em ? format(new Date(profile.criado_em), 'MMM yyyy') : ''
-  const conversao    = stats.contatos > 0 ? Math.round((stats.fechamentos / stats.contatos) * 100) : 0
+  const conversao = stats.trabalhados > 0 ? Math.round((stats.fechamentos / stats.trabalhados) * 100) : 0
 
   useEffect(() => {
     async function loadStats() {
-      const [{ data: hist }, { data: ctrs }] = await Promise.all([
-        supabase.from('status_history').select('status_novo').eq('usuario_id', userId),
+      const [{ data: myLeads }, { data: ctrs }] = await Promise.all([
+        supabase.from('leads').select('status_prospeccao').eq('vendedor_id', userId),
         supabase.from('contratos').select('valor_total, valor_mensal').eq('vendedor_id', userId),
       ])
-      const fechamentos = (hist || []).filter(h => h.status_novo === 'fechou').length
-      const contatos    = (hist || []).filter(h => h.status_novo === 'contatado').length
+      const leads       = myLeads || []
+      const fechamentos = leads.filter(l => l.status_prospeccao === 'fechou').length
+      const trabalhados = leads.filter(l => l.status_prospeccao !== 'novo').length
       const valorTotal  = (ctrs || []).reduce((s, c) => s + (Number(c.valor_total || c.valor_mensal) || 0), 0)
-      setStats({ fechamentos, valorTotal, contatos })
+      setStats({ fechamentos, valorTotal, trabalhados })
     }
     if (userId) loadStats()
   }, [userId])
