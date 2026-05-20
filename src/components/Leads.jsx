@@ -501,8 +501,219 @@ function CnaeFilter({ allCnaes, cnaeFilter, setCnaeFilter }) {
   )
 }
 
+const ORIGENS = [
+  { value: 'manual',    label: 'Manual (app)' },
+  { value: 'n8n',       label: 'Automação n8n' },
+  { value: 'site',      label: 'Site / formulário' },
+  { value: 'indicacao', label: 'Indicação' },
+  { value: 'outro',     label: 'Outro' },
+]
+
+/* ─── New Lead Modal ───────────────────────────────────────────────────────── */
+function NewLeadModal({ onClose, onSave }) {
+  const [form, setForm] = useState({
+    nome_fantasia: '',
+    razao_social: '',
+    cnpj: '',
+    telefone: '',
+    email: '',
+    municipio: '',
+    uf: '',
+    origem: 'manual',
+    status_prospeccao: 'novo',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function set(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }))
+    setError('')
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.nome_fantasia.trim() && !form.razao_social.trim()) {
+      setError('Informe ao menos o nome fantasia ou razão social.')
+      return
+    }
+    setSaving(true)
+    const { ok } = await onSave({
+      nome_fantasia:     form.nome_fantasia.trim() || null,
+      razao_social:      form.razao_social.trim() || null,
+      cnpj:              form.cnpj.trim() || null,
+      telefone:          form.telefone.trim() || null,
+      email:             form.email.trim() || null,
+      municipio:         form.municipio.trim() || null,
+      uf:                form.uf.trim().toUpperCase() || null,
+      origem:            form.origem || 'manual',
+      status_prospeccao: form.status_prospeccao || 'novo',
+    })
+    setSaving(false)
+    if (ok) onClose()
+    else setError('Erro ao criar lead. Tente novamente.')
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '8px 11px', background: 'var(--bg3)',
+    border: '1px solid var(--border)', borderRadius: 7,
+    color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  }
+  const labelStyle = { fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'block' }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
+    }}
+    onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--border)',
+        width: '100%', maxWidth: 520,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', borderBottom: '1px solid var(--border)',
+        }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Novo Lead</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Preencha os dados principais. Todos os campos são opcionais exceto nome.</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
+            <IconX size={18} color="var(--text3)" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} style={{ padding: '20px 20px 0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Nome fantasia</label>
+              <input
+                style={inputStyle}
+                placeholder="Ex: Padaria do João"
+                value={form.nome_fantasia}
+                onChange={e => set('nome_fantasia', e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Razão social</label>
+              <input
+                style={inputStyle}
+                placeholder="Ex: João Silva Alimentos ME"
+                value={form.razao_social}
+                onChange={e => set('razao_social', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>CNPJ</label>
+              <input
+                style={inputStyle}
+                placeholder="00.000.000/0000-00"
+                value={form.cnpj}
+                onChange={e => set('cnpj', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Telefone</label>
+              <input
+                style={inputStyle}
+                placeholder="(11) 99999-9999"
+                value={form.telefone}
+                onChange={e => set('telefone', e.target.value)}
+              />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>E-mail</label>
+              <input
+                type="email"
+                style={inputStyle}
+                placeholder="contato@empresa.com"
+                value={form.email}
+                onChange={e => set('email', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Cidade</label>
+              <input
+                style={inputStyle}
+                placeholder="São Paulo"
+                value={form.municipio}
+                onChange={e => set('municipio', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>UF</label>
+              <input
+                style={inputStyle}
+                placeholder="SP"
+                maxLength={2}
+                value={form.uf}
+                onChange={e => set('uf', e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Origem</label>
+              <select
+                value={form.origem}
+                onChange={e => set('origem', e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                {ORIGENS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Status inicial</label>
+              <select
+                value={form.status_prospeccao}
+                onChange={e => set('status_prospeccao', e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                  <option key={key} value={key}>{cfg.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ marginTop: 12, padding: '8px 12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 7, color: '#B91C1C', fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '16px 0 20px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? 'Criando...' : 'Criar Lead'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Main component ───────────────────────────────────────────────────────── */
-export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, cnaeFilter = [], setCnaeFilter, allCnaes = [], onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, tasks = [], totalCount }) {
+export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, cnaeFilter = [], setCnaeFilter, allCnaes = [], onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, onCreateLead, tasks = [], totalCount }) {
   const isMobile = useIsMobile()
   const isSuperAdmin = useIsSuperAdmin()
   const [sortField, setSortField] = useState('criado_em')
@@ -511,6 +722,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const [vendorFilter, setVendorFilter] = useState('')
   const [viewMode, setViewMode] = useState('list')
   const [selectedIds, setSelectedIds] = useState([])
+  const [newLeadOpen, setNewLeadOpen] = useState(false)
 
   // Reset para página 1 ao mudar filtro ou busca
   useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter])
@@ -613,8 +825,23 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             </span>
           )}
 
+          {/* Novo Lead */}
+          <button
+            onClick={() => setNewLeadOpen(true)}
+            style={{
+              marginLeft: 'auto',
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 14px', borderRadius: 8, border: 'none',
+              background: 'var(--accent)', color: '#fff',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            + Novo Lead
+          </button>
+
           {/* View toggle — só desktop */}
-          {!isMobile && <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, padding: 3 }}>
+          {!isMobile && <div style={{ display: 'flex', gap: 2, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, padding: 3 }}>
             <button
               onClick={() => handleViewMode('list')}
               title="Visualização em lista"
@@ -901,6 +1128,17 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           </div>
         )}
       </div>
+
+      {/* Modal novo lead */}
+      {newLeadOpen && (
+        <NewLeadModal
+          onClose={() => setNewLeadOpen(false)}
+          onSave={async data => {
+            const result = await onCreateLead(data)
+            return result
+          }}
+        />
+      )}
 
       {/* Barra de ações em lote */}
       {viewMode === 'list' && selectedIds.length > 0 && (

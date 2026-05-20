@@ -251,6 +251,23 @@ export default function App() {
     return !error
   }
 
+  async function createEmpresa(data) {
+    const { data: created, error } = await supabase
+      .from('empresas')
+      .insert(data)
+      .select()
+      .single()
+    if (!error && created) {
+      setEmpresas(prev => [created, ...prev])
+      logAction('criar', 'empresas', created.id, {
+        nome_fantasia: created.nome_fantasia,
+        razao_social: created.razao_social,
+        origem: created.origem,
+      })
+    }
+    return { ok: !error }
+  }
+
   async function bulkUpdateEmpresas(ids, updates) {
     const { error } = await supabase.from('empresas').update(updates).in('id', ids)
     if (!error) {
@@ -549,6 +566,7 @@ export default function App() {
               onUpdateEmpresa={updateEmpresa}
               onBulkUpdate={bulkUpdateEmpresas}
               onBulkDelete={bulkDeleteEmpresas}
+              onCreateLead={createEmpresa}
               tasks={tasks}
               totalCount={empresas.length}
             />
