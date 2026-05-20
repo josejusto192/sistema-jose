@@ -4,8 +4,9 @@ import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
-import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory, IconPlus, IconTrash, IconEdit, IconClock } from './Icons.jsx'
+import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory, IconPlus, IconTrash, IconEdit, IconClock, IconSearch } from './Icons.jsx'
 import { TASK_TYPES } from './Agenda.jsx'
+import { consultarCnpj, mapCnpjToLead, API_KEY } from './BuscaAvancada.jsx'
 
 function parseDate(str) {
   if (!str) return null
@@ -70,6 +71,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const [taskModal, setTaskModal] = useState(null) // null | { task? }
   const [taskType, setTaskType] = useState('followup')
   const [taskSaving, setTaskSaving] = useState(false)
+  const [cnpjLookup, setCnpjLookup] = useState({ loading: false, error: '' })
   const [scriptsOpen, setScriptsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dados') // eslint-disable-line
 
@@ -194,6 +196,19 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const cnpjFormatado = lead.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   const telefoneLink = lead.telefone ? `https://wa.me/55${lead.telefone.replace(/\D/g, '')}` : null
 
+  async function handleCnpjLookup() {
+    if (!lead.cnpj || !API_KEY) return
+    setCnpjLookup({ loading: true, error: '' })
+    try {
+      const data = await consultarCnpj(lead.cnpj)
+      const updates = mapCnpjToLead(data)
+      await onUpdate(lead.id, updates)
+      setCnpjLookup({ loading: false, error: '' })
+    } catch (e) {
+      setCnpjLookup({ loading: false, error: e.message || 'Erro ao consultar CNPJ' })
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
@@ -230,6 +245,17 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               >
                 <IconFileText size={14} color="#fff" /> Criar contrato
+              </button>
+            )}
+            {lead.tipo !== 'pessoa' && lead.cnpj && API_KEY && (
+              <button
+                onClick={handleCnpjLookup}
+                disabled={cnpjLookup.loading}
+                title={cnpjLookup.error || 'Atualizar dados via Casa dos Dados'}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: `1px solid ${cnpjLookup.error ? '#ef4444' : 'var(--border)'}`, borderRadius: 8, color: cnpjLookup.error ? '#ef4444' : 'var(--text2)', fontSize: 12, cursor: cnpjLookup.loading ? 'not-allowed' : 'pointer', opacity: cnpjLookup.loading ? 0.6 : 1 }}
+              >
+                <IconSearch size={13} color={cnpjLookup.error ? '#ef4444' : 'var(--text3)'} />
+                {cnpjLookup.loading ? 'Consultando...' : 'Atualizar CNPJ'}
               </button>
             )}
             {lead.telefone && (
