@@ -5,6 +5,7 @@ const TYPE_CFG = {
   comissao_paga:{ color: '#F59E0B', emoji: '💰' },
   followup:     { color: '#F59E0B', emoji: '⏰' },
   novo_lead:    { color: '#3B82F6', emoji: '🟢' },
+  task_due:     { color: '#8B5CF6', emoji: '📋' },
   default:      { color: '#3B82F6', emoji: '🔔' },
 }
 
@@ -29,7 +30,15 @@ function BellIcon({ size = 20, color = 'currentColor' }) {
   )
 }
 
-export default function NotificationBell({ notifications, unreadCount, markRead, markAllRead }) {
+const TYPE_TO_VIEW = {
+  lead_fechou:   'leads',
+  novo_lead:     'leads',
+  task_due:      'agenda',
+  followup:      'agenda',
+  comissao_paga: 'desempenho',
+}
+
+export default function NotificationBell({ notifications, unreadCount, markRead, markAllRead, dropdownAlign = 'right', onNavigate }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -44,6 +53,8 @@ export default function NotificationBell({ notifications, unreadCount, markRead,
   function handleClickItem(n) {
     if (!n.read) markRead(n.id)
     setOpen(false)
+    const target = TYPE_TO_VIEW[n.type]
+    if (target && onNavigate) onNavigate(target)
   }
 
   return (
@@ -54,13 +65,13 @@ export default function NotificationBell({ notifications, unreadCount, markRead,
         style={{
           position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 36, height: 36, borderRadius: '50%',
-          background: open ? 'var(--bg3)' : 'transparent',
-          border: '1px solid var(--border)',
-          cursor: 'pointer', color: 'var(--text2)',
+          background: open ? '#1A1F25' : 'transparent',
+          border: '1px solid #1A1F25',
+          cursor: 'pointer', color: '#8896A9',
           transition: 'background 0.15s',
         }}
       >
-        <BellIcon size={17} color="var(--text2)" />
+        <BellIcon size={17} color="#8896A9" />
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute', top: -2, right: -2,
@@ -78,7 +89,7 @@ export default function NotificationBell({ notifications, unreadCount, markRead,
       {/* Dropdown */}
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          position: 'absolute', top: 'calc(100% + 8px)', ...(dropdownAlign === 'right' ? { right: 0 } : { left: 0 }),
           width: 340, maxHeight: 480,
           background: 'var(--bg2)', border: '1px solid var(--border)',
           borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.2)',

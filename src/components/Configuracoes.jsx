@@ -39,7 +39,7 @@ function inp(extra = {}) {
 
 /* ─── Modal de usuário ────────────────────────────────────────────────────── */
 
-function UserModal({ user, currentUserId, onClose, onSaved }) {
+function UserModal({ user, currentUserId, onClose, onSaved, logAction }) {
   const isSelf = user.id === currentUserId
   const [nome,       setNome]       = useState(user.nome       || '')
   const [sobrenome,  setSobrenome]  = useState(user.sobrenome  || '')
@@ -64,7 +64,9 @@ function UserModal({ user, currentUserId, onClose, onSaved }) {
     setSaving(false)
     if (err) { setError(err.message); return }
     setOk('Salvo com sucesso!')
-    onSaved({ ...user, nome, sobrenome, cargo, comissao_percentual: Number(comissao), role, ativo })
+    const updated = { ...user, nome, sobrenome, cargo, comissao_percentual: Number(comissao), role, ativo }
+    onSaved(updated)
+    logAction?.('atualizar', 'users', user.id, { nome, sobrenome, cargo, role, ativo, comissao_percentual: Number(comissao) })
     setTimeout(() => setOk(null), 2500)
   }
 
@@ -258,13 +260,11 @@ function UserModal({ user, currentUserId, onClose, onSaved }) {
 
 function SistemaTab({ session }) {
   const [nomeEmpresa, setNomeEmpresa] = useState(() => localStorage.getItem('cfg_nome_empresa') || 'José Justo')
-  const [followupDias, setFollowupDias] = useState(() => Number(localStorage.getItem('cfg_followup_dias')) || 3)
   const [comissaoPadrao, setComissaoPadrao] = useState(() => Number(localStorage.getItem('cfg_comissao_padrao')) || 10)
   const [saved, setSaved] = useState(false)
 
   function handleSave() {
     localStorage.setItem('cfg_nome_empresa', nomeEmpresa)
-    localStorage.setItem('cfg_followup_dias', followupDias)
     localStorage.setItem('cfg_comissao_padrao', comissaoPadrao)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -287,11 +287,6 @@ function SistemaTab({ session }) {
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Regras de negócio</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 500 }}>
-          <div>
-            <label style={lbl}>Dias para alerta de follow-up</label>
-            <input style={inp()} type="number" min={1} max={30} value={followupDias} onChange={e => setFollowupDias(e.target.value)} />
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Leads sem atualização após X dias entram no alerta</div>
-          </div>
           <div>
             <label style={lbl}>Comissão padrão (%)</label>
             <input style={inp()} type="number" min={0} max={100} step={0.5} value={comissaoPadrao} onChange={e => setComissaoPadrao(e.target.value)} />
@@ -338,7 +333,7 @@ function toSlug(str) {
   return str.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
 }
 
-function PacotesTab() {
+function PacotesTab({ logAction }) {
   const [pacotes,    setPacotes]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [modal,      setModal]      = useState(null)   // null | 'new' | objeto
@@ -421,6 +416,7 @@ function PacotesTab() {
     }
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
+    logAction?.(isNew ? 'criar' : 'atualizar', 'pacotes', isNew ? payload.codigo : modal.id, { nome: payload.nome, tipo: payload.tipo, valor: payload.valor })
     await fetchPacotes()
     closeModal()
   }
@@ -431,6 +427,7 @@ function PacotesTab() {
     const { error: dbErr } = await supabase.from('pacotes').delete().eq('id', modal.id)
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
+    logAction?.('deletar', 'pacotes', modal.id, { nome: modal.nome })
     await fetchPacotes()
     closeModal()
   }
@@ -656,7 +653,7 @@ function PacotesTab() {
 
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
-export default function Configuracoes({ session, profile, isSuperAdmin }) {
+export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
   const [activeTab,    setActiveTab]    = useState('usuarios')
   const [users,        setUsers]        = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -793,13 +790,14 @@ export default function Configuracoes({ session, profile, isSuperAdmin }) {
       )}
 
       {/* ── Serviços ── */}
-      {activeTab === 'servicos' && <PacotesTab />}
+      {activeTab === 'servicos' && <PacotesTab logAction={logAction} />}
 
       {/* Modal */}
       {selectedUser && (
         <UserModal
           user={selectedUser}
           currentUserId={currentUserId}
+          logAction={logAction}
           onClose={() => setSelectedUser(null)}
           onSaved={updated => {
             setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))

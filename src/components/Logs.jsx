@@ -10,6 +10,37 @@ const ACAO_CONFIG = {
   criar:     { label: 'Criar',     color: '#059669', bg: '#ECFDF5' },
   atualizar: { label: 'Atualizar', color: '#2563EB', bg: '#EFF6FF' },
   deletar:   { label: 'Deletar',   color: '#B91C1C', bg: '#FEF2F2' },
+  concluir:  { label: 'Concluir',  color: '#7C3AED', bg: '#F5F3FF' },
+  reabrir:   { label: 'Reabrir',   color: '#0891B2', bg: '#ECFEFF' },
+}
+
+const TABELA_LABELS = {
+  leads:     'Leads',
+  empresas:  'Leads',  // backward compat with old logs
+  contratos: 'Contratos',
+  tasks:     'Tarefas',
+  pacotes:   'Serviços',
+  perfil:    'Perfil',
+  users:     'Usuários',
+}
+
+function formatDetalhes(detalhes) {
+  if (!detalhes) return '—'
+  if (typeof detalhes === 'string') return detalhes.slice(0, 100)
+  const d = detalhes
+  // Prioridade: título, nome do cliente/lead
+  if (d.title)          return `"${d.title}"${d.empresa_nome ? ` · ${d.empresa_nome}` : ''}${d.due_date ? ` · ${d.due_date}` : ''}`
+  if (d.nome_fantasia)  return d.nome_fantasia
+  if (d.razao_social)   return d.razao_social
+  if (d.cliente_nome)   return d.cliente_nome
+  if (d.tipo === 'pessoa' && d.nome) return [d.nome, d.sobrenome].filter(Boolean).join(' ')
+  if (d.nome && d.sobrenome) return `${d.nome} ${d.sobrenome}`
+  if (d.nome)           return d.nome
+  if (d.status_prospeccao) return `Status: ${d.status_prospeccao}`
+  if (d.comissao_status)   return `Comissão: ${d.comissao_status}`
+  if (d.count != null)     return `${d.count} registros`
+  const entries = Object.entries(d).filter(([, v]) => v != null && v !== '').slice(0, 3)
+  return entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(' · ') || '—'
 }
 
 function AcaoBadge({ acao }) {
@@ -42,6 +73,7 @@ export default function Logs({ isSuperAdmin }) {
   const [totalCount, setTotalCount] = useState(0)
   const [filterUsuario, setFilterUsuario] = useState('')
   const [filterAcao, setFilterAcao] = useState('')
+  const [filterTabela, setFilterTabela] = useState('')
   const [searchText, setSearchText] = useState('')
   const [usuarios, setUsuarios] = useState([])
 
@@ -58,6 +90,7 @@ export default function Logs({ isSuperAdmin }) {
 
     if (filterUsuario) query = query.eq('usuario_nome', filterUsuario)
     if (filterAcao)    query = query.eq('acao', filterAcao)
+    if (filterTabela)  query = query.eq('tabela', filterTabela)
     if (searchText)    query = query.ilike('detalhes::text', `%${searchText}%`)
 
     const { data, error, count } = await query
@@ -66,7 +99,7 @@ export default function Logs({ isSuperAdmin }) {
       setTotalCount(count || 0)
     }
     setLoading(false)
-  }, [page, filterUsuario, filterAcao, searchText])
+  }, [page, filterUsuario, filterAcao, filterTabela, searchText])
 
   // Fetch list of unique users for filter
   useEffect(() => {
@@ -80,7 +113,7 @@ export default function Logs({ isSuperAdmin }) {
 
   useEffect(() => {
     setPage(1)
-  }, [filterUsuario, filterAcao, searchText])
+  }, [filterUsuario, filterAcao, filterTabela, searchText])
 
   useEffect(() => {
     fetchLogs()
@@ -99,13 +132,6 @@ export default function Logs({ isSuperAdmin }) {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE))
-
-  function formatDetalhes(detalhes) {
-    if (!detalhes) return '—'
-    if (typeof detalhes === 'string') return detalhes.slice(0, 80)
-    const entries = Object.entries(detalhes).slice(0, 3)
-    return entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(' · ')
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -158,6 +184,18 @@ export default function Logs({ isSuperAdmin }) {
               <option key={key} value={key}>{cfg.label}</option>
             ))}
           </select>
+
+          {/* Filtro tabela */}
+          <select
+            value={filterTabela}
+            onChange={e => setFilterTabela(e.target.value)}
+            style={{ padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="">Todas as áreas</option>
+            {Object.entries(TABELA_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -205,7 +243,7 @@ export default function Logs({ isSuperAdmin }) {
                     <AcaoBadge acao={log.acao} />
                   </td>
                   <td style={{ padding: '9px 12px', background: 'var(--bg2)' }}>
-                    <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>{log.tabela || '—'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{TABELA_LABELS[log.tabela] || log.tabela || '—'}</span>
                   </td>
                   <td style={{ padding: '9px 12px', background: 'var(--bg2)', borderRadius: '0 8px 8px 0', maxWidth: 320 }}>
                     <span style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>

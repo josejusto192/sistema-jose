@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { leadName } from './constants.js'
 import { supabase } from './supabase.js'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -9,6 +10,8 @@ import Logs from './components/Logs.jsx'
 import Perfil from './components/Perfil.jsx'
 import Configuracoes from './components/Configuracoes.jsx'
 import Desempenho from './components/Desempenho.jsx'
+import Agenda from './components/Agenda.jsx'
+import BuscaAvancada from './components/BuscaAvancada.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
@@ -25,22 +28,24 @@ export const useProfile = () => useContext(AppContext).profile
 // Keep ThemeContext as alias so any existing import still works
 export const ThemeContext = AppContext
 
-const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
-const FOLLOWUP_CHECK_KEY = 'tilim_followup_checked'
-const FOLLOWUP_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4h
+const TASK_DUE_CHECK_KEY = 'tilim_task_due_checked'
 
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [session, setSession] = useState(undefined) // undefined = loading, null = no session
   const [profile, setProfile] = useState(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [view, setView] = useState('dashboard')
   const [selectedLead, setSelectedLead] = useState(null)
   const [empresas, setEmpresas] = useState([])
   const [contratos, setContratos] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [tagFilter, setTagFilter] = useState('')
+  const [cnaeFilter, setCnaeFilter] = useState([])
   const [pendingContrato, setPendingContrato] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const initialLoaded = useRef(false)
@@ -80,60 +85,136 @@ export default function App() {
       .eq('id', userId)
       .single()
     setProfile(data || null)
+    setProfileLoaded(true)
   }
 
-  // Data loading — only when authenticated
+  // Fetch all profiles for superadmin (needed for Agenda user labels)
   useEffect(() => {
-    if (!session) return
-    fetchEmpresas()
-    fetchContratos()
+    if (!profileLoaded || profile?.role !== 'superadmin') return
+    supabase.from('profiles').select('id, nome, sobrenome').then(({ data }) => {
+      setProfiles(data || [])
+    })
+  }, [profileLoaded, profile?.role])
+
+  // Data loading — aguarda perfil para aplicar filtro por role
+  useEffect(() => {
+    if (!session || !profileLoaded) return
+
+    const isAdmin = profile?.role === 'superadmin'
+    const userId  = session.user.id
+
+    async function loadLeads() {
+      if (!initialLoaded.current) setLoading(true)
+      let q = supabase.from('leads').select('*').order('criado_em', { ascending: false })
+      if (!isAdmin) q = q.eq('vendedor_id', userId)
+      const { data } = await q
+      if (data) setEmpresas(data)
+      setLoading(false)
+      initialLoaded.current = true
+    }
+
+    async function loadContratos() {
+      let q = supabase.from('contratos').select('*').order('criado_em', { ascending: false })
+      if (!isAdmin) q = q.eq('vendedor_id', userId)
+      const { data } = await q
+      if (data) setContratos(data)
+    }
+
+    loadLeads()
+    loadContratos()
 
     const channel = supabase
       .channel('realtime-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'empresas' }, fetchEmpresas)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contratos' }, fetchContratos)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, loadLeads)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contratos' }, loadContratos)
       .subscribe()
 
     return () => supabase.removeChannel(channel)
-  }, [session])
+  }, [session?.user?.id, profileLoaded, profile?.role])
 
-  // Periodic follow-up notification check (every 4h, when tab is open)
+  // Tasks — carrega e assina realtime após perfil estar disponível (filtro por role)
   useEffect(() => {
-    if (!session || !empresas.length) return
-    if (Notification.permission !== 'granted') return
+    if (!session || !profileLoaded) return
 
-    const lastCheck = Number(localStorage.getItem(FOLLOWUP_CHECK_KEY) || 0)
-    if (Date.now() - lastCheck < FOLLOWUP_CHECK_INTERVAL_MS) return
+    const isAdmin = profile?.role === 'superadmin'
+    const userId  = session.user.id
 
-    const count = empresas.filter(e => {
-      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-      const ref = e.atualizado_em || e.criado_em
-      return ref && (Date.now() - new Date(ref)) / 86400000 >= 3
-    }).length
-
-    if (count > 0) {
-      notify.followupAlert(count, [session.user.id])
-      localStorage.setItem(FOLLOWUP_CHECK_KEY, String(Date.now()))
+    async function loadTasks() {
+      let q = supabase.from('tasks').select('*').order('due_date', { ascending: true })
+      if (!isAdmin) q = q.eq('user_id', userId)
+      const { data, error } = await q
+      if (!error) setTasks(data || [])
     }
-  }, [empresas, session])
 
-  async function fetchEmpresas() {
-    if (!initialLoaded.current) setLoading(true)
-    const { data, error } = await supabase
-      .from('empresas')
-      .select('*')
-      .order('criado_em', { ascending: false })
-    if (!error) setEmpresas(data || [])
-    setLoading(false)
-    initialLoaded.current = true
+    loadTasks()
+
+    const cfg = { event: '*', schema: 'public', table: 'tasks' }
+    if (!isAdmin) cfg.filter = `user_id=eq.${userId}`
+
+    const taskChannel = supabase
+      .channel('tasks-realtime')
+      .on('postgres_changes', cfg, loadTasks)
+      .subscribe()
+
+    return () => supabase.removeChannel(taskChannel)
+  }, [session?.user?.id, profileLoaded, profile?.role])
+
+  // Daily task due notification check
+  useEffect(() => {
+    if (!session || !tasks.length) return
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+
+    const today = new Date().toISOString().slice(0, 10)
+    if (localStorage.getItem(TASK_DUE_CHECK_KEY) === today) return
+
+    const due = tasks.filter(t =>
+      !t.completed &&
+      t.due_date <= today &&
+      t.user_id === session.user.id
+    )
+
+    if (due.length > 0) {
+      notify.taskDue(due.length, due.map(t => t.title), session.user.id)
+      localStorage.setItem(TASK_DUE_CHECK_KEY, today)
+    }
+  }, [tasks, session])
+
+  async function saveTask(task) {
+    if (task.id) {
+      const { id, created_at, ...updates } = task
+      const { data, error } = await supabase.from('tasks').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+      if (!error && data) {
+        setTasks(prev => prev.map(t => t.id === id ? data : t))
+        logAction('atualizar', 'tasks', id, { title: task.title, type: task.type, due_date: task.due_date, empresa_nome: task.empresa_nome || null })
+      }
+    } else {
+      const { data, error } = await supabase.from('tasks').insert(task).select().single()
+      if (!error && data) {
+        setTasks(prev => [...prev, data].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+        logAction('criar', 'tasks', data.id, { title: data.title, type: data.type, due_date: data.due_date, empresa_nome: data.empresa_nome || null })
+      }
+    }
   }
 
-  async function fetchContratos() {
-    const { data, error } = await supabase
-      .from('contratos')
-      .select('*')
-      .order('criado_em', { ascending: false })
-    if (!error) setContratos(data || [])
+  async function deleteTask(id) {
+    const task = tasks.find(t => t.id === id)
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== id))
+      logAction('deletar', 'tasks', id, { title: task?.title, empresa_nome: task?.empresa_nome || null })
+    }
+  }
+
+  async function toggleTask(task) {
+    const completed = !task.completed
+    const updates = { completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() }
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t))
+    const { error } = await supabase.from('tasks').update(updates).eq('id', task.id)
+    if (error) {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: task.completed, completed_at: task.completed_at, updated_at: task.updated_at } : t))
+    } else {
+      logAction(completed ? 'concluir' : 'reabrir', 'tasks', task.id, { title: task.title, empresa_nome: task.empresa_nome || null })
+    }
   }
 
   // Fire-and-forget log
@@ -163,16 +244,16 @@ export default function App() {
 
   async function updateEmpresa(id, updates) {
     const empresa = empresas.find(e => e.id === id)
-    const { error } = await supabase.from('empresas').update(updates).eq('id', id)
+    const { error } = await supabase.from('leads').update(updates).eq('id', id)
     if (!error) {
       setEmpresas(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e))
       if (selectedLead?.id === id) setSelectedLead(prev => ({ ...prev, ...updates }))
-      logAction('atualizar', 'empresas', id, updates)
+      logAction('atualizar', 'leads', id, updates)
       if (updates.status_prospeccao && empresa && updates.status_prospeccao !== empresa.status_prospeccao) {
         insertStatusHistory(id, empresa.status_prospeccao, updates.status_prospeccao)
         // Notify: lead fechou
         if (updates.status_prospeccao === 'fechou') {
-          const nome = empresa.nome_fantasia || empresa.razao_social || 'Lead'
+          const nome = leadName(empresa)
           // Fetch superadmin IDs to notify them
           supabase.from('profiles').select('id').eq('role', 'superadmin').then(({ data: admins }) => {
             const adminIds = (admins || []).map(a => a.id)
@@ -181,6 +262,43 @@ export default function App() {
           })
         }
       }
+    }
+    return !error
+  }
+
+  async function createEmpresa(data) {
+    const { data: created, error } = await supabase
+      .from('leads')
+      .insert(data)
+      .select()
+      .single()
+    if (!error && created) {
+      setEmpresas(prev => [created, ...prev])
+      logAction('criar', 'leads', created.id, {
+        nome_fantasia: created.nome_fantasia,
+        razao_social: created.razao_social,
+        nome: created.nome,
+        tipo: created.tipo,
+        origem: created.origem,
+      })
+    }
+    return { ok: !error }
+  }
+
+  async function bulkUpdateEmpresas(ids, updates) {
+    const { error } = await supabase.from('leads').update(updates).in('id', ids)
+    if (!error) {
+      setEmpresas(prev => prev.map(e => ids.includes(e.id) ? { ...e, ...updates } : e))
+      logAction('atualizar', 'leads', `bulk:${ids.length}`, updates)
+    }
+    return !error
+  }
+
+  async function bulkDeleteEmpresas(ids) {
+    const { error } = await supabase.from('leads').delete().in('id', ids)
+    if (!error) {
+      setEmpresas(prev => prev.filter(e => !ids.includes(e.id)))
+      logAction('deletar', 'leads', `bulk:${ids.length}`, { count: ids.length })
     }
     return !error
   }
@@ -225,6 +343,9 @@ export default function App() {
     initialLoaded.current = false
     setEmpresas([])
     setContratos([])
+    setTasks([])
+    setProfile(null)
+    setProfileLoaded(false)
   }
 
   function navigate(v) {
@@ -272,7 +393,7 @@ export default function App() {
 
     setPendingContrato({
       empresa_id:           lead.id,
-      cliente_nome:         lead.nome_fantasia || lead.razao_social || '',
+      cliente_nome:         leadName(lead),
       cliente_cnpj:         lead.cnpj || '',
       cliente_email:        lead.email || '',
       cliente_telefone:     lead.telefone || '',
@@ -289,25 +410,31 @@ export default function App() {
     empresas.flatMap(e => e.tags || []).filter(Boolean)
   )).sort()
 
-  const filteredEmpresas = empresas.filter(e => {
-    const matchSearch = !searchQuery ||
-      e.razao_social?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.nome_fantasia?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.cnpj?.includes(searchQuery) ||
-      e.municipio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.cnae_principal_descricao?.toLowerCase().includes(searchQuery.toLowerCase())
+  const allCnaes = Array.from(new Set(
+    empresas.map(e => e.cnae_principal_descricao).filter(Boolean)
+  )).sort()
 
-    const matchTag = !tagFilter || (e.tags || []).includes(tagFilter)
+  const filteredEmpresas = empresas.filter(e => {
+    const q = searchQuery.toLowerCase()
+    const matchSearch = !searchQuery ||
+      e.razao_social?.toLowerCase().includes(q) ||
+      e.nome_fantasia?.toLowerCase().includes(q) ||
+      e.nome?.toLowerCase().includes(q) ||
+      e.sobrenome?.toLowerCase().includes(q) ||
+      e.cnpj?.includes(searchQuery) ||
+      e.municipio?.toLowerCase().includes(q) ||
+      e.cnae_principal_descricao?.toLowerCase().includes(q)
+
+    const matchTag  = !tagFilter || (e.tags || []).includes(tagFilter)
+    const matchCnae = cnaeFilter.length === 0 || cnaeFilter.includes(e.cnae_principal_descricao)
 
     if (statusFilter === 'followup') {
-      if (!matchSearch || !matchTag) return false
-      if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-      const ref = e.atualizado_em || e.criado_em
-      if (!ref) return false
-      return (Date.now() - new Date(ref)) / 86400000 >= 3
+      if (!matchSearch || !matchTag || !matchCnae) return false
+      const today = new Date().toISOString().slice(0, 10)
+      return tasks.some(t => t.empresa_id === e.id && !t.completed && t.due_date <= today)
     }
     const matchStatus = statusFilter === 'todos' || e.status_prospeccao === statusFilter
-    return matchSearch && matchStatus && matchTag
+    return matchSearch && matchStatus && matchTag && matchCnae
   })
 
   const isSuperAdmin = profile?.role === 'superadmin'
@@ -328,7 +455,10 @@ export default function App() {
       p_tipo_pix:    updates.tipo_pix    ?? profile?.tipo_pix    ?? null,
       p_chave_pix:   updates.chave_pix   ?? profile?.chave_pix   ?? null,
     })
-    if (!error) setProfile(prev => ({ ...prev, ...updates }))
+    if (!error) {
+      setProfile(prev => ({ ...prev, ...updates }))
+      logAction('atualizar', 'perfil', session.user.id, { nome: updates.nome, sobrenome: updates.sobrenome, cargo: updates.cargo })
+    }
     return { ok: !error, errorMsg: error?.message || null }
   }
 
@@ -357,12 +487,23 @@ export default function App() {
     setView: navigate,
     empresas,
     contratos,
+    tasks,
     theme,
     onToggleTheme: () => setTheme(t => t === 'light' ? 'dark' : 'light'),
     currentUser,
     isSuperAdmin,
     onLogout: handleLogout,
     profile,
+    bellSlot: (
+      <NotificationBell
+        notifications={notif.notifications}
+        unreadCount={notif.unreadCount}
+        markRead={notif.markRead}
+        markAllRead={notif.markAllRead}
+        dropdownAlign="left"
+        onNavigate={navigate}
+      />
+    ),
   }
 
   return (
@@ -390,18 +531,6 @@ export default function App() {
           <Sidebar {...sidebarProps} />
         )}
 
-        {/* Bell — desktop: fixed top-right */}
-        {!isMobile && (
-          <div style={{ position: 'fixed', top: 14, right: 18, zIndex: 300 }}>
-            <NotificationBell
-              notifications={notif.notifications}
-              unreadCount={notif.unreadCount}
-              markRead={notif.markRead}
-              markAllRead={notif.markAllRead}
-            />
-          </div>
-        )}
-
         <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* Barra superior mobile */}
           {isMobile && (
@@ -423,6 +552,7 @@ export default function App() {
                   unreadCount={notif.unreadCount}
                   markRead={notif.markRead}
                   markAllRead={notif.markAllRead}
+                  onNavigate={navigate}
                 />
               </div>
             </div>
@@ -432,6 +562,7 @@ export default function App() {
             <Dashboard
               empresas={empresas}
               contratos={contratos}
+              tasks={tasks}
               loading={loading}
               onViewLeads={() => navigate('leads')}
               onViewContratos={() => navigate('contratos')}
@@ -450,8 +581,15 @@ export default function App() {
               tagFilter={tagFilter}
               setTagFilter={setTagFilter}
               allTags={allTags}
+              cnaeFilter={cnaeFilter}
+              setCnaeFilter={setCnaeFilter}
+              allCnaes={allCnaes}
               onOpenLead={openLead}
               onUpdateEmpresa={updateEmpresa}
+              onBulkUpdate={bulkUpdateEmpresas}
+              onBulkDelete={bulkDeleteEmpresas}
+              onCreateLead={createEmpresa}
+              tasks={tasks}
               totalCount={empresas.length}
             />
           )}
@@ -461,10 +599,36 @@ export default function App() {
               onBack={closeLead}
               onUpdate={updateEmpresa}
               onCreateContrato={handleCreateContrato}
+              tasks={tasks.filter(t => t.empresa_id === selectedLead.id)}
+              contratos={contratos.filter(c => c.empresa_id === selectedLead.id)}
+              onSaveTask={saveTask}
+              onDeleteTask={deleteTask}
+              onToggleTask={toggleTask}
+              userId={session?.user?.id}
+              empresas={empresas}
+            />
+          )}
+          {view === 'agenda' && (
+            <Agenda
+              tasks={tasks}
+              empresas={empresas}
+              userId={session?.user?.id}
+              profiles={profiles}
+              onSave={saveTask}
+              onDelete={deleteTask}
+              onToggle={toggleTask}
+              onOpenLead={openLead}
+            />
+          )}
+          {view === 'busca-avancada' && (
+            <BuscaAvancada
+              onCreateLead={createEmpresa}
+              existingCnpjs={empresas.map(e => (e.cnpj || '').replace(/\D/g, '')).filter(Boolean)}
+              profiles={profiles}
             />
           )}
           {view === 'desempenho' && (
-            <Desempenho session={session} profile={profile} contratos={contratos} />
+            <Desempenho session={session} profile={profile} contratos={contratos} empresas={empresas} />
           )}
           {view === 'contratos' && (
             <Contratos
@@ -487,7 +651,7 @@ export default function App() {
             />
           )}
           {view === 'configuracoes' && (
-            <Configuracoes session={session} profile={profile} isSuperAdmin={isSuperAdmin} />
+            <Configuracoes session={session} profile={profile} isSuperAdmin={isSuperAdmin} logAction={logAction} />
           )}
         </main>
       </div>

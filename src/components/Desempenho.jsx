@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase.js'
-import { STATUS_CONFIG, PACOTES } from '../constants.js'
+import { STATUS_CONFIG, PACOTES, leadName } from '../constants.js'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { InfoTooltip } from './Tooltip.jsx'
 
@@ -12,6 +12,11 @@ const PERDIDOS    = ['perdido', 'descartado']
 
 // ─── Day labels PT-BR ─────────────────────────────────────────────────────────
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+// ─── Lead-based stat helpers (use current lead state, not history events) ─────
+function countLeadsByCategory(leads, categories) {
+  return leads.filter(l => categories.includes(l.status_prospeccao)).length
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function tempoRelativo(dateStr) {
@@ -30,7 +35,8 @@ function toDateKey(date) {
 }
 
 function countByCategory(rows, categories) {
-  return rows.filter(r => categories.includes(r.status_novo)).length
+  const ids = new Set(rows.filter(r => categories.includes(r.status_novo)).map(r => r.empresa_id))
+  return ids.size
 }
 
 function Avatar({ profile, size = 36 }) {
@@ -110,12 +116,13 @@ function MetricChip({ label, value, color, tooltip }) {
 }
 
 // ─── Vendor card (superadmin equipe view) ─────────────────────────────────────
-function VendorCard({ profile: p, rows, isCurrentUser }) {
-  const myRows = rows.filter(r => r.usuario_id === p.id)
-  const contatos    = countByCategory(myRows, CONTATOS)
-  const efetivos    = countByCategory(myRows, EFETIVOS)
-  const fechamentos = countByCategory(myRows, FECHAMENTOS)
-  const perdidos    = countByCategory(myRows, PERDIDOS)
+function VendorCard({ profile: p, rows, empresas, isCurrentUser }) {
+  // Stats reflect current lead state — no period filter
+  const vendorLeads = empresas.filter(e => e.vendedor_id === p.id)
+  const contatos    = countLeadsByCategory(vendorLeads, CONTATOS)
+  const efetivos    = countLeadsByCategory(vendorLeads, EFETIVOS)
+  const fechamentos = countLeadsByCategory(vendorLeads, FECHAMENTOS)
+  const perdidos    = countLeadsByCategory(vendorLeads, PERDIDOS)
   const fullName = [p.nome, p.sobrenome].filter(Boolean).join(' ')
 
   return (
@@ -199,8 +206,8 @@ function ActivityChart({ chartData }) {
 
 // ─── Recent activity row ──────────────────────────────────────────────────────
 function ActivityRow({ row }) {
-  const empresa = row.empresas
-  const nomeFmt = empresa?.nome_fantasia || empresa?.razao_social || `Lead #${String(row.empresa_id).slice(0, 6)}`
+  const empresa = row.leads
+  const nomeFmt = empresa ? leadName(empresa) : `Lead #${String(row.empresa_id).slice(0, 6)}`
   const cfgAnterior = STATUS_CONFIG[row.status_anterior]
   const cfgNovo     = STATUS_CONFIG[row.status_novo]
 
@@ -483,7 +490,7 @@ function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Desempenho({ session, profile, contratos = [] }) {
+export default function Desempenho({ session, profile, contratos = [], empresas = [] }) {
   const [periodo, setPeriodo]   = useState('mes')
   const [history, setHistory]   = useState([])
   const [profiles, setProfiles] = useState([])
@@ -587,19 +594,24 @@ export default function Desempenho({ session, profile, contratos = [] }) {
   async function loadRecentActivity() {
     const { data } = await supabase
       .from('status_history')
-      .select('*, empresas(nome_fantasia, razao_social)')
+      .select('*, leads(nome_fantasia, razao_social, nome, sobrenome, tipo)')
       .eq('usuario_id', currentUserId)
       .order('criado_em', { ascending: false })
       .limit(10)
     setRecentRows(data || [])
   }
 
-  // ── My rows (for Meu Desempenho section) ─────────────────────────────────────
-  const myRows        = history.filter(r => r.usuario_id === currentUserId)
-  const myContatos    = countByCategory(myRows, CONTATOS)
-  const myEfetivos    = countByCategory(myRows, EFETIVOS)
-  const myFechamentos = countByCategory(myRows, FECHAMENTOS)
-  const myPerdidos    = countByCategory(myRows, PERDIDOS)
+  // ── Stats: always reflect CURRENT lead state — no period filter ──────────────
+  // Period selector only affects activity chart and recent activity list.
+  // This keeps numbers consistent with Dashboard and Perfil.
+  const myLeadsBase = isSuperAdmin
+    ? empresas.filter(e => e.vendedor_id === currentUserId)
+    : empresas
+
+  const myContatos    = countLeadsByCategory(myLeadsBase, CONTATOS)
+  const myEfetivos    = countLeadsByCategory(myLeadsBase, EFETIVOS)
+  const myFechamentos = countLeadsByCategory(myLeadsBase, FECHAMENTOS)
+  const myPerdidos    = countLeadsByCategory(myLeadsBase, PERDIDOS)
 
   // ── Vendor cards: only profiles that have any history ───────────────────────
   const activeProfiles = isSuperAdmin
@@ -666,6 +678,7 @@ export default function Desempenho({ session, profile, contratos = [] }) {
                     key={p.id}
                     profile={p}
                     rows={history}
+                    empresas={empresas}
                     isCurrentUser={p.id === currentUserId}
                   />
                 ))}

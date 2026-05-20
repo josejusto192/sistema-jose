@@ -1,7 +1,7 @@
 import React from 'react'
-import { differenceInDays } from 'date-fns'
+import { isToday, parseISO } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar, IconSearch } from './Icons.jsx'
 import TilimIcon from './TilimIcon.jsx'
 
 function Avatar({ profile, size = 32 }) {
@@ -14,7 +14,6 @@ function Avatar({ profile, size = 32 }) {
   )
 }
 
-const FOLLOWUP_STATUSES = ['contatado', 'aguardando', 'respondeu', 'proposta_enviada']
 
 const S = {
   sidebar: { width: 228, background: '#0F1115', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
@@ -59,25 +58,24 @@ function NavBtn({ item, active, onClick }) {
   )
 }
 
-export default function Sidebar({ view, setView, empresas, contratos, theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile }) {
+export default function Sidebar({ view, setView, empresas, contratos, tasks = [], theme, onToggleTheme, currentUser, isSuperAdmin, onLogout, profile, bellSlot }) {
   const total = empresas.length
-  const followupCount = empresas.filter(e => {
-    if (!FOLLOWUP_STATUSES.includes(e.status_prospeccao)) return false
-    const ref = e.atualizado_em || e.criado_em
-    if (!ref) return false
-    return differenceInDays(new Date(), new Date(ref)) >= 3
-  }).length
+  const today = new Date().toISOString().slice(0, 10)
+  const followupCount = tasks.filter(t => !t.completed && t.due_date <= today).length
 
   const contratosAtivos = contratos.filter(c => c.status === 'ativo').length
   const minhasComissoesPendentes = !isSuperAdmin
     ? contratos.filter(c => c.vendedor_id === profile?.id && c.comissao_status === 'pendente' && (c.comissao_valor || 0) > 0).length
     : 0
+  const tasksDueToday = tasks.filter(t => !t.completed && isToday(parseISO(t.due_date))).length
 
   const navAdmin = [
-    { id: 'dashboard',  label: 'Dashboard',      icon: IconGrid },
-    { id: 'leads',      label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
-    { id: 'contratos',  label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },
-    { id: 'desempenho', label: 'Equipe',           icon: IconBarChart },
+    { id: 'dashboard',       label: 'Dashboard',      icon: IconGrid },
+    { id: 'leads',           label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
+    { id: 'busca-avancada',  label: 'Busca Avançada',  icon: IconSearch },
+    { id: 'contratos',       label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },
+    { id: 'desempenho',      label: 'Equipe',          icon: IconBarChart },
+    { id: 'agenda',          label: 'Agenda',          icon: IconCalendar, alert: tasksDueToday || null },
   ]
   const navAdminTools = [
     { id: 'logs',          label: 'Logs',          icon: IconFileText },
@@ -85,11 +83,13 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
   ]
 
   const navVendedor = [
-    { id: 'dashboard',  label: 'Início',           icon: IconGrid },
-    { id: 'leads',      label: 'Meus Leads',        icon: IconList, badge: total, alert: followupCount || null },
-    { id: 'contratos',  label: 'Meus Contratos',    icon: IconContract, badge: minhasComissoesPendentes || null },
-    { id: 'desempenho', label: 'Meu Desempenho',    icon: IconBarChart },
-    { id: 'perfil',     label: 'Meu Perfil',        icon: IconUser },
+    { id: 'dashboard',      label: 'Início',          icon: IconGrid },
+    { id: 'leads',          label: 'Meus Leads',      icon: IconList, badge: total, alert: followupCount || null },
+    { id: 'busca-avancada', label: 'Busca Avançada',  icon: IconSearch },
+    { id: 'contratos',      label: 'Meus Contratos',  icon: IconContract, badge: minhasComissoesPendentes || null },
+    { id: 'desempenho',     label: 'Meu Desempenho',  icon: IconBarChart },
+    { id: 'agenda',         label: 'Agenda',          icon: IconCalendar, alert: tasksDueToday || null },
+    { id: 'perfil',         label: 'Meu Perfil',      icon: IconUser },
   ]
 
   const navItems    = isSuperAdmin ? navAdmin     : navVendedor
@@ -103,11 +103,14 @@ export default function Sidebar({ view, setView, empresas, contratos, theme, onT
     <aside style={S.sidebar}>
       {/* Logo */}
       <div style={S.logo}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <TilimIcon size={30} color="#00CB53" />
-          <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
-            Tilim
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <TilimIcon size={30} color="#00CB53" />
+            <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
+              Tilim
+            </div>
           </div>
+          {bellSlot}
         </div>
         <div style={{ fontSize: 10, color: '#3D4A5C', marginTop: 10, fontWeight: 500 }}>
           {isSuperAdmin ? 'Painel do Admin' : 'Área do Vendedor'}

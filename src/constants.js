@@ -1,3 +1,13 @@
+// Display name for any lead (empresa or pessoa)
+export function leadName(lead) {
+  if (!lead) return '—'
+  if (lead.tipo === 'pessoa') {
+    const n = [lead.nome, lead.sobrenome].filter(Boolean).join(' ')
+    return n || lead.nome_fantasia || lead.razao_social || '—'
+  }
+  return lead.nome_fantasia || lead.razao_social || '—'
+}
+
 export const STATUS_CONFIG = {
   novo:             { label: 'Novo',             dot: '#3B82F6', color: '#1D4ED8', bg: '#EFF6FF',  darkColor: '#60A5FA', darkBg: '#1E3A5F' },
   contatado:        { label: 'Contatado',        dot: '#F59E0B', color: '#B45309', bg: '#FFFBEB',  darkColor: '#FCD34D', darkBg: '#2D1F00' },

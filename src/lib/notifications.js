@@ -41,13 +41,13 @@ export const notify = {
       type: 'comissao_paga',
     }),
 
-  followupAlert: (count, userIds) =>
+  taskDue: (count, titles, userId) =>
     sendPush({
-      userIds,
-      title: '⏰ Follow-up pendente',
-      body: `${count} lead${count > 1 ? 's' : ''} sem atualização há 3+ dias`,
-      url: '/?view=leads',
-      tag: 'followup',
-      type: 'followup',
+      userIds: [userId],
+      title: `📋 ${count} tarefa${count > 1 ? 's' : ''} para hoje`,
+      body: titles.slice(0, 2).join(' · '),
+      url: '/?view=agenda',
+      tag: 'task-due',
+      type: 'task_due',
     }),
 }
