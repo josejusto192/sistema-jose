@@ -15,7 +15,8 @@ const ACAO_CONFIG = {
 }
 
 const TABELA_LABELS = {
-  empresas:  'Leads',
+  leads:     'Leads',
+  empresas:  'Leads',  // backward compat with old logs
   contratos: 'Contratos',
   tasks:     'Tarefas',
   pacotes:   'Serviços',
@@ -32,7 +33,9 @@ function formatDetalhes(detalhes) {
   if (d.nome_fantasia)  return d.nome_fantasia
   if (d.razao_social)   return d.razao_social
   if (d.cliente_nome)   return d.cliente_nome
-  if (d.nome)           return [d.nome, d.sobrenome].filter(Boolean).join(' ')
+  if (d.tipo === 'pessoa' && d.nome) return [d.nome, d.sobrenome].filter(Boolean).join(' ')
+  if (d.nome && d.sobrenome) return `${d.nome} ${d.sobrenome}`
+  if (d.nome)           return d.nome
   if (d.status_prospeccao) return `Status: ${d.status_prospeccao}`
   if (d.comissao_status)   return `Comissão: ${d.comissao_status}`
   if (d.count != null)     return `${d.count} registros`

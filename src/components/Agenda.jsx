@@ -36,7 +36,7 @@ function TaskModal({ task, empresas, userId, onSave, onClose }) {
     const id = e.target.value
     const emp = empresas.find(x => x.id === id)
     setField('empresa_id', id)
-    setField('empresa_nome', emp ? (emp.nome_fantasia || emp.razao_social) : '')
+    setField('empresa_nome', emp ? (emp.tipo === 'pessoa' ? [emp.nome, emp.sobrenome].filter(Boolean).join(' ') || emp.nome_fantasia || emp.razao_social : emp.nome_fantasia || emp.razao_social) : '')
   }
 
   async function handleSubmit(e) {
@@ -145,7 +145,7 @@ function TaskModal({ task, empresas, userId, onSave, onClose }) {
               <option value="">Nenhum lead</option>
               {empresas.map(emp => (
                 <option key={emp.id} value={emp.id}>
-                  {emp.nome_fantasia || emp.razao_social}
+                  {emp.tipo === 'pessoa' ? [emp.nome, emp.sobrenome].filter(Boolean).join(' ') || emp.nome_fantasia || emp.razao_social : emp.nome_fantasia || emp.razao_social}
                 </option>
               ))}
             </select>

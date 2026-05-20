@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { STATUS_CONFIG } from '../constants.js'
+import { STATUS_CONFIG, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin, useProfile } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, subDays, isPast, isToday, parseISO } from 'date-fns'
@@ -358,11 +358,11 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
                     onMouseLeave={el => el.currentTarget.style.opacity = '1'}
                   >
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--text3)', flexShrink: 0 }}>
-                      {(e.razao_social || e.nome_fantasia || '?')[0].toUpperCase()}
+                      {leadName(e)[0]?.toUpperCase() || '?'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {e.nome_fantasia || e.razao_social}
+                        {leadName(e)}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{e.municipio}{e.uf ? ` · ${e.uf}` : ''}</div>
                     </div>

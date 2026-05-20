@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { leadName } from './constants.js'
 import { supabase } from './supabase.js'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -93,7 +94,7 @@ export default function App() {
 
     const channel = supabase
       .channel('realtime-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'empresas' }, fetchEmpresas)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchEmpresas)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contratos' }, fetchContratos)
       .subscribe()
 
@@ -150,7 +151,7 @@ export default function App() {
   async function fetchEmpresas() {
     if (!initialLoaded.current) setLoading(true)
     const { data, error } = await supabase
-      .from('empresas')
+      .from('leads')
       .select('*')
       .order('criado_em', { ascending: false })
     if (!error) setEmpresas(data || [])
@@ -229,16 +230,16 @@ export default function App() {
 
   async function updateEmpresa(id, updates) {
     const empresa = empresas.find(e => e.id === id)
-    const { error } = await supabase.from('empresas').update(updates).eq('id', id)
+    const { error } = await supabase.from('leads').update(updates).eq('id', id)
     if (!error) {
       setEmpresas(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e))
       if (selectedLead?.id === id) setSelectedLead(prev => ({ ...prev, ...updates }))
-      logAction('atualizar', 'empresas', id, updates)
+      logAction('atualizar', 'leads', id, updates)
       if (updates.status_prospeccao && empresa && updates.status_prospeccao !== empresa.status_prospeccao) {
         insertStatusHistory(id, empresa.status_prospeccao, updates.status_prospeccao)
         // Notify: lead fechou
         if (updates.status_prospeccao === 'fechou') {
-          const nome = empresa.nome_fantasia || empresa.razao_social || 'Lead'
+          const nome = leadName(empresa)
           // Fetch superadmin IDs to notify them
           supabase.from('profiles').select('id').eq('role', 'superadmin').then(({ data: admins }) => {
             const adminIds = (admins || []).map(a => a.id)
@@ -253,15 +254,17 @@ export default function App() {
 
   async function createEmpresa(data) {
     const { data: created, error } = await supabase
-      .from('empresas')
+      .from('leads')
       .insert(data)
       .select()
       .single()
     if (!error && created) {
       setEmpresas(prev => [created, ...prev])
-      logAction('criar', 'empresas', created.id, {
+      logAction('criar', 'leads', created.id, {
         nome_fantasia: created.nome_fantasia,
         razao_social: created.razao_social,
+        nome: created.nome,
+        tipo: created.tipo,
         origem: created.origem,
       })
     }
@@ -269,19 +272,19 @@ export default function App() {
   }
 
   async function bulkUpdateEmpresas(ids, updates) {
-    const { error } = await supabase.from('empresas').update(updates).in('id', ids)
+    const { error } = await supabase.from('leads').update(updates).in('id', ids)
     if (!error) {
       setEmpresas(prev => prev.map(e => ids.includes(e.id) ? { ...e, ...updates } : e))
-      logAction('atualizar', 'empresas', `bulk:${ids.length}`, updates)
+      logAction('atualizar', 'leads', `bulk:${ids.length}`, updates)
     }
     return !error
   }
 
   async function bulkDeleteEmpresas(ids) {
-    const { error } = await supabase.from('empresas').delete().in('id', ids)
+    const { error } = await supabase.from('leads').delete().in('id', ids)
     if (!error) {
       setEmpresas(prev => prev.filter(e => !ids.includes(e.id)))
-      logAction('deletar', 'empresas', `bulk:${ids.length}`, { count: ids.length })
+      logAction('deletar', 'leads', `bulk:${ids.length}`, { count: ids.length })
     }
     return !error
   }
@@ -376,7 +379,7 @@ export default function App() {
 
     setPendingContrato({
       empresa_id:           lead.id,
-      cliente_nome:         lead.nome_fantasia || lead.razao_social || '',
+      cliente_nome:         leadName(lead),
       cliente_cnpj:         lead.cnpj || '',
       cliente_email:        lead.email || '',
       cliente_telefone:     lead.telefone || '',
@@ -398,12 +401,15 @@ export default function App() {
   )).sort()
 
   const filteredEmpresas = empresas.filter(e => {
+    const q = searchQuery.toLowerCase()
     const matchSearch = !searchQuery ||
-      e.razao_social?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.nome_fantasia?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.razao_social?.toLowerCase().includes(q) ||
+      e.nome_fantasia?.toLowerCase().includes(q) ||
+      e.nome?.toLowerCase().includes(q) ||
+      e.sobrenome?.toLowerCase().includes(q) ||
       e.cnpj?.includes(searchQuery) ||
-      e.municipio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.cnae_principal_descricao?.toLowerCase().includes(searchQuery.toLowerCase())
+      e.municipio?.toLowerCase().includes(q) ||
+      e.cnae_principal_descricao?.toLowerCase().includes(q)
 
     const matchTag  = !tagFilter || (e.tags || []).includes(tagFilter)
     const matchCnae = cnaeFilter.length === 0 || cnaeFilter.includes(e.cnae_principal_descricao)

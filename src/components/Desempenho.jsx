@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase.js'
-import { STATUS_CONFIG, PACOTES } from '../constants.js'
+import { STATUS_CONFIG, PACOTES, leadName } from '../constants.js'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { InfoTooltip } from './Tooltip.jsx'
 
@@ -199,8 +199,8 @@ function ActivityChart({ chartData }) {
 
 // ─── Recent activity row ──────────────────────────────────────────────────────
 function ActivityRow({ row }) {
-  const empresa = row.empresas
-  const nomeFmt = empresa?.nome_fantasia || empresa?.razao_social || `Lead #${String(row.empresa_id).slice(0, 6)}`
+  const empresa = row.leads
+  const nomeFmt = empresa ? leadName(empresa) : `Lead #${String(row.empresa_id).slice(0, 6)}`
   const cfgAnterior = STATUS_CONFIG[row.status_anterior]
   const cfgNovo     = STATUS_CONFIG[row.status_novo]
 
@@ -587,7 +587,7 @@ export default function Desempenho({ session, profile, contratos = [] }) {
   async function loadRecentActivity() {
     const { data } = await supabase
       .from('status_history')
-      .select('*, empresas(nome_fantasia, razao_social)')
+      .select('*, leads(nome_fantasia, razao_social, nome, sobrenome, tipo)')
       .eq('usuario_id', currentUserId)
       .order('criado_em', { ascending: false })
       .limit(10)

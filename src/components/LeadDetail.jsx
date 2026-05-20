@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS } from '../constants.js'
+import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
@@ -77,6 +77,29 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const [tags, setTags] = useState(() => lead.tags || [])
   const [tagInput, setTagInput] = useState('')
 
+  // Social fields state
+  const [socialForm, setSocialForm] = useState({
+    instagram_url: lead.instagram_url || '',
+    linkedin_url:  lead.linkedin_url  || '',
+    facebook_url:  lead.facebook_url  || '',
+    site_url:      lead.site_url      || '',
+  })
+  const [socialSaving, setSocialSaving] = useState(false)
+  const [socialSaved, setSocialSaved]   = useState(false)
+
+  async function saveSocial() {
+    setSocialSaving(true)
+    await onUpdate(lead.id, {
+      instagram_url: socialForm.instagram_url.trim() || null,
+      linkedin_url:  socialForm.linkedin_url.trim()  || null,
+      facebook_url:  socialForm.facebook_url.trim()  || null,
+      site_url:      socialForm.site_url.trim()       || null,
+    })
+    setSocialSaving(false)
+    setSocialSaved(true)
+    setTimeout(() => setSocialSaved(false), 2000)
+  }
+
   // Status history
   const [statusHistory, setStatusHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(true)
@@ -116,7 +139,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
     ? { background: cfg.darkBg, color: cfg.darkColor }
     : { background: cfg.bg, color: cfg.color }
 
-  const nomeDisplay = lead.nome_fantasia || lead.razao_social || 'Lead'
+  const nomeDisplay = leadName(lead)
 
   async function save() {
     setSaving(true)
@@ -183,7 +206,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
             <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>
               {nomeDisplay}
             </h1>
-            {lead.nome_fantasia && (
+            {lead.tipo !== 'pessoa' && lead.nome_fantasia && lead.razao_social && (
               <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{lead.razao_social}</div>
             )}
             <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
@@ -191,9 +214,13 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot }} />
                 {cfg.label}
               </span>
-              {lead.eh_mei && <span className="badge" style={{ background: 'var(--green-bg)', color: 'var(--green)' }}>MEI</span>}
-              {lead.optante_simples && <span className="badge" style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}>Simples Nacional</span>}
-              {lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>{lead.matriz_filial}</span>}
+              {lead.tipo === 'pessoa'
+                ? <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)' }}>👤 Pessoa</span>
+                : <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)' }}>🏢 Empresa</span>
+              }
+              {lead.tipo !== 'pessoa' && lead.eh_mei && <span className="badge" style={{ background: 'var(--green-bg)', color: 'var(--green)' }}>MEI</span>}
+              {lead.tipo !== 'pessoa' && lead.optante_simples && <span className="badge" style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}>Simples Nacional</span>}
+              {lead.tipo !== 'pessoa' && lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>{lead.matriz_filial}</span>}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -224,34 +251,47 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
       <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)', overflow: 'auto' }}>
         {/* Coluna esquerda */}
         <div>
-          <Section title="Dados cadastrais">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
-              <Field label="CNPJ" value={cnpjFormatado} mono />
-              <Field label="CNPJ Raiz" value={lead.cnpj_raiz} mono />
-              <Field label="Natureza jurídica" value={lead.natureza_juridica_descricao} />
-              <Field label="Porte" value={lead.porte_descricao} />
-              <Field label="Data de abertura" value={lead.data_abertura ? format(parseDate(lead.data_abertura), 'dd/MM/yyyy') : null} />
-              <Field label="Situação" value={lead.situacao_cadastral} />
-              <Field label="Capital social" value={lead.capital_social ? `R$ ${Number(lead.capital_social).toLocaleString('pt-BR')}` : null} />
-              <Field label="Captado em" value={lead.criado_em ? format(new Date(lead.criado_em), "dd/MM/yyyy 'às' HH:mm") : null} />
-            </div>
-          </Section>
-
-          <Section title="Atividade econômica">
-            <Field label="CNAE Principal" value={lead.cnae_principal_descricao ? `${lead.cnae_principal_codigo} — ${lead.cnae_principal_descricao}` : null} />
-            {lead.cnaes_secundarios?.length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>CNAEs secundários</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {lead.cnaes_secundarios.slice(0, 5).map((c, i) => (
-                    <div key={i} style={{ fontSize: 12, color: 'var(--text3)' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)' }}>{c.codigo}</span> — {c.descricao}
-                    </div>
-                  ))}
-                </div>
+          {lead.tipo !== 'pessoa' && (
+            <Section title="Dados cadastrais">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+                <Field label="CNPJ" value={cnpjFormatado} mono />
+                <Field label="CNPJ Raiz" value={lead.cnpj_raiz} mono />
+                <Field label="Natureza jurídica" value={lead.natureza_juridica_descricao} />
+                <Field label="Porte" value={lead.porte_descricao} />
+                <Field label="Data de abertura" value={lead.data_abertura ? format(parseDate(lead.data_abertura), 'dd/MM/yyyy') : null} />
+                <Field label="Situação" value={lead.situacao_cadastral} />
+                <Field label="Capital social" value={lead.capital_social ? `R$ ${Number(lead.capital_social).toLocaleString('pt-BR')}` : null} />
+                <Field label="Captado em" value={lead.criado_em ? format(new Date(lead.criado_em), "dd/MM/yyyy 'às' HH:mm") : null} />
               </div>
-            )}
-          </Section>
+            </Section>
+          )}
+          {lead.tipo === 'pessoa' && (
+            <Section title="Dados">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+                <Field label="Nome" value={lead.nome} />
+                <Field label="Sobrenome" value={lead.sobrenome} />
+                <Field label="Captado em" value={lead.criado_em ? format(new Date(lead.criado_em), "dd/MM/yyyy 'às' HH:mm") : null} />
+              </div>
+            </Section>
+          )}
+
+          {lead.tipo !== 'pessoa' && (
+            <Section title="Atividade econômica">
+              <Field label="CNAE Principal" value={lead.cnae_principal_descricao ? `${lead.cnae_principal_codigo} — ${lead.cnae_principal_descricao}` : null} />
+              {lead.cnaes_secundarios?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>CNAEs secundários</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {lead.cnaes_secundarios.slice(0, 5).map((c, i) => (
+                      <div key={i} style={{ fontSize: 12, color: 'var(--text3)' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{c.codigo}</span> — {c.descricao}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Section>
+          )}
 
           <Section title="Localização">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
@@ -272,13 +312,48 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           <Section title="Contato">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
               <Field label="E-mail" value={lead.email} />
-              <Field label="Válido" value={lead.email_valido != null ? (lead.email_valido ? 'Sim' : 'Não') : null} />
+              {lead.tipo !== 'pessoa' && <Field label="Válido" value={lead.email_valido != null ? (lead.email_valido ? 'Sim' : 'Não') : null} />}
               <Field label="Telefone" value={lead.telefone} mono />
-              <Field label="DDD / Tipo" value={lead.telefone_ddd ? `${lead.telefone_ddd} · ${lead.telefone_tipo || ''}` : null} />
+              {lead.tipo !== 'pessoa' && <Field label="DDD / Tipo" value={lead.telefone_ddd ? `${lead.telefone_ddd} · ${lead.telefone_tipo || ''}` : null} />}
             </div>
           </Section>
 
-          {lead.quadro_societario?.length > 0 && (
+          {/* Presença online */}
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Presença online</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', marginBottom: 12 }}>
+              {[
+                { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+                { key: 'linkedin_url',  label: 'LinkedIn',  placeholder: 'https://linkedin.com/...' },
+                { key: 'facebook_url',  label: 'Facebook',  placeholder: 'https://facebook.com/...' },
+                { key: 'site_url',      label: 'Site',      placeholder: 'https://...' },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input
+                      value={socialForm[key]}
+                      onChange={e => setSocialForm(prev => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      style={{ flex: 1, padding: '6px 9px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, outline: 'none' }}
+                    />
+                    {socialForm[key] && (
+                      <a href={socialForm[key]} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>↗</a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={saveSocial}
+              disabled={socialSaving}
+              style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: socialSaved ? 'var(--green-bg)' : 'var(--accent)', color: socialSaved ? 'var(--green)' : '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: socialSaving ? 0.6 : 1, transition: 'background 0.2s' }}
+            >
+              {socialSaved ? '✓ Salvo' : socialSaving ? 'Salvando...' : 'Salvar links'}
+            </button>
+          </div>
+
+          {lead.tipo !== 'pessoa' && lead.quadro_societario?.length > 0 && (
             <Section title={`Quadro societário (${lead.quadro_societario.length})`}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {lead.quadro_societario.map((s, i) => (
@@ -399,7 +474,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                   <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>Tarefas ({tasks.length})</label>
                   <button
                     type="button"
-                    onClick={() => setTaskModal({ task: { empresa_id: lead.id, empresa_nome: lead.nome_fantasia || lead.razao_social, due_date: '' } })}
+                    onClick={() => setTaskModal({ task: { empresa_id: lead.id, empresa_nome: leadName(lead), due_date: '' } })}
                     style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0 }}
                   >
                     <IconPlus size={11} color="var(--accent)" /> Nova tarefa

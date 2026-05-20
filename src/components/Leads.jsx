@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { STATUS_CONFIG } from '../constants.js'
+import { STATUS_CONFIG, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
@@ -38,7 +38,7 @@ function StatusBadge({ status }) {
 }
 
 const SORT_COLS = {
-  nome:        (a, b) => (a.nome_fantasia || a.razao_social || '').localeCompare(b.nome_fantasia || b.razao_social || ''),
+  nome:        (a, b) => leadName(a).localeCompare(leadName(b)),
   municipio:   (a, b) => (a.municipio || '').localeCompare(b.municipio || ''),
   abertura:    (a, b) => (a.data_abertura || '').localeCompare(b.data_abertura || ''),
   status:      (a, b) => (a.status_prospeccao || '').localeCompare(b.status_prospeccao || ''),
@@ -118,7 +118,7 @@ function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, is
           />
         )}
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', lineHeight: 1.35, flex: 1 }}>
-          {e.nome_fantasia || e.razao_social}
+          {leadName(e)}
         </div>
       </div>
 
@@ -511,14 +511,13 @@ const ORIGENS = [
 
 /* ─── New Lead Modal ───────────────────────────────────────────────────────── */
 function NewLeadModal({ onClose, onSave }) {
+  const [tipo, setTipo] = useState('empresa')
   const [form, setForm] = useState({
-    nome_fantasia: '',
-    razao_social: '',
-    cnpj: '',
-    telefone: '',
-    email: '',
-    municipio: '',
-    uf: '',
+    nome_fantasia: '', razao_social: '', cnpj: '',
+    nome: '', sobrenome: '',
+    telefone: '', email: '',
+    municipio: '', uf: '',
+    instagram_url: '', linkedin_url: '', facebook_url: '', site_url: '',
     origem: 'manual',
     status_prospeccao: 'novo',
   })
@@ -532,22 +531,38 @@ function NewLeadModal({ onClose, onSave }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.nome_fantasia.trim() && !form.razao_social.trim()) {
+    const isEmpresa = tipo === 'empresa'
+    if (isEmpresa && !form.nome_fantasia.trim() && !form.razao_social.trim()) {
       setError('Informe ao menos o nome fantasia ou razão social.')
       return
     }
+    if (!isEmpresa && !form.nome.trim()) {
+      setError('Informe ao menos o nome da pessoa.')
+      return
+    }
     setSaving(true)
-    const { ok } = await onSave({
-      nome_fantasia:     form.nome_fantasia.trim() || null,
-      razao_social:      form.razao_social.trim() || null,
-      cnpj:              form.cnpj.trim() || null,
+    const payload = {
+      tipo,
       telefone:          form.telefone.trim() || null,
       email:             form.email.trim() || null,
       municipio:         form.municipio.trim() || null,
       uf:                form.uf.trim().toUpperCase() || null,
+      instagram_url:     form.instagram_url.trim() || null,
+      linkedin_url:      form.linkedin_url.trim() || null,
+      facebook_url:      form.facebook_url.trim() || null,
+      site_url:          form.site_url.trim() || null,
       origem:            form.origem || 'manual',
       status_prospeccao: form.status_prospeccao || 'novo',
-    })
+    }
+    if (isEmpresa) {
+      payload.nome_fantasia = form.nome_fantasia.trim() || null
+      payload.razao_social  = form.razao_social.trim() || null
+      payload.cnpj          = form.cnpj.trim() || null
+    } else {
+      payload.nome     = form.nome.trim() || null
+      payload.sobrenome = form.sobrenome.trim() || null
+    }
+    const { ok } = await onSave(payload)
     setSaving(false)
     if (ok) onClose()
     else setError('Erro ao criar lead. Tente novamente.')
@@ -559,6 +574,7 @@ function NewLeadModal({ onClose, onSave }) {
     color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box',
   }
   const labelStyle = { fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'block' }
+  const isEmpresa = tipo === 'empresa'
 
   return (
     <div style={{
@@ -571,114 +587,126 @@ function NewLeadModal({ onClose, onSave }) {
     >
       <div style={{
         background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--border)',
-        width: '100%', maxWidth: 520,
+        width: '100%', maxWidth: 540,
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid var(--border)',
+          padding: '16px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
         }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Novo Lead</div>
-            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Preencha os dados principais. Todos os campos são opcionais exceto nome.</div>
-          </div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Novo Lead</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
             <IconX size={18} color="var(--text3)" />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px 20px 0' }}>
+        {/* Body — scrollable */}
+        <form onSubmit={handleSubmit} style={{ padding: '18px 20px', overflowY: 'auto', flex: 1 }}>
+
+          {/* Tipo selector */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+            {[{ value: 'empresa', label: '🏢 Empresa' }, { value: 'pessoa', label: '👤 Pessoa' }].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setTipo(opt.value)}
+                style={{
+                  flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid',
+                  fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                  background: tipo === opt.value ? 'var(--accent)' : 'var(--bg3)',
+                  color: tipo === opt.value ? '#fff' : 'var(--text2)',
+                  borderColor: tipo === opt.value ? 'var(--accent)' : 'var(--border)',
+                  transition: 'all 0.12s',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={labelStyle}>Nome fantasia</label>
-              <input
-                style={inputStyle}
-                placeholder="Ex: Padaria do João"
-                value={form.nome_fantasia}
-                onChange={e => set('nome_fantasia', e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={labelStyle}>Razão social</label>
-              <input
-                style={inputStyle}
-                placeholder="Ex: João Silva Alimentos ME"
-                value={form.razao_social}
-                onChange={e => set('razao_social', e.target.value)}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>CNPJ</label>
-              <input
-                style={inputStyle}
-                placeholder="00.000.000/0000-00"
-                value={form.cnpj}
-                onChange={e => set('cnpj', e.target.value)}
-              />
-            </div>
+
+            {/* Campos empresa */}
+            {isEmpresa && <>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Nome fantasia</label>
+                <input style={inputStyle} placeholder="Ex: Padaria do João" value={form.nome_fantasia} onChange={e => set('nome_fantasia', e.target.value)} autoFocus />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Razão social</label>
+                <input style={inputStyle} placeholder="Ex: João Silva Alimentos ME" value={form.razao_social} onChange={e => set('razao_social', e.target.value)} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>CNPJ</label>
+                <input style={inputStyle} placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e => set('cnpj', e.target.value)} />
+              </div>
+            </>}
+
+            {/* Campos pessoa */}
+            {!isEmpresa && <>
+              <div>
+                <label style={labelStyle}>Nome *</label>
+                <input style={inputStyle} placeholder="Ex: João" value={form.nome} onChange={e => set('nome', e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label style={labelStyle}>Sobrenome</label>
+                <input style={inputStyle} placeholder="Ex: Silva" value={form.sobrenome} onChange={e => set('sobrenome', e.target.value)} />
+              </div>
+            </>}
+
+            {/* Campos comuns */}
             <div>
               <label style={labelStyle}>Telefone</label>
-              <input
-                style={inputStyle}
-                placeholder="(11) 99999-9999"
-                value={form.telefone}
-                onChange={e => set('telefone', e.target.value)}
-              />
+              <input style={inputStyle} placeholder="(11) 99999-9999" value={form.telefone} onChange={e => set('telefone', e.target.value)} />
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
+            <div>
               <label style={labelStyle}>E-mail</label>
-              <input
-                type="email"
-                style={inputStyle}
-                placeholder="contato@empresa.com"
-                value={form.email}
-                onChange={e => set('email', e.target.value)}
-              />
+              <input type="email" style={inputStyle} placeholder="contato@empresa.com" value={form.email} onChange={e => set('email', e.target.value)} />
             </div>
             <div>
               <label style={labelStyle}>Cidade</label>
-              <input
-                style={inputStyle}
-                placeholder="São Paulo"
-                value={form.municipio}
-                onChange={e => set('municipio', e.target.value)}
-              />
+              <input style={inputStyle} placeholder="São Paulo" value={form.municipio} onChange={e => set('municipio', e.target.value)} />
             </div>
             <div>
               <label style={labelStyle}>UF</label>
-              <input
-                style={inputStyle}
-                placeholder="SP"
-                maxLength={2}
-                value={form.uf}
-                onChange={e => set('uf', e.target.value)}
-              />
+              <input style={inputStyle} placeholder="SP" maxLength={2} value={form.uf} onChange={e => set('uf', e.target.value)} />
             </div>
+
+            {/* Presença online */}
+            <div style={{ gridColumn: '1 / -1', paddingTop: 4, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 12, letterSpacing: 0.5 }}>PRESENÇA ONLINE</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+                <div>
+                  <label style={labelStyle}>Instagram</label>
+                  <input style={inputStyle} placeholder="https://instagram.com/..." value={form.instagram_url} onChange={e => set('instagram_url', e.target.value)} />
+                </div>
+                <div>
+                  <label style={labelStyle}>LinkedIn</label>
+                  <input style={inputStyle} placeholder="https://linkedin.com/..." value={form.linkedin_url} onChange={e => set('linkedin_url', e.target.value)} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Facebook</label>
+                  <input style={inputStyle} placeholder="https://facebook.com/..." value={form.facebook_url} onChange={e => set('facebook_url', e.target.value)} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Site</label>
+                  <input style={inputStyle} placeholder="https://..." value={form.site_url} onChange={e => set('site_url', e.target.value)} />
+                </div>
+              </div>
+            </div>
+
             <div>
               <label style={labelStyle}>Origem</label>
-              <select
-                value={form.origem}
-                onChange={e => set('origem', e.target.value)}
-                style={{ ...inputStyle, cursor: 'pointer' }}
-              >
-                {ORIGENS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
+              <select value={form.origem} onChange={e => set('origem', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                {ORIGENS.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </select>
             </div>
             <div>
               <label style={labelStyle}>Status inicial</label>
-              <select
-                value={form.status_prospeccao}
-                onChange={e => set('status_prospeccao', e.target.value)}
-                style={{ ...inputStyle, cursor: 'pointer' }}
-              >
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                  <option key={key} value={key}>{cfg.label}</option>
-                ))}
+              <select value={form.status_prospeccao} onChange={e => set('status_prospeccao', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (<option key={key} value={key}>{cfg.label}</option>))}
               </select>
             </div>
           </div>
@@ -689,20 +717,11 @@ function NewLeadModal({ onClose, onSave }) {
             </div>
           )}
 
-          {/* Footer */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '16px 0 20px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}
-            >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
-            >
+            <button type="submit" disabled={saving} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
               {saving ? 'Criando...' : 'Criar Lead'}
             </button>
           </div>
@@ -1048,10 +1067,10 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                             )}
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {e.nome_fantasia || e.razao_social}
+                                {leadName(e)}
                               </div>
                               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-                                {e.eh_mei ? 'MEI' : e.porte_descricao || '—'}
+                                {e.tipo === 'pessoa' ? 'Pessoa' : e.eh_mei ? 'MEI' : e.porte_descricao || '—'}
                               </div>
                               {e.tags && e.tags.length > 0 && (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>

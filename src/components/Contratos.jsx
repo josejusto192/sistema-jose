@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { PACOTES as PACOTES_FALLBACK, CONTRATO_STATUS } from '../constants.js'
+import { PACOTES as PACOTES_FALLBACK, CONTRATO_STATUS, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
@@ -219,7 +219,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       if (field === 'empresa_id' && value) {
         const emp = empresas.find(e => e.id === value)
         if (emp) {
-          next.cliente_nome = emp.nome_fantasia || emp.razao_social || ''
+          next.cliente_nome = leadName(emp)
           next.cliente_cnpj = emp.cnpj || ''
           next.cliente_email = emp.email || ''
           next.cliente_telefone = emp.telefone || ''
@@ -756,7 +756,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 <select value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)} style={selectStyle}>
                   <option value="">— Sem vínculo —</option>
                   {empresas.map(e => (
-                    <option key={e.id} value={e.id}>{e.nome_fantasia || e.razao_social} — {e.municipio}/{e.uf}</option>
+                    <option key={e.id} value={e.id}>{leadName(e)}{e.municipio ? ` — ${e.municipio}/${e.uf}` : ''}</option>
                   ))}
                 </select>
               </FormField>
