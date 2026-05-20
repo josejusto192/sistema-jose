@@ -87,8 +87,8 @@ function buildBody(form, page) {
     body.busca_textual = [{ texto: [form.termo.trim()], tipo_busca: form.tipo_busca, razao_social: true, nome_fantasia: true, nome_socio: false }]
   }
   if (form.ufs.length)       body.uf        = form.ufs.map(u => u.toLowerCase())
-  if (form.municipios.length) body.municipio = form.municipios
-  if (form.bairro.trim())    body.bairro    = [form.bairro.trim()]
+  if (form.municipios.length) body.municipio = form.municipios.map(m => m.toLowerCase())
+  if (form.bairro.trim())    body.bairro    = [form.bairro.trim().toLowerCase()]
   if (form.cep.trim())       body.cep       = [form.cep.replace(/\D/g, '')]
   if (form.ddd.trim())       body.ddd       = [form.ddd.trim()]
   if (form.cnaes.length) {
@@ -299,7 +299,11 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
         headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
         body: JSON.stringify(buildBody(form, p)),
       })
-      if (!res.ok) throw new Error(`API erro ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      if (!res.ok) {
+        const body = await res.text()
+        console.error('Casa dos Dados API error', res.status, body)
+        throw new Error(`API erro ${res.status}: ${body.slice(0, 400)}`)
+      }
       const json = await res.json()
       setResults(json?.cnpjs || [])
       setTotal(json?.total || 0)
