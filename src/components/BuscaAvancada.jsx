@@ -302,9 +302,12 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
 
   function buildLeadPayload(item) {
     const cnpjRaw = (item.cnpj || '').replace(/\D/g, '')
-    const sit = typeof item.situacao_cadastral === 'object'
-      ? item.situacao_cadastral?.situacao_cadastral
-      : item.situacao_cadastral
+    // situacao_cadastral.situacao_atual is the actual field name in completo response
+    const sit = item.situacao_cadastral?.situacao_atual || item.situacao_cadastral?.situacao_cadastral || null
+    // date comes as ISO datetime "2026-05-05T00:00:00Z" — extract date only
+    const abertura = item.data_abertura ? item.data_abertura.slice(0, 10) : null
+    const email = item.contato_email?.[0]?.email || null
+    const telefone = item.contato_telefonico?.[0]?.completo || null
     return {
       tipo: 'empresa',
       cnpj: cnpjRaw || null,
@@ -312,12 +315,15 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
       nome_fantasia: item.nome_fantasia || null,
       municipio: item.endereco?.municipio || null,
       uf: item.endereco?.uf || null,
-      cnae_principal_codigo: item.codigo_atividade_principal || null,
-      cnae_principal_descricao: item.descricao_atividade_principal || null,
+      email,
+      telefone,
+      cnae_principal_codigo: item.atividade_principal?.codigo || null,
+      cnae_principal_descricao: item.atividade_principal?.descricao || null,
       porte_descricao: item.porte_empresa?.descricao || null,
+      eh_mei: item.mei?.optante || false,
       capital_social: item.capital_social || null,
-      data_abertura: item.data_abertura || null,
-      situacao_cadastral: sit || null,
+      data_abertura: abertura,
+      situacao_cadastral: sit,
       origem: 'casa_dos_dados',
       status_prospeccao: 'novo',
       vendedor_id: isSuperAdmin ? (assignTo || null) : (profile?.id || null),
@@ -565,7 +571,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
-                  {['CNPJ','Razão Social','Nome Fantasia','Município / UF','Abertura','Situação','Capital','Ação'].map(h => (
+                  {['CNPJ','Razão Social','Nome Fantasia','Município / UF','Segmento','Telefone','E-mail','Abertura','Situação','Ação'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text3)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -585,11 +591,19 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
                       <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
                         {[item.endereco?.municipio, item.endereco?.uf].filter(Boolean).join(' / ') || '—'}
                       </td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.atividade_principal?.descricao || '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: 11 }}>
+                        {item.contato_telefonico?.[0]?.completo || '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.contato_email?.[0]?.email?.toLowerCase() || '—'}
+                      </td>
                       <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{formatDate(item.data_abertura)}</td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                        {(() => { const s = typeof item.situacao_cadastral === 'object' ? item.situacao_cadastral?.situacao_cadastral : item.situacao_cadastral; return <span style={{ fontSize: 10, fontWeight: 700, color: situacaoColor(s) }}>{s || '—'}</span> })()}
+                        {(() => { const s = item.situacao_cadastral?.situacao_atual || item.situacao_cadastral?.situacao_cadastral || item.situacao_cadastral || '—'; return <span style={{ fontSize: 10, fontWeight: 700, color: situacaoColor(s) }}>{s}</span> })()}
                       </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{formatCurrency(item.capital_social)}</td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                         {done ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22c55e', fontSize: 11, fontWeight: 600 }}>
