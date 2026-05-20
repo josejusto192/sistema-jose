@@ -13,25 +13,55 @@ export async function consultarCnpj(cnpj) {
 }
 
 export function mapCnpjToLead(item) {
-  const sit     = item.situacao_cadastral?.situacao_atual || item.situacao_cadastral?.situacao_cadastral || null
+  const sit      = item.situacao_cadastral?.situacao_atual || item.situacao_cadastral?.situacao_cadastral || null
   const abertura = item.data_abertura ? item.data_abertura.slice(0, 10) : null
-  const email    = item.contato_email?.[0]?.email || null
+  const email    = item.contato_email?.[0]?.email    || null
   const telefone = item.contato_telefonico?.[0]?.completo || null
+
   return {
-    razao_social:             item.razao_social               || null,
-    nome_fantasia:            item.nome_fantasia              || null,
-    municipio:                item.endereco?.municipio        || null,
-    uf:                       item.endereco?.uf               || null,
-    email,
-    telefone,
-    cnae_principal_codigo:    item.atividade_principal?.codigo    || null,
-    cnae_principal_descricao: item.atividade_principal?.descricao || null,
-    porte_descricao:          item.porte_empresa?.descricao   || null,
-    eh_mei:                   item.mei?.optante               || false,
-    capital_social:           item.capital_social             || null,
+    // identidade
+    razao_social:             item.razao_social                    || null,
+    nome_fantasia:            item.nome_fantasia                   || null,
+    cnpj_raiz:                item.cnpj_raiz                       || null,
+    matriz_filial:            item.matriz_filial                   || null,
+
+    // cadastral
+    natureza_juridica_descricao: item.descricao_natureza_juridica  || null,
+    porte_descricao:          item.porte_empresa?.descricao        || null,
+    capital_social:           item.capital_social                  || null,
     data_abertura:            abertura,
     situacao_cadastral:       sit,
-    matriz_filial:            item.matriz_filial              || null,
-    cnpj_raiz:                item.cnpj_raiz                  || null,
+    eh_mei:                   item.mei?.optante                    || false,
+
+    // atividade
+    cnae_principal_codigo:    item.atividade_principal?.codigo     || null,
+    cnae_principal_descricao: item.atividade_principal?.descricao  || null,
+    cnaes_secundarios:        item.atividades_secundarias?.length
+                                ? item.atividades_secundarias
+                                : (item.atividade_secundaria?.length ? item.atividade_secundaria : null),
+
+    // endereço
+    tipo_logradouro:          item.endereco?.tipo_logradouro       || null,
+    logradouro:               item.endereco?.logradouro            || null,
+    numero:                   item.endereco?.numero                || null,
+    complemento:              item.endereco?.complemento           || null,
+    bairro:                   item.endereco?.bairro                || null,
+    municipio:                item.endereco?.municipio             || null,
+    uf:                       item.endereco?.uf                    || null,
+    cep:                      item.endereco?.cep                   || null,
+    latitude:                 item.endereco?.ibge?.latitude        ?? null,
+    longitude:                item.endereco?.ibge?.longitude       ?? null,
+
+    // contato
+    email,
+    email_valido:             item.contato_email?.[0]?.valido      ?? null,
+    telefone,
+    telefone_ddd:             item.contato_telefonico?.[0]?.ddd    || null,
+    telefone_tipo:            item.contato_telefonico?.[0]?.tipo   || null,
+
+    // quadro societário
+    quadro_societario:        item.quadro_societario?.length
+                                ? item.quadro_societario
+                                : null,
   }
 }
