@@ -620,7 +620,7 @@ export default function App() {
             />
           )}
           {view === 'desempenho' && (
-            <Desempenho session={session} profile={profile} contratos={contratos} />
+            <Desempenho session={session} profile={profile} contratos={contratos} empresas={empresas} />
           )}
           {view === 'contratos' && (
             <Contratos

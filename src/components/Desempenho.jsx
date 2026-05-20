@@ -13,6 +13,11 @@ const PERDIDOS    = ['perdido', 'descartado']
 // ─── Day labels PT-BR ─────────────────────────────────────────────────────────
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
+// ─── Lead-based stat helpers (use current lead state, not history events) ─────
+function countLeadsByCategory(leads, categories) {
+  return leads.filter(l => categories.includes(l.status_prospeccao)).length
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function tempoRelativo(dateStr) {
   const diff = Date.now() - new Date(dateStr)
@@ -111,12 +116,17 @@ function MetricChip({ label, value, color, tooltip }) {
 }
 
 // ─── Vendor card (superadmin equipe view) ─────────────────────────────────────
-function VendorCard({ profile: p, rows, isCurrentUser }) {
-  const myRows = rows.filter(r => r.usuario_id === p.id)
-  const contatos    = countByCategory(myRows, CONTATOS)
-  const efetivos    = countByCategory(myRows, EFETIVOS)
-  const fechamentos = countByCategory(myRows, FECHAMENTOS)
-  const perdidos    = countByCategory(myRows, PERDIDOS)
+function VendorCard({ profile: p, rows, empresas, periodo, isCurrentUser }) {
+  const myRows   = rows.filter(r => r.usuario_id === p.id)
+  const activeIds = new Set(myRows.map(r => r.empresa_id))
+  // Leads assigned to this vendor; for time periods, only those touched in period
+  const vendorLeads = periodo === 'total'
+    ? empresas.filter(e => e.vendedor_id === p.id)
+    : empresas.filter(e => e.vendedor_id === p.id && activeIds.has(e.id))
+  const contatos    = countLeadsByCategory(vendorLeads, CONTATOS)
+  const efetivos    = countLeadsByCategory(vendorLeads, EFETIVOS)
+  const fechamentos = countLeadsByCategory(vendorLeads, FECHAMENTOS)
+  const perdidos    = countLeadsByCategory(vendorLeads, PERDIDOS)
   const fullName = [p.nome, p.sobrenome].filter(Boolean).join(' ')
 
   return (
@@ -484,7 +494,7 @@ function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Desempenho({ session, profile, contratos = [] }) {
+export default function Desempenho({ session, profile, contratos = [], empresas = [] }) {
   const [periodo, setPeriodo]   = useState('mes')
   const [history, setHistory]   = useState([])
   const [profiles, setProfiles] = useState([])
@@ -595,12 +605,25 @@ export default function Desempenho({ session, profile, contratos = [] }) {
     setRecentRows(data || [])
   }
 
-  // ── My rows (for Meu Desempenho section) ─────────────────────────────────────
-  const myRows        = history.filter(r => r.usuario_id === currentUserId)
-  const myContatos    = countByCategory(myRows, CONTATOS)
-  const myEfetivos    = countByCategory(myRows, EFETIVOS)
-  const myFechamentos = countByCategory(myRows, FECHAMENTOS)
-  const myPerdidos    = countByCategory(myRows, PERDIDOS)
+  // ── My stats: use leads table (current state) as source of truth ─────────────
+  // status_history is used only to know which leads were "touched" in the period
+  const myHistoryRows = history.filter(r => r.usuario_id === currentUserId)
+  const myActiveIds   = new Set(myHistoryRows.map(r => r.empresa_id))
+
+  // For vendor: empresas is already scoped to their leads
+  // For superadmin: filter to their own leads
+  const myLeadsBase = isSuperAdmin
+    ? empresas.filter(e => e.vendedor_id === currentUserId)
+    : empresas
+
+  const myLeadsInScope = periodo === 'total'
+    ? myLeadsBase
+    : myLeadsBase.filter(e => myActiveIds.has(e.id))
+
+  const myContatos    = countLeadsByCategory(myLeadsInScope, CONTATOS)
+  const myEfetivos    = countLeadsByCategory(myLeadsInScope, EFETIVOS)
+  const myFechamentos = countLeadsByCategory(myLeadsInScope, FECHAMENTOS)
+  const myPerdidos    = countLeadsByCategory(myLeadsInScope, PERDIDOS)
 
   // ── Vendor cards: only profiles that have any history ───────────────────────
   const activeProfiles = isSuperAdmin
@@ -667,6 +690,8 @@ export default function Desempenho({ session, profile, contratos = [] }) {
                     key={p.id}
                     profile={p}
                     rows={history}
+                    empresas={empresas}
+                    periodo={periodo}
                     isCurrentUser={p.id === currentUserId}
                   />
                 ))}
