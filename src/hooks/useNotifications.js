@@ -31,6 +31,7 @@ export function useNotifications(userId) {
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       }, payload => {
+        if (payload.new.user_id !== userId) return
         setNotifications(prev => [payload.new, ...prev])
       })
       .on('postgres_changes', {
@@ -39,6 +40,7 @@ export function useNotifications(userId) {
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       }, payload => {
+        if (payload.new.user_id !== userId) return
         setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n))
       })
       .subscribe()
