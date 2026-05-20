@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS, leadName } from '../constants.js'
+import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS, CONTRATO_STATUS, PACOTES, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
@@ -51,7 +51,7 @@ function tagColor(tag) {
   return TAG_PALETTE[Math.abs(hash) % TAG_PALETTE.length]
 }
 
-export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, tasks = [], onSaveTask, onDeleteTask, onToggleTask, userId, empresas = [] }) {
+export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, tasks = [], onSaveTask, onDeleteTask, onToggleTask, userId, empresas = [], contratos = [] }) {
   const theme = useTheme()
   const isSuperAdmin = useIsSuperAdmin()
   const isMobile = useIsMobile()
@@ -533,6 +533,71 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
             {lead.data_envio && (
               <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center' }}>
                 Contatado em {format(new Date(lead.data_envio), 'dd/MM/yyyy')}
+              </div>
+            )}
+          </div>
+
+          {/* Contratos */}
+          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                Contratos {contratos.length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>({contratos.length})</span>}
+              </span>
+              {status === 'fechou' && onCreateContrato && (
+                <button
+                  onClick={() => onCreateContrato(lead)}
+                  style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0, fontWeight: 500 }}
+                >
+                  <IconPlus size={11} color="var(--accent)" /> Novo
+                </button>
+              )}
+            </div>
+
+            {contratos.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '10px 0' }}>
+                {status === 'fechou' ? 'Nenhum contrato ainda.' : 'Nenhum contrato.'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {contratos.map(c => {
+                  const cst = CONTRATO_STATUS[c.status] || CONTRATO_STATUS.ativo
+                  const pkg = PACOTES[c.pacote]
+                  const valor = c.valor_mensal > 0 ? c.valor_mensal : c.valor_total
+                  const valorLabel = c.valor_mensal > 0 ? '/mês' : ''
+                  return (
+                    <div key={c.id} style={{ padding: '10px 11px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {pkg?.label || c.pacote || 'Contrato'}
+                        </span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 500, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap',
+                          background: theme === 'dark' ? cst.darkBg : cst.bg,
+                          color: theme === 'dark' ? cst.darkColor : cst.color,
+                        }}>
+                          {cst.label}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {valor > 0 && (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                            R$ {Number(valor).toLocaleString('pt-BR')}{valorLabel}
+                          </span>
+                        )}
+                        {c.data_assinatura && (
+                          <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+                            {format(parseDate(c.data_assinatura), 'dd/MM/yyyy')}
+                          </span>
+                        )}
+                      </div>
+                      {c.comissao_valor > 0 && (
+                        <div style={{ marginTop: 4, fontSize: 10, color: c.comissao_status === 'paga' ? 'var(--green)' : 'var(--text3)' }}>
+                          Comissão R$ {Number(c.comissao_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · {c.comissao_status === 'paga' ? 'Paga ✓' : 'Pendente'}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

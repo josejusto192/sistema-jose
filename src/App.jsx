@@ -586,6 +586,7 @@ export default function App() {
               onUpdate={updateEmpresa}
               onCreateContrato={handleCreateContrato}
               tasks={tasks.filter(t => t.empresa_id === selectedLead.id)}
+              contratos={contratos.filter(c => c.empresa_id === selectedLead.id)}
               onSaveTask={saveTask}
               onDeleteTask={deleteTask}
               onToggleTask={toggleTask}
