@@ -9,33 +9,41 @@ const API_KEY = import.meta.env.VITE_CASA_DADOS_KEY
 
 const UF_LIST = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']
 const SITUACOES = ['ATIVA','INAPTA','BAIXADA','SUSPENSA','NULA']
-const PORTES = [{ value: 'ME', label: 'MEI / ME' }, { value: 'EPP', label: 'EPP' }, { value: 'DEMAIS', label: 'Demais' }]
+// API codes: '01'=ME/MEI, '03'=EPP, '05'=Demais
+const PORTES = [{ value: '01', label: 'ME / MEI' }, { value: '03', label: 'EPP' }, { value: '05', label: 'Demais' }]
+
+function stripCnae(codigo) { return (codigo || '').replace(/[-/]/g, '') }
 
 const EMPTY_FORM = {
   termo: '',
+  tipo_busca: 'radical',   // 'exata' | 'radical'
   ufs: [],
   municipio: '',
   bairro: '',
   cep: '',
   ddd: '',
-  cnaes: [],          // array of { codigo, descricao }
+  cnaes: [],               // array of { codigo, descricao }
+  incluir_secundaria: false,
   natureza_juridica: '',
-  situacao: '',
-  portes: [],
+  situacoes: [],           // array — API accepts multiple
+  portes: [],              // ['01','03','05']
   abertura_de: '',
   abertura_ate: '',
   capital_min: '',
   capital_max: '',
-  // contato
+  // mei / simples
+  somente_mei: false,
+  excluir_mei: false,
+  simples_optante: false,
+  simples_excluir: false,
+  // mais_filtros
   com_email: false,
   com_telefone: false,
   somente_celular: false,
   somente_fixo: false,
-  // empresa
-  somente_mei: false,
-  excluir_mei: false,
   somente_matriz: false,
-  excluir_contabilidade: false,
+  somente_filial: false,
+  excluir_email_contab: false,
 }
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
@@ -61,43 +69,70 @@ function situacaoColor(s) {
 }
 
 function buildBody(form, page) {
-  const query = {}
-  if (form.termo.trim()) query.termo = [form.termo.trim()]
-  if (form.ufs.length) query.uf = form.ufs
-  if (form.municipio.trim()) query.municipio = [form.municipio.trim().toUpperCase()]
-  if (form.bairro.trim()) query.bairro = [form.bairro.trim().toUpperCase()]
-  if (form.cep.trim()) query.cep = [form.cep.replace(/\D/g, '')]
-  if (form.ddd.trim()) query.ddd = [form.ddd.trim()]
-  if (form.cnaes.length) query.cnae_principal = { codigo: form.cnaes.map(c => c.codigo) }
-  if (form.natureza_juridica.trim()) query.natureza_juridica = { codigo: form.natureza_juridica.split(',').map(c => c.trim()).filter(Boolean) }
-  if (form.situacao) query.situacao_cadastral = form.situacao
-  if (form.portes.length) query.porte = form.portes
-  if (form.com_email) query.com_email = true
-  if (form.com_telefone) query.com_telefone = true
+  const body = { limite: 20, pagina: page }
 
-  const range_query = {}
+  if (form.termo.trim()) {
+    body.busca_textual = [{
+      texto: [form.termo.trim()],
+      tipo_busca: form.tipo_busca,
+      razao_social: true,
+      nome_fantasia: true,
+      nome_socio: false,
+    }]
+  }
+
+  if (form.ufs.length) body.uf = form.ufs.map(u => u.toLowerCase())
+  if (form.municipio.trim()) body.municipio = [form.municipio.trim()]
+  if (form.bairro.trim()) body.bairro = [form.bairro.trim()]
+  if (form.cep.trim()) body.cep = [form.cep.replace(/\D/g, '')]
+  if (form.ddd.trim()) body.ddd = [form.ddd.trim()]
+
+  if (form.cnaes.length) {
+    body.codigo_atividade_principal = form.cnaes.map(c => stripCnae(c.codigo))
+    if (form.incluir_secundaria) {
+      body.incluir_atividade_secundaria = true
+      body.codigo_atividade_secundaria = form.cnaes.map(c => stripCnae(c.codigo))
+    }
+  }
+
+  if (form.natureza_juridica.trim()) {
+    body.codigo_natureza_juridica = form.natureza_juridica.split(',').map(c => c.trim()).filter(Boolean)
+  }
+
+  if (form.situacoes.length) body.situacao_cadastral = form.situacoes
+
+  if (form.somente_matriz) body.matriz_filial = 'MATRIZ'
+  else if (form.somente_filial) body.matriz_filial = 'FILIAL'
+
+  if (form.portes.length) body.porte_empresa = { codigos: form.portes }
+
   if (form.abertura_de || form.abertura_ate) {
-    range_query.data_abertura = {}
-    if (form.abertura_de) range_query.data_abertura.gte = form.abertura_de
-    if (form.abertura_ate) range_query.data_abertura.lte = form.abertura_ate
+    body.data_abertura = {}
+    if (form.abertura_de) body.data_abertura.inicio = form.abertura_de
+    if (form.abertura_ate) body.data_abertura.fim    = form.abertura_ate
   }
   if (form.capital_min !== '' || form.capital_max !== '') {
-    range_query.capital_social = {}
-    if (form.capital_min !== '') range_query.capital_social.gte = Number(form.capital_min)
-    if (form.capital_max !== '') range_query.capital_social.lte = Number(form.capital_max)
+    body.capital_social = {}
+    if (form.capital_min !== '') body.capital_social.minimo = Number(form.capital_min)
+    if (form.capital_max !== '') body.capital_social.maximo = Number(form.capital_max)
   }
 
-  const extras = {
-    somente_mei:           form.somente_mei,
-    excluir_mei:           form.excluir_mei,
-    com_contato_telefonico: form.somente_celular || form.somente_fixo,
-    somente_celular:       form.somente_celular,
-    somente_fixo:          form.somente_fixo,
-    somente_matrix:        form.somente_matriz,
-    excluir_contabilidade: form.excluir_contabilidade,
+  if (form.somente_mei || form.excluir_mei) {
+    body.mei = { optante: form.somente_mei, excluir_optante: form.excluir_mei }
+  }
+  if (form.simples_optante || form.simples_excluir) {
+    body.simples = { optante: form.simples_optante, excluir_optante: form.simples_excluir }
   }
 
-  return { query, range_query, extras, page }
+  const mf = {}
+  if (form.com_email)            mf.com_email            = true
+  if (form.com_telefone)         mf.com_telefone         = true
+  if (form.somente_celular)      mf.somente_celular      = true
+  if (form.somente_fixo)         mf.somente_fixo         = true
+  if (form.excluir_email_contab) mf.excluir_email_contab = true
+  if (Object.keys(mf).length)   body.mais_filtros        = mf
+
+  return body
 }
 
 /* ─── small UI atoms ──────────────────────────────────────────────────────── */
@@ -239,9 +274,10 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
 
   function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
 
+  // response cnpj is already raw digits
   const inDb = useCallback((cnpj) => {
     const raw = (cnpj || '').replace(/\D/g, '')
-    return existingCnpjs.includes(raw) || existingCnpjs.includes(cnpj)
+    return existingCnpjs.includes(raw)
   }, [existingCnpjs])
 
   async function search(p = 1) {
@@ -255,8 +291,8 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
       })
       if (!res.ok) throw new Error(`API erro ${res.status}: ${(await res.text()).slice(0, 200)}`)
       const json = await res.json()
-      setResults(json?.data?.cnpj || [])
-      setTotal(json?.data?.count || 0)
+      setResults(json?.cnpjs || [])
+      setTotal(json?.total || 0)
     } catch (e) {
       setError(e.message || 'Erro ao consultar a API')
       setResults([]); setTotal(0)
@@ -264,22 +300,22 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   }
 
   function buildLeadPayload(item) {
-    const tel = item.telefones?.[0]?.numero || item.telefone || null
+    const cnpjRaw = (item.cnpj || '').replace(/\D/g, '')
+    const sit = typeof item.situacao_cadastral === 'object'
+      ? item.situacao_cadastral?.situacao_cadastral
+      : item.situacao_cadastral
     return {
       tipo: 'empresa',
-      cnpj: (item.cnpj || '').replace(/\D/g, '') || null,
+      cnpj: cnpjRaw || null,
       razao_social: item.razao_social || null,
       nome_fantasia: item.nome_fantasia || null,
-      municipio: item.municipio || null,
-      uf: item.uf || null,
-      email: item.email || null,
-      telefone: tel ? String(tel) : null,
-      cnae_principal_codigo: item.cnae_principal?.codigo || null,
-      cnae_principal_descricao: item.cnae_principal?.descricao || null,
-      porte: item.porte || null,
+      municipio: item.endereco?.municipio || null,
+      uf: item.endereco?.uf || null,
+      cnae_principal_descricao: item.descricao_atividade_principal || null,
+      porte: item.porte_empresa?.descricao || null,
       capital_social: item.capital_social || null,
       data_abertura: item.data_abertura || null,
-      situacao_cadastral: item.situacao_cadastral || null,
+      situacao_cadastral: sit || null,
       origem: 'casa_dos_dados',
       status_prospeccao: 'novo',
       vendedor_id: isSuperAdmin ? (assignTo || null) : (profile?.id || null),
@@ -358,22 +394,21 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
             <SectionTitle>Busca Textual</SectionTitle>
             <Label>Palavra-chave</Label>
             <input value={form.termo} onChange={e => set('termo', e.target.value)} placeholder="Ex: restaurante, clínica, transporte..." style={inp} />
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <ChipButton label="Busca radical" active={form.tipo_busca === 'radical'} onClick={() => set('tipo_busca', 'radical')} />
+              <ChipButton label="Busca exata"   active={form.tipo_busca === 'exata'}   onClick={() => set('tipo_busca', 'exata')} />
+            </div>
           </div>
 
           {/* ── Empresa ──────────────────────── */}
           <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
             <SectionTitle>Empresa</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <Label>Situação</Label>
-                <select value={form.situacao} onChange={e => set('situacao', e.target.value)} style={inp}>
-                  <option value="">Qualquer</option>
-                  {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Natureza Jurídica (código)</Label>
-                <input value={form.natureza_juridica} onChange={e => set('natureza_juridica', e.target.value)} placeholder="Ex: 206-2" style={inp} />
+            <div>
+              <Label>Situação</Label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {SITUACOES.map(s => (
+                  <ChipButton key={s} label={s} active={form.situacoes.includes(s)} onClick={() => set('situacoes', form.situacoes.includes(s) ? form.situacoes.filter(x => x !== s) : [...form.situacoes, s])} />
+                ))}
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
@@ -384,12 +419,21 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
                 ))}
               </div>
             </div>
+            <div style={{ marginTop: 12 }}>
+              <Label>Natureza Jurídica (código)</Label>
+              <input value={form.natureza_juridica} onChange={e => set('natureza_juridica', e.target.value)} placeholder="Ex: 2011, 2062" style={inp} />
+            </div>
           </div>
 
           {/* ── Atividade / CNAE ──────────────────────── */}
           <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
             <SectionTitle>Atividade (CNAE)</SectionTitle>
             <CnaePicker value={form.cnaes} onChange={v => set('cnaes', v)} />
+            {form.cnaes.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <Toggle label="Incluir CNAEs secundários" value={form.incluir_secundaria} onChange={v => set('incluir_secundaria', v)} />
+              </div>
+            )}
           </div>
 
           {/* ── Abertura ──────────────────────── */}
@@ -422,18 +466,41 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
             </div>
           </div>
 
-          {/* ── Filtros de Contato & Empresa ──────────────────────── */}
+          {/* ── Filtros Adicionais ──────────────────────── */}
           <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
             <SectionTitle>Filtros Adicionais</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
-              <Toggle label="Com e-mail" value={form.com_email} onChange={v => set('com_email', v)} />
-              <Toggle label="Com telefone" value={form.com_telefone} onChange={v => { set('com_telefone', v); if (!v) { set('somente_celular', false); set('somente_fixo', false) } }} />
-              <Toggle label="Somente celular" value={form.somente_celular} onChange={v => { set('somente_celular', v); if (v) { set('com_telefone', true); set('somente_fixo', false) } }} />
-              <Toggle label="Somente telefone fixo" value={form.somente_fixo} onChange={v => { set('somente_fixo', v); if (v) { set('com_telefone', true); set('somente_celular', false) } }} />
-              <Toggle label="Somente MEI" value={form.somente_mei} onChange={v => { set('somente_mei', v); if (v) set('excluir_mei', false) }} />
-              <Toggle label="Excluir MEI" value={form.excluir_mei} onChange={v => { set('excluir_mei', v); if (v) set('somente_mei', false) }} />
-              <Toggle label="Somente matriz" value={form.somente_matriz} onChange={v => set('somente_matriz', v)} />
-              <Toggle label="Excluir contabilidades" value={form.excluir_contabilidade} onChange={v => set('excluir_contabilidade', v)} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
+              <div>
+                <Label>Contato</Label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Toggle label="Com e-mail" value={form.com_email} onChange={v => set('com_email', v)} />
+                  <Toggle label="Com telefone" value={form.com_telefone} onChange={v => { set('com_telefone', v); if (!v) { set('somente_celular', false); set('somente_fixo', false) } }} />
+                  <Toggle label="Somente celular" value={form.somente_celular} onChange={v => { set('somente_celular', v); if (v) { set('com_telefone', true); set('somente_fixo', false) } }} />
+                  <Toggle label="Somente fixo" value={form.somente_fixo} onChange={v => { set('somente_fixo', v); if (v) { set('com_telefone', true); set('somente_celular', false) } }} />
+                  <Toggle label="Excluir e-mail de contab." value={form.excluir_email_contab} onChange={v => set('excluir_email_contab', v)} />
+                </div>
+              </div>
+              <div>
+                <Label>MEI</Label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Toggle label="Somente MEI" value={form.somente_mei} onChange={v => { set('somente_mei', v); if (v) set('excluir_mei', false) }} />
+                  <Toggle label="Excluir MEI" value={form.excluir_mei} onChange={v => { set('excluir_mei', v); if (v) set('somente_mei', false) }} />
+                </div>
+              </div>
+              <div>
+                <Label>Simples Nacional</Label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Toggle label="Optante do Simples" value={form.simples_optante} onChange={v => { set('simples_optante', v); if (v) set('simples_excluir', false) }} />
+                  <Toggle label="Excluir optantes" value={form.simples_excluir} onChange={v => { set('simples_excluir', v); if (v) set('simples_optante', false) }} />
+                </div>
+              </div>
+              <div>
+                <Label>Estabelecimento</Label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Toggle label="Somente matriz" value={form.somente_matriz} onChange={v => { set('somente_matriz', v); if (v) set('somente_filial', false) }} />
+                  <Toggle label="Somente filial" value={form.somente_filial} onChange={v => { set('somente_filial', v); if (v) set('somente_matriz', false) }} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -513,10 +580,12 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
                       <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>{formatCNPJ(cnpj)}</td>
                       <td style={{ padding: '8px 12px', color: 'var(--text)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.razao_social || '—'}</td>
                       <td style={{ padding: '8px 12px', color: 'var(--text2)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome_fantasia || '—'}</td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{[item.municipio, item.uf].filter(Boolean).join(' / ') || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
+                        {[item.endereco?.municipio, item.endereco?.uf].filter(Boolean).join(' / ') || '—'}
+                      </td>
                       <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{formatDate(item.data_abertura)}</td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: situacaoColor(item.situacao_cadastral) }}>{item.situacao_cadastral || '—'}</span>
+                        {(() => { const s = typeof item.situacao_cadastral === 'object' ? item.situacao_cadastral?.situacao_cadastral : item.situacao_cadastral; return <span style={{ fontSize: 10, fontWeight: 700, color: situacaoColor(s) }}>{s || '—'}</span> })()}
                       </td>
                       <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{formatCurrency(item.capital_social)}</td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
