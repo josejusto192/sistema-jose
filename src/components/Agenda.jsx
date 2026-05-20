@@ -186,7 +186,7 @@ function TaskModal({ task, empresas, userId, onSave, onClose }) {
 }
 
 /* ─── Task card ────────────────────────────────────────────────────────────── */
-function TaskCard({ task, onToggle, onEdit, onDelete }) {
+function TaskCard({ task, onToggle, onEdit, onDelete, onClickEmpresa }) {
   const theme = useTheme()
   const cfg = TASK_TYPES[task.type] || TASK_TYPES.tarefa
   const color = theme === 'dark' ? cfg.darkColor : cfg.color
@@ -229,7 +229,12 @@ function TaskCard({ task, onToggle, onEdit, onDelete }) {
           {task.title}
         </div>
         {task.empresa_nome && (
-          <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>{task.empresa_nome}</div>
+          <div
+            onClick={onClickEmpresa && task.empresa_id ? e => { e.stopPropagation(); onClickEmpresa(task.empresa_id) } : undefined}
+            style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2, cursor: onClickEmpresa && task.empresa_id ? 'pointer' : 'default', textDecoration: onClickEmpresa && task.empresa_id ? 'underline' : 'none' }}
+          >
+            {task.empresa_nome}
+          </div>
         )}
         {task.notes && (
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, lineHeight: 1.4 }}>{task.notes}</div>
@@ -250,7 +255,7 @@ function TaskCard({ task, onToggle, onEdit, onDelete }) {
 }
 
 /* ─── Main Agenda component ────────────────────────────────────────────────── */
-export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onToggle }) {
+export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onToggle, onOpenLead }) {
   const isMobile = useIsMobile()
   const theme = useTheme()
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -286,6 +291,12 @@ export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onTo
 
   function openNew(day) {
     setModal({ task: { due_date: format(day, 'yyyy-MM-dd') } })
+  }
+
+  function handleClickEmpresa(empresaId) {
+    if (!onOpenLead) return
+    const lead = empresas.find(e => e.id === empresaId)
+    if (lead) onOpenLead(lead)
   }
 
   return (
@@ -478,6 +489,7 @@ export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onTo
                 onToggle={onToggle}
                 onEdit={t => setModal({ task: t })}
                 onDelete={onDelete}
+                onClickEmpresa={onOpenLead ? handleClickEmpresa : undefined}
               />
             ))
           )}
@@ -502,7 +514,7 @@ export default function Agenda({ tasks, empresas, userId, onSave, onDelete, onTo
                   return (
                     <div
                       key={task.id}
-                      onClick={() => { setSelectedDay(parseISO(task.due_date)); setCurrentMonth(parseISO(task.due_date)) }}
+                      onClick={() => { setSelectedDay(parseISO(task.due_date)); setCurrentMonth(parseISO(task.due_date)); setModal({ task }) }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
                         borderRadius: 8, cursor: 'pointer', marginBottom: 3,

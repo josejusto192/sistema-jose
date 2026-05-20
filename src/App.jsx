@@ -198,9 +198,11 @@ export default function App() {
   async function toggleTask(task) {
     const completed = !task.completed
     const updates = { completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() }
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t))
     const { error } = await supabase.from('tasks').update(updates).eq('id', task.id)
-    if (!error) {
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...updates } : t))
+    if (error) {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: task.completed, completed_at: task.completed_at, updated_at: task.updated_at } : t))
+    } else {
       logAction(completed ? 'concluir' : 'reabrir', 'tasks', task.id, { title: task.title, empresa_nome: task.empresa_nome || null })
     }
   }
@@ -489,6 +491,7 @@ export default function App() {
         markRead={notif.markRead}
         markAllRead={notif.markAllRead}
         dropdownAlign="left"
+        onNavigate={navigate}
       />
     ),
   }
@@ -539,6 +542,7 @@ export default function App() {
                   unreadCount={notif.unreadCount}
                   markRead={notif.markRead}
                   markAllRead={notif.markAllRead}
+                  onNavigate={navigate}
                 />
               </div>
             </div>
@@ -602,6 +606,7 @@ export default function App() {
               onSave={saveTask}
               onDelete={deleteTask}
               onToggle={toggleTask}
+              onOpenLead={openLead}
             />
           )}
           {view === 'desempenho' && (

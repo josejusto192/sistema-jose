@@ -30,7 +30,15 @@ function BellIcon({ size = 20, color = 'currentColor' }) {
   )
 }
 
-export default function NotificationBell({ notifications, unreadCount, markRead, markAllRead, dropdownAlign = 'right' }) {
+const TYPE_TO_VIEW = {
+  lead_fechou:   'leads',
+  novo_lead:     'leads',
+  task_due:      'agenda',
+  followup:      'agenda',
+  comissao_paga: 'desempenho',
+}
+
+export default function NotificationBell({ notifications, unreadCount, markRead, markAllRead, dropdownAlign = 'right', onNavigate }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -45,6 +53,8 @@ export default function NotificationBell({ notifications, unreadCount, markRead,
   function handleClickItem(n) {
     if (!n.read) markRead(n.id)
     setOpen(false)
+    const target = TYPE_TO_VIEW[n.type]
+    if (target && onNavigate) onNavigate(target)
   }
 
   return (
