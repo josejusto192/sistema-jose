@@ -1,14 +1,15 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../supabase.js'
 import { useIsSuperAdmin, useProfile } from '../App.jsx'
-import { IconSearch, IconPlus, IconCheck, IconX, IconArrowLeft } from './Icons.jsx'
+import { IconSearch, IconPlus, IconCheck, IconX } from './Icons.jsx'
+import { CNAES } from '../data/cnaes.js'
 
 const API_URL = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa'
 const API_KEY = import.meta.env.VITE_CASA_DADOS_KEY
 
 const UF_LIST = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']
 const SITUACOES = ['ATIVA','INAPTA','BAIXADA','SUSPENSA','NULA']
-const PORTES    = [{ value: 'ME', label: 'MEI/ME' }, { value: 'EPP', label: 'EPP' }, { value: 'DEMAIS', label: 'Demais' }]
+const PORTES = [{ value: 'ME', label: 'MEI / ME' }, { value: 'EPP', label: 'EPP' }, { value: 'DEMAIS', label: 'Demais' }]
 
 const EMPTY_FORM = {
   termo: '',
@@ -17,7 +18,7 @@ const EMPTY_FORM = {
   bairro: '',
   cep: '',
   ddd: '',
-  cnae: '',
+  cnaes: [],          // array of { codigo, descricao }
   natureza_juridica: '',
   situacao: '',
   portes: [],
@@ -25,110 +26,38 @@ const EMPTY_FORM = {
   abertura_ate: '',
   capital_min: '',
   capital_max: '',
-  somente_mei: false,
-  excluir_mei: false,
+  // contato
   com_email: false,
   com_telefone: false,
+  somente_celular: false,
+  somente_fixo: false,
+  // empresa
+  somente_mei: false,
+  excluir_mei: false,
+  somente_matriz: false,
+  excluir_contabilidade: false,
 }
 
-function Section({ title, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '9px 14px', background: 'var(--bg2)', border: 'none', cursor: 'pointer',
-          color: 'var(--text)', fontSize: 12, fontWeight: 600,
-        }}
-      >
-        {title}
-        <span style={{ color: 'var(--text3)', fontSize: 11 }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ padding: '12px 14px', background: 'var(--bg)', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {children}
-        </div>
-      )}
-    </div>
-  )
+/* ─── helpers ─────────────────────────────────────────────────────────────── */
+function formatCNPJ(raw) {
+  const d = (raw || '').replace(/\D/g, '')
+  if (d.length !== 14) return raw || ''
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
 }
-
-function Field({ label, style, children }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>
-      <label style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 500 }}>{label}</label>
-      {children}
-    </div>
-  )
+function formatDate(d) {
+  if (!d) return '—'
+  const p = d.split('-')
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d
 }
-
-const inp = {
-  padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
-  background: 'var(--bg2)', color: 'var(--text)', fontSize: 12, outline: 'none',
+function formatCurrency(v) {
+  if (v == null) return '—'
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 }
-
-function UfPicker({ value, onChange }) {
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-      {UF_LIST.map(uf => {
-        const sel = value.includes(uf)
-        return (
-          <button
-            key={uf}
-            onClick={() => onChange(sel ? value.filter(u => u !== uf) : [...value, uf])}
-            style={{
-              padding: '3px 7px', borderRadius: 4, border: '1px solid var(--border)',
-              background: sel ? 'var(--accent)' : 'var(--bg2)', color: sel ? '#fff' : 'var(--text2)',
-              fontSize: 11, cursor: 'pointer', fontWeight: sel ? 600 : 400,
-            }}
-          >{uf}</button>
-        )
-      })}
-    </div>
-  )
-}
-
-function PortePicker({ value, onChange }) {
-  return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {PORTES.map(p => {
-        const sel = value.includes(p.value)
-        return (
-          <button
-            key={p.value}
-            onClick={() => onChange(sel ? value.filter(v => v !== p.value) : [...value, p.value])}
-            style={{
-              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
-              background: sel ? 'var(--accent)' : 'var(--bg2)', color: sel ? '#fff' : 'var(--text2)',
-              fontSize: 11, cursor: 'pointer', fontWeight: sel ? 600 : 400,
-            }}
-          >{p.label}</button>
-        )
-      })}
-    </div>
-  )
-}
-
-function Toggle({ label, value, onChange }) {
-  return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: 'var(--text2)' }}>
-      <div
-        onClick={() => onChange(!value)}
-        style={{
-          width: 32, height: 18, borderRadius: 9, background: value ? 'var(--accent)' : 'var(--border)',
-          position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
-        }}
-      >
-        <div style={{
-          position: 'absolute', top: 2, left: value ? 14 : 2, width: 14, height: 14,
-          borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
-        }} />
-      </div>
-      {label}
-    </label>
-  )
+function situacaoColor(s) {
+  if (s === 'ATIVA')   return '#22c55e'
+  if (s === 'BAIXADA') return '#ef4444'
+  if (s === 'INAPTA')  return '#f59e0b'
+  return '#6b7280'
 }
 
 function buildBody(form, page) {
@@ -139,7 +68,7 @@ function buildBody(form, page) {
   if (form.bairro.trim()) query.bairro = [form.bairro.trim().toUpperCase()]
   if (form.cep.trim()) query.cep = [form.cep.replace(/\D/g, '')]
   if (form.ddd.trim()) query.ddd = [form.ddd.trim()]
-  if (form.cnae.trim()) query.cnae_principal = { codigo: form.cnae.split(',').map(c => c.trim()).filter(Boolean) }
+  if (form.cnaes.length) query.cnae_principal = { codigo: form.cnaes.map(c => c.codigo) }
   if (form.natureza_juridica.trim()) query.natureza_juridica = { codigo: form.natureza_juridica.split(',').map(c => c.trim()).filter(Boolean) }
   if (form.situacao) query.situacao_cadastral = form.situacao
   if (form.portes.length) query.porte = form.portes
@@ -159,59 +88,156 @@ function buildBody(form, page) {
   }
 
   const extras = {
-    somente_mei: form.somente_mei,
-    excluir_mei: form.excluir_mei,
-    com_contato_telefonico: false,
-    somente_fixo: false,
-    somente_celular: false,
-    somente_matrix: false,
+    somente_mei:           form.somente_mei,
+    excluir_mei:           form.excluir_mei,
+    com_contato_telefonico: form.somente_celular || form.somente_fixo,
+    somente_celular:       form.somente_celular,
+    somente_fixo:          form.somente_fixo,
+    somente_matrix:        form.somente_matriz,
+    excluir_contabilidade: form.excluir_contabilidade,
   }
 
   return { query, range_query, extras, page }
 }
 
-function formatCNPJ(raw) {
-  const d = (raw || '').replace(/\D/g, '')
-  if (d.length !== 14) return raw || ''
-  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
+/* ─── small UI atoms ──────────────────────────────────────────────────────── */
+const inp = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }
+
+function Label({ children }) {
+  return <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{children}</div>
 }
 
-function formatDate(d) {
-  if (!d) return '—'
-  const parts = d.split('-')
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
-  return d
+function SectionTitle({ children }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+      {children}
+    </div>
+  )
 }
 
-function formatCurrency(v) {
-  if (v == null) return '—'
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
+function Toggle({ label, value, onChange }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+      <div
+        onClick={() => onChange(!value)}
+        style={{ width: 30, height: 17, borderRadius: 9, background: value ? 'var(--accent)' : 'var(--border)', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}
+      >
+        <div style={{ position: 'absolute', top: 2, left: value ? 13 : 2, width: 13, height: 13, borderRadius: '50%', background: '#fff', transition: 'left 0.18s' }} />
+      </div>
+      <span style={{ fontSize: 12, color: value ? 'var(--text)' : 'var(--text2)' }}>{label}</span>
+    </label>
+  )
 }
 
-function situacaoColor(s) {
-  if (s === 'ATIVA') return '#22c55e'
-  if (s === 'BAIXADA') return '#ef4444'
-  if (s === 'INAPTA') return '#f59e0b'
-  return '#6b7280'
+function ChipButton({ label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer',
+        background: active ? 'var(--accent)' : 'var(--bg2)', color: active ? '#fff' : 'var(--text2)',
+        fontWeight: active ? 600 : 400,
+      }}
+    >{label}</button>
+  )
 }
 
+/* ─── CNAE multi-select ───────────────────────────────────────────────────── */
+function CnaePicker({ value, onChange }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = search.trim()
+    ? CNAES.filter(c => c.codigo.includes(search) || c.descricao.toLowerCase().includes(search.toLowerCase())).slice(0, 60)
+    : CNAES.slice(0, 60)
+
+  function toggle(cnae) {
+    const exists = value.find(c => c.codigo === cnae.codigo)
+    onChange(exists ? value.filter(c => c.codigo !== cnae.codigo) : [...value, cnae])
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      {/* selected tags */}
+      {value.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {value.map(c => (
+            <span key={c.codigo} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,203,83,0.12)', color: 'var(--accent)', borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 600 }}>
+              {c.codigo}
+              <span onClick={() => onChange(value.filter(x => x.codigo !== c.codigo))} style={{ cursor: 'pointer', lineHeight: 1, fontSize: 13, marginLeft: 1, color: 'var(--text3)' }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={search}
+        onChange={e => { setSearch(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder="Buscar por código ou descrição..."
+        style={inp}
+      />
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+          background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8,
+          maxHeight: 240, overflowY: 'auto', marginTop: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>Nenhum CNAE encontrado</div>
+          )}
+          {filtered.map(c => {
+            const sel = !!value.find(x => x.codigo === c.codigo)
+            return (
+              <div
+                key={c.codigo}
+                onClick={() => toggle(c)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
+                  cursor: 'pointer', background: sel ? 'rgba(0,203,83,0.08)' : 'transparent',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <div style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${sel ? 'var(--accent)' : 'var(--border)'}`, background: sel ? 'var(--accent)' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {sel && <IconCheck size={9} color="#fff" />}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', minWidth: 80, flexShrink: 0 }}>{c.codigo}</span>
+                <span style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.3 }}>{c.descricao}</span>
+              </div>
+            )
+          })}
+          {!search.trim() && CNAES.length > 60 && (
+            <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--text3)' }}>Digite para filtrar {CNAES.length} CNAEs disponíveis</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── main component ──────────────────────────────────────────────────────── */
 export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profiles = [] }) {
   const isSuperAdmin = useIsSuperAdmin()
   const profile      = useProfile()
-  const [form, setForm]         = useState(EMPTY_FORM)
-  const [results, setResults]   = useState([])
-  const [total, setTotal]       = useState(0)
-  const [page, setPage]         = useState(1)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [saved, setSaved]       = useState({})   // cnpj → true
-  const [saving, setSaving]     = useState({})   // cnpj → true
-  const [savingAll, setSavingAll] = useState(false)
-  const [assignTo, setAssignTo] = useState('')   // vendedor_id for admin assignment
 
-  function set(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }))
-  }
+  const [form, setForm]           = useState(EMPTY_FORM)
+  const [results, setResults]     = useState([])
+  const [total, setTotal]         = useState(0)
+  const [page, setPage]           = useState(1)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+  const [saved, setSaved]         = useState({})
+  const [saving, setSaving]       = useState({})
+  const [savingAll, setSavingAll] = useState(false)
+  const [assignTo, setAssignTo]   = useState('')
+
+  function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
 
   const inDb = useCallback((cnpj) => {
     const raw = (cnpj || '').replace(/\D/g, '')
@@ -219,52 +245,29 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   }, [existingCnpjs])
 
   async function search(p = 1) {
-    if (!API_KEY) {
-      setError('Variável VITE_CASA_DADOS_KEY não configurada.')
-      return
-    }
-    setLoading(true)
-    setError('')
-    setPage(p)
+    if (!API_KEY) { setError('Variável VITE_CASA_DADOS_KEY não configurada.'); return }
+    setLoading(true); setError(''); setPage(p)
     try {
       const res = await fetch(`${API_URL}?tipo_resultado=completo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
         body: JSON.stringify(buildBody(form, p)),
       })
-      if (!res.ok) {
-        const txt = await res.text()
-        throw new Error(`API erro ${res.status}: ${txt.slice(0, 200)}`)
-      }
+      if (!res.ok) throw new Error(`API erro ${res.status}: ${(await res.text()).slice(0, 200)}`)
       const json = await res.json()
-      const list  = json?.data?.cnpj || []
-      const count = json?.data?.count || 0
-      setResults(list)
-      setTotal(count)
+      setResults(json?.data?.cnpj || [])
+      setTotal(json?.data?.count || 0)
     } catch (e) {
       setError(e.message || 'Erro ao consultar a API')
-      setResults([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handleSearch(e) {
-    e.preventDefault()
-    search(1)
+      setResults([]); setTotal(0)
+    } finally { setLoading(false) }
   }
 
   function buildLeadPayload(item) {
-    const cnpjRaw = (item.cnpj || '').replace(/\D/g, '')
     const tel = item.telefones?.[0]?.numero || item.telefone || null
-    const vendedorId = isSuperAdmin
-      ? (assignTo || null)
-      : (profile?.id || null)
-
     return {
       tipo: 'empresa',
-      cnpj: cnpjRaw || null,
+      cnpj: (item.cnpj || '').replace(/\D/g, '') || null,
       razao_social: item.razao_social || null,
       nome_fantasia: item.nome_fantasia || null,
       municipio: item.municipio || null,
@@ -279,20 +282,15 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
       situacao_cadastral: item.situacao_cadastral || null,
       origem: 'casa_dos_dados',
       status_prospeccao: 'novo',
-      vendedor_id: vendedorId,
+      vendedor_id: isSuperAdmin ? (assignTo || null) : (profile?.id || null),
     }
   }
 
   async function saveOne(item) {
     const key = item.cnpj
     setSaving(prev => ({ ...prev, [key]: true }))
-    try {
-      const payload = buildLeadPayload(item)
-      await onCreateLead(payload)
-      setSaved(prev => ({ ...prev, [key]: true }))
-    } finally {
-      setSaving(prev => ({ ...prev, [key]: false }))
-    }
+    try { await onCreateLead(buildLeadPayload(item)); setSaved(prev => ({ ...prev, [key]: true })) }
+    finally { setSaving(prev => ({ ...prev, [key]: false })) }
   }
 
   async function saveAll() {
@@ -302,11 +300,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
     for (const item of toSave) {
       const key = item.cnpj
       setSaving(prev => ({ ...prev, [key]: true }))
-      try {
-        const payload = buildLeadPayload(item)
-        await onCreateLead(payload)
-        setSaved(prev => ({ ...prev, [key]: true }))
-      } catch {}
+      try { await onCreateLead(buildLeadPayload(item)); setSaved(prev => ({ ...prev, [key]: true })) } catch {}
       setSaving(prev => ({ ...prev, [key]: false }))
     }
     setSavingAll(false)
@@ -316,129 +310,153 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   const newCount   = results.filter(r => !inDb(r.cnpj) && !saved[r.cnpj]).length
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ marginBottom: 20 }}>
+    <div style={{ padding: '24px 28px', maxWidth: 1080, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 22 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Busca Avançada</h2>
-        <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-          Encontre empresas pelo CNPJ via Casa dos Dados e importe como leads.
+        <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3, margin: 0 }}>
+          Encontre empresas via Casa dos Dados e importe como leads.
         </p>
       </div>
 
-      <form onSubmit={handleSearch}>
-        {/* Busca Textual */}
-        <Section title="Busca Textual" defaultOpen>
-          <Field label="Palavra-chave (razão social, fantasia, etc.)" style={{ flex: '1 1 100%' }}>
-            <input
-              value={form.termo}
-              onChange={e => set('termo', e.target.value)}
-              placeholder="Ex: restaurante, clínica, transporte..."
-              style={{ ...inp, width: '100%' }}
-            />
-          </Field>
-        </Section>
+      <form onSubmit={e => { e.preventDefault(); search(1) }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
-        {/* Localização */}
-        <Section title="Localização">
-          <Field label="Estado (UF)" style={{ flex: '1 1 100%' }}>
-            <UfPicker value={form.ufs} onChange={v => set('ufs', v)} />
-          </Field>
-          <Field label="Município" style={{ flex: '1 1 200px' }}>
-            <input value={form.municipio} onChange={e => set('municipio', e.target.value)} placeholder="SAO PAULO" style={inp} />
-          </Field>
-          <Field label="Bairro" style={{ flex: '1 1 160px' }}>
-            <input value={form.bairro} onChange={e => set('bairro', e.target.value)} placeholder="Centro" style={inp} />
-          </Field>
-          <Field label="CEP" style={{ flex: '0 1 120px' }}>
-            <input value={form.cep} onChange={e => set('cep', e.target.value)} placeholder="00000-000" style={inp} />
-          </Field>
-          <Field label="DDD" style={{ flex: '0 1 80px' }}>
-            <input value={form.ddd} onChange={e => set('ddd', e.target.value)} placeholder="11" style={inp} maxLength={2} />
-          </Field>
-        </Section>
-
-        {/* Atividade */}
-        <Section title="Atividade">
-          <Field label="CNAE Principal (código, separar por vírgula)" style={{ flex: '1 1 240px' }}>
-            <input value={form.cnae} onChange={e => set('cnae', e.target.value)} placeholder="47.11-3-02, 56.11-2-01" style={inp} />
-          </Field>
-          <Field label="Natureza Jurídica (código)" style={{ flex: '1 1 200px' }}>
-            <input value={form.natureza_juridica} onChange={e => set('natureza_juridica', e.target.value)} placeholder="206-2" style={inp} />
-          </Field>
-        </Section>
-
-        {/* Empresa */}
-        <Section title="Empresa">
-          <Field label="Situação" style={{ flex: '0 1 160px' }}>
-            <select value={form.situacao} onChange={e => set('situacao', e.target.value)} style={inp}>
-              <option value="">Qualquer</option>
-              {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <Field label="Porte" style={{ flex: '1 1 auto' }}>
-            <PortePicker value={form.portes} onChange={v => set('portes', v)} />
-          </Field>
-        </Section>
-
-        {/* Data de Abertura */}
-        <Section title="Data de Abertura">
-          <Field label="De" style={{ flex: '0 1 150px' }}>
-            <input type="date" value={form.abertura_de} onChange={e => set('abertura_de', e.target.value)} style={inp} />
-          </Field>
-          <Field label="Até" style={{ flex: '0 1 150px' }}>
-            <input type="date" value={form.abertura_ate} onChange={e => set('abertura_ate', e.target.value)} style={inp} />
-          </Field>
-        </Section>
-
-        {/* Capital Social */}
-        <Section title="Capital Social">
-          <Field label="Mínimo (R$)" style={{ flex: '0 1 150px' }}>
-            <input type="number" value={form.capital_min} onChange={e => set('capital_min', e.target.value)} placeholder="0" style={inp} min={0} />
-          </Field>
-          <Field label="Máximo (R$)" style={{ flex: '0 1 150px' }}>
-            <input type="number" value={form.capital_max} onChange={e => set('capital_max', e.target.value)} placeholder="ilimitado" style={inp} min={0} />
-          </Field>
-        </Section>
-
-        {/* Mais Filtros */}
-        <Section title="Mais Filtros">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
-            <Toggle label="Somente MEI" value={form.somente_mei} onChange={v => { set('somente_mei', v); if (v) set('excluir_mei', false) }} />
-            <Toggle label="Excluir MEI"  value={form.excluir_mei}  onChange={v => { set('excluir_mei', v); if (v) set('somente_mei', false) }} />
-            <Toggle label="Com e-mail"   value={form.com_email}    onChange={v => set('com_email', v)} />
-            <Toggle label="Com telefone" value={form.com_telefone} onChange={v => set('com_telefone', v)} />
+          {/* ── Localização ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
+            <SectionTitle>Localização</SectionTitle>
+            <div style={{ marginBottom: 10 }}>
+              <Label>Estado (UF)</Label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {UF_LIST.map(uf => (
+                  <ChipButton key={uf} label={uf} active={form.ufs.includes(uf)} onClick={() => set('ufs', form.ufs.includes(uf) ? form.ufs.filter(u => u !== uf) : [...form.ufs, uf])} />
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr', gap: 10, marginTop: 12 }}>
+              <div>
+                <Label>Município</Label>
+                <input value={form.municipio} onChange={e => set('municipio', e.target.value)} placeholder="Ex: SAO PAULO" style={inp} />
+              </div>
+              <div>
+                <Label>Bairro</Label>
+                <input value={form.bairro} onChange={e => set('bairro', e.target.value)} placeholder="Ex: Centro" style={inp} />
+              </div>
+              <div>
+                <Label>CEP</Label>
+                <input value={form.cep} onChange={e => set('cep', e.target.value)} placeholder="00000-000" style={inp} />
+              </div>
+              <div>
+                <Label>DDD</Label>
+                <input value={form.ddd} onChange={e => set('ddd', e.target.value)} placeholder="11" style={inp} maxLength={2} />
+              </div>
+            </div>
           </div>
-        </Section>
+
+          {/* ── Busca Textual ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+            <SectionTitle>Busca Textual</SectionTitle>
+            <Label>Palavra-chave</Label>
+            <input value={form.termo} onChange={e => set('termo', e.target.value)} placeholder="Ex: restaurante, clínica, transporte..." style={inp} />
+          </div>
+
+          {/* ── Empresa ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+            <SectionTitle>Empresa</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <Label>Situação</Label>
+                <select value={form.situacao} onChange={e => set('situacao', e.target.value)} style={inp}>
+                  <option value="">Qualquer</option>
+                  {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Natureza Jurídica (código)</Label>
+                <input value={form.natureza_juridica} onChange={e => set('natureza_juridica', e.target.value)} placeholder="Ex: 206-2" style={inp} />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <Label>Porte</Label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {PORTES.map(p => (
+                  <ChipButton key={p.value} label={p.label} active={form.portes.includes(p.value)} onClick={() => set('portes', form.portes.includes(p.value) ? form.portes.filter(v => v !== p.value) : [...form.portes, p.value])} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Atividade / CNAE ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
+            <SectionTitle>Atividade (CNAE)</SectionTitle>
+            <CnaePicker value={form.cnaes} onChange={v => set('cnaes', v)} />
+          </div>
+
+          {/* ── Abertura ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+            <SectionTitle>Data de Abertura</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <Label>De</Label>
+                <input type="date" value={form.abertura_de} onChange={e => set('abertura_de', e.target.value)} style={inp} />
+              </div>
+              <div>
+                <Label>Até</Label>
+                <input type="date" value={form.abertura_ate} onChange={e => set('abertura_ate', e.target.value)} style={inp} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Capital Social ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+            <SectionTitle>Capital Social</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <Label>Mínimo (R$)</Label>
+                <input type="number" value={form.capital_min} onChange={e => set('capital_min', e.target.value)} placeholder="0" style={inp} min={0} />
+              </div>
+              <div>
+                <Label>Máximo (R$)</Label>
+                <input type="number" value={form.capital_max} onChange={e => set('capital_max', e.target.value)} placeholder="ilimitado" style={inp} min={0} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Filtros de Contato & Empresa ──────────────────────── */}
+          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
+            <SectionTitle>Filtros Adicionais</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
+              <Toggle label="Com e-mail" value={form.com_email} onChange={v => set('com_email', v)} />
+              <Toggle label="Com telefone" value={form.com_telefone} onChange={v => { set('com_telefone', v); if (!v) { set('somente_celular', false); set('somente_fixo', false) } }} />
+              <Toggle label="Somente celular" value={form.somente_celular} onChange={v => { set('somente_celular', v); if (v) { set('com_telefone', true); set('somente_fixo', false) } }} />
+              <Toggle label="Somente telefone fixo" value={form.somente_fixo} onChange={v => { set('somente_fixo', v); if (v) { set('com_telefone', true); set('somente_celular', false) } }} />
+              <Toggle label="Somente MEI" value={form.somente_mei} onChange={v => { set('somente_mei', v); if (v) set('excluir_mei', false) }} />
+              <Toggle label="Excluir MEI" value={form.excluir_mei} onChange={v => { set('excluir_mei', v); if (v) set('somente_mei', false) }} />
+              <Toggle label="Somente matriz" value={form.somente_matriz} onChange={v => set('somente_matriz', v)} />
+              <Toggle label="Excluir contabilidades" value={form.excluir_contabilidade} onChange={v => set('excluir_contabilidade', v)} />
+            </div>
+          </div>
+        </div>
 
         {/* Atribuição (admin) */}
         {isSuperAdmin && profiles.length > 0 && (
-          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, whiteSpace: 'nowrap' }}>Atribuir a:</label>
-            <select
-              value={assignTo}
-              onChange={e => setAssignTo(e.target.value)}
-              style={{ ...inp, minWidth: 180 }}
-            >
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, whiteSpace: 'nowrap' }}>Atribuir leads a:</label>
+            <select value={assignTo} onChange={e => setAssignTo(e.target.value)} style={{ ...inp, maxWidth: 220 }}>
               <option value="">Sem atribuição</option>
               {profiles.map(p => (
-                <option key={p.id} value={p.id}>
-                  {[p.nome, p.sobrenome].filter(Boolean).join(' ') || p.id}
-                </option>
+                <option key={p.id} value={p.id}>{[p.nome, p.sobrenome].filter(Boolean).join(' ') || p.id}</option>
               ))}
             </select>
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 18 }}>
           <button
             type="submit"
             disabled={loading}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '9px 20px', borderRadius: 8, border: 'none',
-              background: 'var(--accent)', color: '#fff',
-              fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
           >
             <IconSearch size={14} color="#fff" />
             {loading ? 'Buscando...' : 'Buscar'}
@@ -446,35 +464,27 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           <button
             type="button"
             onClick={() => { setForm(EMPTY_FORM); setResults([]); setTotal(0); setError(''); setSaved({}) }}
-            style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}
+            style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}
           >
-            Limpar
+            Limpar filtros
           </button>
-          {error && (
-            <span style={{ fontSize: 12, color: '#ef4444', flex: 1 }}>{error}</span>
-          )}
+          {error && <span style={{ fontSize: 12, color: '#ef4444' }}>{error}</span>}
         </div>
       </form>
 
-      {/* Results */}
+      {/* ── Results ─────────────────────────────────────────────────────── */}
       {results.length > 0 && (
-        <div style={{ marginTop: 24 }}>
+        <div style={{ marginTop: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
             <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{total.toLocaleString('pt-BR')}</span> resultado{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}
-              {' · '}página {page} de {totalPages}
+              <span style={{ fontWeight: 700, color: 'var(--text)' }}>{total.toLocaleString('pt-BR')}</span> resultado{total !== 1 ? 's' : ''}
+              {' · '}página {page} / {totalPages}
             </div>
             {newCount > 0 && (
               <button
                 onClick={saveAll}
                 disabled={savingAll}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '7px 16px', borderRadius: 7, border: 'none',
-                  background: '#0ea5e9', color: '#fff',
-                  fontSize: 12, fontWeight: 600, cursor: savingAll ? 'not-allowed' : 'pointer',
-                  opacity: savingAll ? 0.7 : 1,
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, border: 'none', background: '#0ea5e9', color: '#fff', fontSize: 12, fontWeight: 600, cursor: savingAll ? 'not-allowed' : 'pointer', opacity: savingAll ? 0.7 : 1 }}
               >
                 <IconPlus size={13} color="#fff" />
                 {savingAll ? 'Salvando...' : `Salvar todos (${newCount})`}
@@ -486,54 +496,29 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
-                  {['CNPJ','Razão Social','Nome Fantasia','Município/UF','Abertura','Situação','Capital','Ação'].map(h => (
+                  {['CNPJ','Razão Social','Nome Fantasia','Município / UF','Abertura','Situação','Capital','Ação'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text3)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {results.map((item, i) => {
-                  const cnpj     = item.cnpj || ''
-                  const already  = inDb(cnpj)
+                  const cnpj = item.cnpj || ''
+                  const already = inDb(cnpj)
                   const wasSaved = saved[cnpj]
                   const isSavingRow = saving[cnpj]
-                  const done     = already || wasSaved
-
+                  const done = already || wasSaved
                   return (
-                    <tr
-                      key={cnpj || i}
-                      style={{
-                        borderBottom: '1px solid var(--border)',
-                        background: done ? 'rgba(0,203,83,0.04)' : 'var(--bg)',
-                        transition: 'background 0.15s',
-                      }}
-                    >
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
-                        {formatCNPJ(cnpj)}
-                      </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.razao_social || '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.nome_fantasia || '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
-                        {[item.municipio, item.uf].filter(Boolean).join(' / ') || '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
-                        {formatDate(item.data_abertura)}
-                      </td>
+                    <tr key={cnpj || i} style={{ borderBottom: '1px solid var(--border)', background: done ? 'rgba(0,203,83,0.04)' : 'var(--bg)' }}>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>{formatCNPJ(cnpj)}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.razao_social || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome_fantasia || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{[item.municipio, item.uf].filter(Boolean).join(' / ') || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{formatDate(item.data_abertura)}</td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                          color: situacaoColor(item.situacao_cadastral),
-                        }}>
-                          {item.situacao_cadastral || '—'}
-                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: situacaoColor(item.situacao_cadastral) }}>{item.situacao_cadastral || '—'}</span>
                       </td>
-                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
-                        {formatCurrency(item.capital_social)}
-                      </td>
+                      <td style={{ padding: '8px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{formatCurrency(item.capital_social)}</td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                         {done ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22c55e', fontSize: 11, fontWeight: 600 }}>
@@ -544,13 +529,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
                           <button
                             onClick={() => saveOne(item)}
                             disabled={isSavingRow}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 4,
-                              padding: '4px 10px', borderRadius: 5, border: 'none',
-                              background: 'var(--accent)', color: '#fff',
-                              fontSize: 11, fontWeight: 600, cursor: isSavingRow ? 'not-allowed' : 'pointer',
-                              opacity: isSavingRow ? 0.6 : 1,
-                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: isSavingRow ? 'not-allowed' : 'pointer', opacity: isSavingRow ? 0.6 : 1 }}
                           >
                             <IconPlus size={11} color="#fff" />
                             {isSavingRow ? '...' : 'Salvar'}
@@ -564,38 +543,19 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
             </table>
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
-              <button
-                onClick={() => search(page - 1)}
-                disabled={page <= 1 || loading}
-                style={{
-                  padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
-                  background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, cursor: 'pointer',
-                  opacity: page <= 1 ? 0.4 : 1,
-                }}
-              >← Anterior</button>
-              <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => search(page + 1)}
-                disabled={page >= totalPages || loading}
-                style={{
-                  padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
-                  background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, cursor: 'pointer',
-                  opacity: page >= totalPages ? 0.4 : 1,
-                }}
-              >Próximo →</button>
+              <button onClick={() => search(page - 1)} disabled={page <= 1 || loading} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', opacity: page <= 1 ? 0.4 : 1 }}>← Anterior</button>
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>{page} / {totalPages}</span>
+              <button onClick={() => search(page + 1)} disabled={page >= totalPages || loading} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', opacity: page >= totalPages ? 0.4 : 1 }}>Próximo →</button>
             </div>
           )}
         </div>
       )}
 
       {!loading && results.length === 0 && total === 0 && !error && (
-        <div style={{ marginTop: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-          <IconSearch size={32} color="var(--border)" />
+        <div style={{ marginTop: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+          <IconSearch size={36} color="var(--border)" />
           <div style={{ marginTop: 10 }}>Preencha os filtros e clique em Buscar para encontrar empresas.</div>
         </div>
       )}
