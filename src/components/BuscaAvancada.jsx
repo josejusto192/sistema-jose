@@ -167,6 +167,7 @@ function Toggle({ label, value, onChange }) {
 function ChipButton({ label, active, onClick }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
         padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer',
