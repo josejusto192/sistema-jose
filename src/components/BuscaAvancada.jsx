@@ -87,7 +87,7 @@ function buildBody(form, page) {
     body.busca_textual = [{ texto: [form.termo.trim()], tipo_busca: form.tipo_busca, razao_social: true, nome_fantasia: true, nome_socio: false }]
   }
   if (form.ufs.length)       body.uf        = form.ufs.map(u => u.toLowerCase())
-  if (form.municipios.length) body.municipio = form.municipios.map(m => m.toLowerCase())
+  if (form.municipios.length) body.municipio = form.municipios.map(m => m.nome.toLowerCase())
   if (form.bairro.trim())    body.bairro    = [form.bairro.trim().toLowerCase()]
   if (form.cep.trim())       body.cep       = [form.cep.replace(/\D/g, '')]
   if (form.ddd.trim())       body.ddd       = [form.ddd.trim()]
