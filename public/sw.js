@@ -20,11 +20,19 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close()
-  const targetUrl = event.notification.data?.url || '/'
+  const rawUrl = event.notification.data?.url || '#/dashboard'
+  // Build absolute URL: hash-only values get prepended with origin
+  const targetUrl = rawUrl.startsWith('#')
+    ? self.location.origin + '/' + rawUrl
+    : rawUrl
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
-        if ('focus' in client) return client.focus()
+        if ('navigate' in client) {
+          client.navigate(targetUrl)
+          return client.focus()
+        }
       }
       return clients.openWindow(targetUrl)
     })
