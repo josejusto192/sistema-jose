@@ -283,6 +283,13 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   const [savingAll, setSavingAll] = useState(false)
   const [assignTo, setAssignTo]   = useState('')
 
+  const SAVED_SEARCHES_KEY = 'tilim_saved_searches_v1'
+  const [savedSearches, setSavedSearches] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(SAVED_SEARCHES_KEY) || '[]') } catch { return [] }
+  })
+  const [saveSearchName, setSaveSearchName] = useState('')
+  const [showSaveSearch, setShowSaveSearch] = useState(false)
+
   function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
 
   const inDb = useCallback((cnpj) => {
@@ -330,6 +337,27 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
     setSaving(prev => ({ ...prev, [key]: true }))
     try { await onCreateLead(buildLeadPayload(item)); setSaved(prev => ({ ...prev, [key]: true })) }
     finally { setSaving(prev => ({ ...prev, [key]: false })) }
+  }
+
+  function persistSearches(list) {
+    setSavedSearches(list)
+    localStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(list))
+  }
+
+  function handleSaveSearch() {
+    const name = saveSearchName.trim()
+    if (!name) return
+    persistSearches([...savedSearches, { name, form }])
+    setSaveSearchName('')
+    setShowSaveSearch(false)
+  }
+
+  function handleLoadSearch(entry) {
+    setForm(entry.form)
+  }
+
+  function handleDeleteSearch(idx) {
+    persistSearches(savedSearches.filter((_, i) => i !== idx))
   }
 
   async function saveAll() {
@@ -504,15 +532,51 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 18 }}>
-          <button type="submit" disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
-            <IconSearch size={14} color="#fff" />
-            {loading ? 'Buscando...' : 'Buscar'}
-          </button>
-          <button type="button" onClick={() => { setForm(EMPTY_FORM); setResults([]); setTotal(0); setError(''); setSaved({}) }} style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}>
-            Limpar filtros
-          </button>
-          {error && <span style={{ fontSize: 12, color: '#ef4444' }}>{error}</span>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="submit"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
+              disabled={loading}
+            >
+              <IconSearch size={14} color="#fff" />{loading ? 'Buscando...' : 'Buscar'}
+            </button>
+            <button type="button" onClick={() => { setForm(EMPTY_FORM); setResults([]); setTotal(0); setError('') }}
+              style={{ padding: '9px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}>
+              Limpar filtros
+            </button>
+            {showSaveSearch ? (
+              <>
+                <input
+                  autoFocus
+                  value={saveSearchName}
+                  onChange={e => setSaveSearchName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSaveSearch(); if (e.key === 'Escape') setShowSaveSearch(false) }}
+                  placeholder="Nome da busca..."
+                  style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: 13, outline: 'none', width: 180 }}
+                />
+                <button type="button" onClick={handleSaveSearch} style={{ padding: '8px 14px', borderRadius: 7, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, cursor: 'pointer' }}>Salvar</button>
+                <button type="button" onClick={() => setShowSaveSearch(false)} style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 13, cursor: 'pointer' }}>✕</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setShowSaveSearch(true)}
+                style={{ padding: '8px 14px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--text3)', fontSize: 13, cursor: 'pointer' }}>
+                🔖 Salvar busca
+              </button>
+            )}
+            {error && <span style={{ fontSize: 12, color: '#ef4444' }}>{error}</span>}
+          </div>
+          {savedSearches.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>Buscas salvas:</span>
+              {savedSearches.map((s, i) => (
+                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, color: 'var(--text2)' }}>
+                  <span onClick={() => handleLoadSearch(s)} style={{ cursor: 'pointer' }}>{s.name}</span>
+                  <button type="button" onClick={() => handleDeleteSearch(i)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: '0 2px', lineHeight: 1, fontSize: 14, display: 'flex' }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </form>
 

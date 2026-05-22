@@ -651,6 +651,137 @@ function PacotesTab({ logAction }) {
   )
 }
 
+/* ─── Aba Scripts ─────────────────────────────────────────────────────────── */
+
+function ScriptsTab({ logAction }) {
+  const [scripts, setScripts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(null) // null | { script? }
+  const [form, setForm] = useState({ titulo: '', canal: 'whatsapp', texto: '', ordem: 0 })
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(null)
+
+  useEffect(() => { fetchScripts() }, [])
+
+  async function fetchScripts() {
+    setLoading(true)
+    const { data, error } = await supabase.from('scripts').select('*').eq('ativo', true).order('ordem')
+    if (!error && data) {
+      if (data.length === 0) {
+        await seedScripts()
+        return
+      }
+      setScripts(data)
+    }
+    setLoading(false)
+  }
+
+  async function seedScripts() {
+    const { data } = await supabase.from('scripts').select('*').eq('ativo', true).order('ordem')
+    setScripts(data || [])
+    setLoading(false)
+  }
+
+  function openCreate() {
+    setForm({ titulo: '', canal: 'whatsapp', texto: '', ordem: scripts.length * 10 })
+    setModal({ script: null })
+  }
+
+  function openEdit(s) {
+    setForm({ titulo: s.titulo, canal: s.canal, texto: s.texto, ordem: s.ordem })
+    setModal({ script: s })
+  }
+
+  async function handleSave() {
+    if (!form.titulo.trim() || !form.texto.trim()) return
+    setSaving(true)
+    if (modal.script) {
+      const { error } = await supabase.from('scripts').update({ titulo: form.titulo, canal: form.canal, texto: form.texto, ordem: form.ordem }).eq('id', modal.script.id)
+      if (!error) { logAction('atualizar', 'scripts', modal.script.id, { titulo: form.titulo }); await fetchScripts() }
+    } else {
+      const { error } = await supabase.from('scripts').insert({ titulo: form.titulo, canal: form.canal, texto: form.texto, ordem: form.ordem })
+      if (!error) { logAction('criar', 'scripts', null, { titulo: form.titulo }); await fetchScripts() }
+    }
+    setSaving(false)
+    setModal(null)
+  }
+
+  async function handleDelete(id) {
+    setDeleting(id)
+    const { error } = await supabase.from('scripts').update({ ativo: false }).eq('id', id)
+    if (!error) { logAction('deletar', 'scripts', id, {}); setScripts(prev => prev.filter(s => s.id !== id)) }
+    setDeleting(null)
+  }
+
+  const CANAIS = ['whatsapp', 'instagram', 'email', 'ligacao']
+  const canalLabel = { whatsapp: '💬 WhatsApp', instagram: '📸 Instagram', email: '📧 E-mail', ligacao: '📞 Ligação' }
+
+  const inputStyle = { width: '100%', padding: '8px 11px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Scripts de abordagem exibidos na tela do lead</div>
+        <button onClick={openCreate} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          + Novo script
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+      ) : scripts.length === 0 ? (
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Nenhum script cadastrado.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {scripts.map(s => (
+            <div key={s.id} className="card" style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
+              <div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text3)' }}>{canalLabel[s.canal] || s.canal}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{s.titulo}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 60, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.texto.slice(0, 120)}{s.texto.length > 120 ? '...' : ''}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button onClick={() => openEdit(s)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}>Editar</button>
+                <button onClick={() => handleDelete(s.id)} disabled={deleting === s.id} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #FECACA', background: 'transparent', color: '#EF4444', fontSize: 12, cursor: 'pointer', opacity: deleting === s.id ? 0.5 : 1 }}>Excluir</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {modal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div style={{ background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--border)', padding: 24, width: '100%', maxWidth: 560 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 18 }}>{modal.script ? 'Editar script' : 'Novo script'}</div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>TÍTULO</div>
+              <input value={form.titulo} onChange={e => setForm(p => ({...p, titulo: e.target.value}))} placeholder="Ex: WhatsApp — Prospecção inicial" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>CANAL</div>
+              <select value={form.canal} onChange={e => setForm(p => ({...p, canal: e.target.value}))} style={inputStyle}>
+                {CANAIS.map(c => <option key={c} value={c}>{canalLabel[c]}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>TEXTO <span style={{ fontWeight: 400 }}>(use [Nome] e [Empresa] como variáveis)</span></div>
+              <textarea value={form.texto} onChange={e => setForm(p => ({...p, texto: e.target.value}))} rows={8} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setModal(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
 export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
@@ -710,6 +841,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
         <button style={tabStyle('usuarios')} onClick={() => setActiveTab('usuarios')}>Usuários</button>
         <button style={tabStyle('sistema')} onClick={() => setActiveTab('sistema')}>Sistema</button>
         <button style={tabStyle('servicos')} onClick={() => setActiveTab('servicos')}>Serviços</button>
+        <button style={tabStyle('scripts')} onClick={() => setActiveTab('scripts')}>Scripts</button>
       </div>
 
       {/* ── Usuários ── */}
@@ -791,6 +923,9 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
 
       {/* ── Serviços ── */}
       {activeTab === 'servicos' && <PacotesTab logAction={logAction} />}
+
+      {/* ── Scripts ── */}
+      {activeTab === 'scripts' && <ScriptsTab logAction={logAction} />}
 
       {/* Modal */}
       {selectedUser && (

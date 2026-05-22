@@ -743,6 +743,13 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const [selectedIds, setSelectedIds] = useState([])
   const [newLeadOpen, setNewLeadOpen] = useState(false)
 
+  const SAVED_FILTERS_KEY = 'tilim_saved_filters_v1'
+  const [savedFilters, setSavedFilters] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(SAVED_FILTERS_KEY) || '[]') } catch { return [] }
+  })
+  const [saveFilterName, setSaveFilterName] = useState('')
+  const [showSaveInput, setShowSaveInput] = useState(false)
+
   // Reset para página 1 ao mudar filtro ou busca
   useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter])
 
@@ -758,6 +765,35 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
     })
     return Object.entries(map).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome))
   }, [empresas, isSuperAdmin])
+
+  function persistFilters(list) {
+    setSavedFilters(list)
+    localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(list))
+  }
+
+  function handleSaveFilter() {
+    const name = saveFilterName.trim()
+    if (!name) return
+    const entry = {
+      name,
+      filters: { searchQuery, statusFilter, tagFilter, cnaeFilter, vendorFilter },
+    }
+    persistFilters([...savedFilters, entry])
+    setSaveFilterName('')
+    setShowSaveInput(false)
+  }
+
+  function handleLoadFilter(entry) {
+    setSearchQuery(entry.filters.searchQuery || '')
+    setStatusFilter(entry.filters.statusFilter || 'todos')
+    setTagFilter(entry.filters.tagFilter || '')
+    setCnaeFilter(entry.filters.cnaeFilter || [])
+    setVendorFilter(entry.filters.vendorFilter || '')
+  }
+
+  function handleDeleteFilter(idx) {
+    persistFilters(savedFilters.filter((_, i) => i !== idx))
+  }
 
   function handleSort(col) {
     if (sortField === col) {
@@ -942,6 +978,34 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                 <option key={v.id} value={v.id}>{v.nome}</option>
               ))}
             </select>
+          )}
+        </div>
+
+        {/* Filtros salvos */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          {savedFilters.map((f, i) => (
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
+              <span onClick={() => handleLoadFilter(f)} style={{ cursor: 'pointer' }}>🔖 {f.name}</span>
+              <button type="button" onClick={() => handleDeleteFilter(i)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: '0 2px', lineHeight: 1, fontSize: 14, display: 'flex' }}>×</button>
+            </span>
+          ))}
+          {showSaveInput ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input
+                autoFocus
+                value={saveFilterName}
+                onChange={e => setSaveFilterName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveFilter(); if (e.key === 'Escape') setShowSaveInput(false) }}
+                placeholder="Nome do filtro..."
+                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 12, outline: 'none', width: 160 }}
+              />
+              <button type="button" onClick={handleSaveFilter} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>Salvar</button>
+              <button type="button" onClick={() => setShowSaveInput(false)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 12, cursor: 'pointer' }}>✕</button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => setShowSaveInput(true)} style={{ padding: '3px 10px', borderRadius: 20, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 12, cursor: 'pointer' }}>
+              + Salvar filtro atual
+            </button>
           )}
         </div>
 

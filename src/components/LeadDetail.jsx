@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS, CONTRATO_STATUS, PACOTES, leadName } from '../constants.js'
+import { STATUS_CONFIG, CANAL_CONFIG, SCRIPTS as SCRIPTS_FALLBACK, CONTRATO_STATUS, PACOTES, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
@@ -67,6 +67,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const [notas, setNotas] = useState(() => {
     try { return JSON.parse(lead.observacoes_json || '[]') } catch { return [] }
   })
+  const [scripts, setScripts] = useState(SCRIPTS_FALLBACK)
   const [scriptsCopied, setScriptsCopied] = useState({})
   const [taskModal, setTaskModal] = useState(null) // null | { task? }
   const [taskType, setTaskType] = useState('followup')
@@ -135,6 +136,11 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   useEffect(() => {
     if (taskModal !== null) setTaskType(taskModal.task?.type || 'followup')
   }, [taskModal])
+
+  useEffect(() => {
+    supabase.from('scripts').select('*').eq('ativo', true).order('ordem')
+      .then(({ data }) => { if (data?.length) setScripts(data) })
+  }, [])
 
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.novo
   const badgeStyle = theme === 'dark'
@@ -412,7 +418,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                   Clique em copiar — [Nome] e [Empresa] são substituídos automaticamente por <strong>{nomeDisplay}</strong>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {SCRIPTS.map(script => (
+                  {scripts.map(script => (
                     <div key={script.id} style={{ background: 'var(--bg3)', borderRadius: 8, overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
