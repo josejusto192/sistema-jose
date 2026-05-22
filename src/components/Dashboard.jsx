@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { STATUS_CONFIG, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin, useProfile } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
@@ -209,6 +209,31 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
       .slice(0, 5)
   }, [profiles, contratos])
 
+  const revenueChart = useMemo(() => {
+    return Array.from({ length: 6 }, (_, i) => {
+      const d     = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+      const fim   = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+      const receita = contratos
+        .filter(c => { const dt = c.criado_em ? new Date(c.criado_em) : null; return dt && dt >= d && dt < fim })
+        .reduce((s, c) => s + (Number(c.valor_mensal) || Number(c.valor_total) || 0), 0)
+      return { mes: format(d, 'MMM/yy', { locale: ptBR }), receita }
+    })
+  }, [contratos])
+
+  const funnelData = useMemo(() => {
+    const STAGES = ['novo','contatado','aguardando','respondeu','call_agendada','proposta_enviada','fechou','perdido']
+    const total = empresas.length || 1
+    return STAGES.map(s => ({
+      s,
+      label: STATUS_CONFIG[s]?.label || s,
+      count: empresas.filter(e => e.status_prospeccao === s).length,
+      dot:   STATUS_CONFIG[s]?.dot   || '#888',
+      bg:    STATUS_CONFIG[s]?.bg    || 'var(--bg3)',
+      color: STATUS_CONFIG[s]?.color || 'var(--text)',
+      total,
+    })).filter(d => d.count > 0)
+  }, [empresas])
+
   const nome = profile?.nome || 'Admin'
   const hora = now.getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -335,6 +360,71 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Receita por mês + Funil de conversão */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+          {/* Bar chart — receita por mês */}
+          <div className="card" style={{ padding: '22px 22px 14px' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 18 }}>Receita por mês</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={revenueChart} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+                <XAxis dataKey="mes" tick={{ fill: tickColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip
+                  formatter={(v) => [`R$ ${Number(v).toLocaleString('pt-BR')}`, 'Receita']}
+                  contentStyle={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: 'var(--text3)' }}
+                  itemStyle={{ color: '#00CB53' }}
+                />
+                <Bar dataKey="receita" radius={[4, 4, 0, 0]}>
+                  {revenueChart.map((_, i) => (
+                    <Cell key={i} fill={i === revenueChart.length - 1 ? '#00CB53' : (theme === 'dark' ? '#374151' : '#E5E7EB')} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Funil de conversão */}
+          <div className="card" style={{ padding: '22px' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 18 }}>Funil de conversão</div>
+            {funnelData.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '24px 0' }}>Sem leads cadastrados</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {funnelData.map(d => {
+                  const pct = Math.round((d.count / d.total) * 100)
+                  return (
+                    <div key={d.s}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: d.dot, flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 500 }}>{d.label}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>{d.count} lead{d.count !== 1 ? 's' : ''}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: d.dot, minWidth: 36, textAlign: 'right' }}>{pct}%</span>
+                        </div>
+                      </div>
+                      <div style={{ height: 5, background: 'var(--bg3)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${pct}%`, borderRadius: 3,
+                          background: d.dot, transition: 'width 0.5s ease',
+                        }} />
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
+                  <span>Total: {empresas.length} leads</span>
+                  <span style={{ color: '#00CB53', fontWeight: 600 }}>
+                    {funnelData.find(d => d.s === 'fechou')?.count || 0} fechados ({stats.conversao}% conversão)
+                  </span>
+                </div>
               </div>
             )}
           </div>

@@ -677,26 +677,54 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
 
           {/* Histórico de status */}
           <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
               <IconHistory size={14} color="var(--text3)" /> Histórico de status
             </div>
 
             {historyLoading ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '10px 0' }}>Carregando...</div>
             ) : statusHistory.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '10px 0' }}>Sem alterações de status</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: '10px 0' }}>Sem alterações de status registradas</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {statusHistory.map((s, i) => {
                   const cfgNovo = STATUS_CONFIG[s.status_novo]
+                  const cfgAnt  = STATUS_CONFIG[s.status_anterior]
+                  const isLast  = i === statusHistory.length - 1
                   return (
-                    <div key={s.id || i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfgNovo?.dot || 'var(--text3)', flexShrink: 0, marginTop: 4 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 500 }}>
-                          {cfgNovo?.label || s.status_novo}
+                    <div key={s.id || i} style={{ display: 'flex', gap: 10, position: 'relative' }}>
+                      {/* Vertical connecting line */}
+                      {!isLast && (
+                        <div style={{
+                          position: 'absolute', left: 7, top: 18, bottom: 0,
+                          width: 2, background: 'var(--border)', zIndex: 0,
+                        }} />
+                      )}
+                      {/* Dot */}
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                        background: cfgNovo?.dot || 'var(--text3)',
+                        border: '2px solid var(--bg2)', boxSizing: 'border-box', zIndex: 1,
+                      }} />
+                      {/* Content */}
+                      <div style={{ flex: 1, minWidth: 0, paddingBottom: isLast ? 0 : 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          {cfgAnt && (
+                            <>
+                              <span style={{
+                                fontSize: 10, fontWeight: 500, padding: '2px 7px', borderRadius: 10,
+                                background: cfgAnt.bg, color: cfgAnt.color, whiteSpace: 'nowrap',
+                              }}>{cfgAnt.label}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text3)' }}>→</span>
+                            </>
+                          )}
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10,
+                            background: cfgNovo?.bg || 'var(--bg3)', color: cfgNovo?.color || 'var(--text)',
+                            whiteSpace: 'nowrap',
+                          }}>{cfgNovo?.label || s.status_novo}</span>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
                           {s.criado_em ? format(new Date(s.criado_em), "dd/MM/yy 'às' HH:mm") : ''}
                           {s.usuario_nome ? ` · ${s.usuario_nome}` : ''}
                         </div>
