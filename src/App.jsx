@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, createContext, useContext } from 'react'
+import React, { useState, useEffect, useRef, createContext, useContext, useMemo } from 'react'
 import { leadName } from './constants.js'
 import { supabase } from './supabase.js'
 import Sidebar from './components/Sidebar.jsx'
@@ -30,14 +30,27 @@ export const ThemeContext = AppContext
 
 const TASK_DUE_CHECK_KEY = 'tilim_task_due_checked'
 
+function parseHash() {
+  const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard'
+  const parts = hash.split('/').filter(Boolean)
+  const section = parts[0] || 'dashboard'
+  if (section === 'leads' && parts[1]) return { view: 'detail', leadId: parts[1] }
+  return { view: section, leadId: null }
+}
+
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [session, setSession] = useState(undefined) // undefined = loading, null = no session
   const [profile, setProfile] = useState(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
-  const [view, setView] = useState('dashboard')
-  const [selectedLead, setSelectedLead] = useState(null)
+  const [route, setRoute] = useState(parseHash)
+  const view    = route.view
+  const leadId  = route.leadId
   const [empresas, setEmpresas] = useState([])
+  const selectedLead = useMemo(
+    () => (view === 'detail' && leadId ? empresas.find(e => e.id === leadId) ?? null : null),
+    [view, leadId, empresas]
+  )
   const [contratos, setContratos] = useState([])
   const [tasks, setTasks] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -56,6 +69,16 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  // Hash-based routing
+  useEffect(() => {
+    function onHashChange() { setRoute(parseHash()) }
+    window.addEventListener('hashchange', onHashChange)
+    if (!window.location.hash || window.location.hash === '#') {
+      window.history.replaceState(null, '', '#/dashboard')
+    }
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   // Register Service Worker for push notifications
   useEffect(() => {
@@ -247,7 +270,6 @@ export default function App() {
     const { error } = await supabase.from('leads').update(updates).eq('id', id)
     if (!error) {
       setEmpresas(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e))
-      if (selectedLead?.id === id) setSelectedLead(prev => ({ ...prev, ...updates }))
       logAction('atualizar', 'leads', id, updates)
       if (updates.status_prospeccao && empresa && updates.status_prospeccao !== empresa.status_prospeccao) {
         insertStatusHistory(id, empresa.status_prospeccao, updates.status_prospeccao)
@@ -338,8 +360,7 @@ export default function App() {
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    setView('dashboard')
-    setSelectedLead(null)
+    window.location.hash = '/dashboard'
     initialLoaded.current = false
     setEmpresas([])
     setContratos([])
@@ -349,20 +370,17 @@ export default function App() {
   }
 
   function navigate(v) {
-    setView(v)
-    setSelectedLead(null)
+    window.location.hash = '/' + v
     if (isMobile) setSidebarOpen(false)
   }
 
   function openLead(lead) {
-    setSelectedLead(lead)
-    setView('detail')
+    window.location.hash = '/leads/' + lead.id
     if (isMobile) setSidebarOpen(false)
   }
 
   function closeLead() {
-    setSelectedLead(null)
-    setView('leads')
+    window.location.hash = '/leads'
   }
 
   async function handleCreateContrato(lead) {
@@ -401,8 +419,7 @@ export default function App() {
       vendedor_nome,
       comissao_percentual,
     })
-    setSelectedLead(null)
-    setView('contratos')
+    navigate('contratos')
   }
 
   // Derived data for filter
