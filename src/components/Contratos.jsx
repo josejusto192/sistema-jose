@@ -252,10 +252,13 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
     setUploadingComp(true)
     const ext = file.name.split('.').pop()
     const path = `${contratoId}/comprovante.${ext}`
-    const { error } = await supabase.storage.from('comprovantes').upload(path, file, { upsert: true })
-    if (!error) {
+    const { error: uploadError } = await supabase.storage.from('comprovantes').upload(path, file, { upsert: true })
+    if (!uploadError) {
       const { data } = supabase.storage.from('comprovantes').getPublicUrl(path)
-      set('comprovante_url', data.publicUrl + '?t=' + Date.now())
+      const url = data.publicUrl + '?t=' + Date.now()
+      set('comprovante_url', url)
+      // Auto-save URL to DB immediately — realtime subscription updates parent state
+      await supabase.from('contratos').update({ comprovante_url: url }).eq('id', contratoId)
     }
     setUploadingComp(false)
   }

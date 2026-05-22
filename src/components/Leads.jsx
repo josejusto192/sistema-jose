@@ -742,6 +742,38 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const [viewMode, setViewMode] = useState('list')
   const [selectedIds, setSelectedIds] = useState([])
   const [newLeadOpen, setNewLeadOpen] = useState(false)
+  // Local search state: update input immediately, debounce the parent state
+  const [localSearch, setLocalSearch] = useState(searchQuery)
+  const searchDebounceRef = useRef(null)
+  const searchInputRef = useRef(null)
+
+  useEffect(() => {
+    setLocalSearch(searchQuery)
+  }, [searchQuery])
+
+  function handleSearchChange(value) {
+    setLocalSearch(value)
+    clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => setSearchQuery(value), 250)
+  }
+
+  function clearSearch() {
+    setLocalSearch('')
+    setSearchQuery('')
+    searchInputRef.current?.focus()
+  }
+
+  // Keyboard shortcut: '/' focuses search
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === '/' && e.target === document.body) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
 
   const SAVED_FILTERS_KEY = 'tilim_saved_filters_v1'
   const [savedFilters, setSavedFilters] = useState(() => {
@@ -931,13 +963,22 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
         <div style={{ display: 'flex', gap: 10, marginBottom: viewMode === 'kanban' ? 0 : 12 }}>
           <div style={{ position: 'relative', flex: 1 }}>
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Buscar por nome, CNPJ, cidade, segmento..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
+              placeholder="Buscar por nome, CNPJ, cidade, segmento... (/ para focar)"
+              value={localSearch}
+              onChange={e => handleSearchChange(e.target.value)}
+              style={{ width: '100%', padding: '8px 32px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
             />
             <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', display: 'flex' }}><IconSearch size={15} color="var(--text3)" /></span>
+            {localSearch && (
+              <button
+                onClick={clearSearch}
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', display: 'flex', padding: 2 }}
+              >
+                <IconX size={14} color="var(--text3)" />
+              </button>
+            )}
           </div>
           {viewMode === 'list' && (
             <select
