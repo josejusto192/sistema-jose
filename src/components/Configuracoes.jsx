@@ -37,6 +37,134 @@ function inp(extra = {}) {
   }
 }
 
+/* ─── Modal de convite ────────────────────────────────────────────────────── */
+
+function InviteModal({ onClose, onInvited, defaultComissao }) {
+  const [email,      setEmail]      = useState('')
+  const [nome,       setNome]       = useState('')
+  const [sobrenome,  setSobrenome]  = useState('')
+  const [cargo,      setCargo]      = useState('Vendedor')
+  const [role,       setRole]       = useState('vendedor')
+  const [comissao,   setComissao]   = useState(defaultComissao ?? 10)
+  const [sending,    setSending]    = useState(false)
+  const [error,      setError]      = useState(null)
+  const [ok,         setOk]         = useState(false)
+
+  async function handleInvite() {
+    if (!email.trim()) { setError('Informe o e-mail do vendedor.'); return }
+    setSending(true); setError(null)
+    const { error: fnErr } = await supabase.functions.invoke('invite-user', {
+      body: { email: email.trim(), nome, sobrenome, cargo, role, comissao_percentual: Number(comissao) },
+    })
+    setSending(false)
+    if (fnErr) { setError(fnErr.message || 'Erro ao enviar convite.'); return }
+    setOk(true)
+    onInvited?.()
+  }
+
+  const lbl = { fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }
+
+  if (ok) {
+    return (
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      >
+        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 420, padding: '36px 28px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>✉️</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Convite enviado!</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 24 }}>
+            Um e-mail foi enviado para <strong style={{ color: 'var(--text)' }}>{email}</strong> com o link de acesso ao sistema.
+          </div>
+          <button
+            onClick={onClose}
+            style={{ padding: '9px 28px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 480, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', animation: 'fadeIn 0.15s ease' }}
+      >
+        {/* Header */}
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Convidar vendedor</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>O convite é enviado por e-mail com link de acesso</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: '4px 8px' }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          <div>
+            <label style={lbl}>E-mail <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input style={inp()} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vendedor@email.com" autoFocus />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
+            <div>
+              <label style={lbl}>Nome</label>
+              <input style={inp()} value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome" />
+            </div>
+            <div>
+              <label style={lbl}>Sobrenome</label>
+              <input style={inp()} value={sobrenome} onChange={e => setSobrenome(e.target.value)} placeholder="Sobrenome" />
+            </div>
+            <div>
+              <label style={lbl}>Cargo</label>
+              <input style={inp()} value={cargo} onChange={e => setCargo(e.target.value)} placeholder="Vendedor, Gerente..." />
+            </div>
+            <div>
+              <label style={lbl}>Comissão %</label>
+              <input style={inp()} type="number" min={0} max={100} step={0.5} value={comissao} onChange={e => setComissao(e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label style={lbl}>Papel no sistema</label>
+            <select style={inp({ cursor: 'pointer' })} value={role} onChange={e => setRole(e.target.value)}>
+              <option value="vendedor">Vendedor — acesso padrão</option>
+              <option value="superadmin">Superadmin — acesso total</option>
+            </select>
+          </div>
+
+          {error && (
+            <div style={{ padding: '9px 12px', background: 'var(--red-bg)', borderRadius: 5, fontSize: 12, color: 'var(--red)', border: '1px solid var(--red)30' }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={handleInvite}
+            disabled={sending}
+            style={{ padding: '8px 22px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: sending ? 'default' : 'pointer', fontFamily: 'inherit', opacity: sending ? 0.7 : 1 }}
+          >
+            {sending ? 'Enviando...' : 'Enviar convite'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Modal de usuário ────────────────────────────────────────────────────── */
 
 function UserModal({ user, currentUserId, onClose, onSaved, logAction }) {
@@ -785,11 +913,12 @@ function ScriptsTab({ logAction }) {
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
 export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
-  const [activeTab,    setActiveTab]    = useState('usuarios')
-  const [users,        setUsers]        = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [selectedUser, setSelectedUser] = useState(null)
-  const [searchQ,      setSearchQ]      = useState('')
+  const [activeTab,      setActiveTab]      = useState('usuarios')
+  const [users,          setUsers]          = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [selectedUser,   setSelectedUser]   = useState(null)
+  const [searchQ,        setSearchQ]        = useState('')
+  const [showInvite,     setShowInvite]     = useState(false)
 
   const currentUserId = session?.user?.id
 
@@ -848,15 +977,23 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
       {activeTab === 'usuarios' && (
         <div>
           {/* Toolbar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
             <input
-              style={{ ...inp({ width: 260 }), padding: '7px 11px' }}
+              style={{ ...inp({ width: 240 }), padding: '7px 11px', flex: '1 1 200px', maxWidth: 300 }}
               placeholder="Buscar usuário..."
               value={searchQ}
               onChange={e => setSearchQ(e.target.value)}
             />
-            <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-              {filtered.length} usuário{filtered.length !== 1 ? 's' : ''}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                {filtered.length} usuário{filtered.length !== 1 ? 's' : ''}
+              </div>
+              <button
+                onClick={() => setShowInvite(true)}
+                style={{ padding: '7px 16px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+              >
+                + Convidar vendedor
+              </button>
             </div>
           </div>
 
@@ -927,7 +1064,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
       {/* ── Scripts ── */}
       {activeTab === 'scripts' && <ScriptsTab logAction={logAction} />}
 
-      {/* Modal */}
+      {/* Modal edição */}
       {selectedUser && (
         <UserModal
           user={selectedUser}
@@ -937,6 +1074,18 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
           onSaved={updated => {
             setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))
             setSelectedUser(null)
+          }}
+        />
+      )}
+
+      {/* Modal convite */}
+      {showInvite && (
+        <InviteModal
+          onClose={() => setShowInvite(false)}
+          defaultComissao={Number(localStorage.getItem('cfg_comissao_padrao')) || 10}
+          onInvited={() => {
+            setShowInvite(false)
+            fetchUsers()
           }}
         />
       )}

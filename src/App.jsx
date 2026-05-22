@@ -18,6 +18,7 @@ import { IconMenu } from './components/Icons.jsx'
 import { notify } from './lib/notifications.js'
 import { useNotifications } from './hooks/useNotifications.js'
 import NotificationBell from './components/NotificationBell.jsx'
+import OnboardingModal from './components/OnboardingModal.jsx'
 
 export const AppContext = createContext({ theme: 'light', currentUser: '', isSuperAdmin: false, profile: null })
 export const useTheme = () => useContext(AppContext).theme
@@ -67,6 +68,7 @@ export default function App() {
   const [cnaeFilter, setCnaeFilter] = useState([])
   const [pendingContrato, setPendingContrato] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const initialLoaded = useRef(false)
   const isMobile = useIsMobile()
 
@@ -115,6 +117,9 @@ export default function App() {
       .single()
     setProfile(data || null)
     setProfileLoaded(true)
+    if (data?.role !== 'superadmin' && !localStorage.getItem('tilim_onboarding_done_' + userId)) {
+      setShowOnboarding(true)
+    }
   }
 
   // Fetch all profiles for superadmin (needed for Agenda user labels)
@@ -680,6 +685,10 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {showOnboarding && session && (
+        <OnboardingModal userId={session.user.id} onClose={() => setShowOnboarding(false)} />
+      )}
     </AppContext.Provider>
   )
 }
