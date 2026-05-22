@@ -60,7 +60,7 @@ function fmt(n) {
   return (n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending }) {
+export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending, selectedContrato, onSelectContrato }) {
   const theme = useTheme()
   const isSuperAdmin = useIsSuperAdmin()
   const isMobile = useIsMobile()
@@ -74,7 +74,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [pacotesList, setPacotesList] = useState([])
-  const [selectedContrato, setSelectedContrato] = useState(null)
+  // selectedContrato and onSelectContrato come from props (URL-driven)
   const [detailTab, setDetailTab] = useState('dados')
 
   const [uploadingComp, setUploadingComp] = useState(false)
@@ -104,7 +104,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
     const onKey = e => {
       if (e.key === 'Escape') {
         if (modal) setModal(null)
-        else if (selectedContrato) setSelectedContrato(null)
+        else if (selectedContrato) onSelectContrato(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -416,7 +416,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 <div
                   key={c.id}
                   className="card"
-                  onClick={() => { setSelectedContrato(c); setDetailTab('dados') }}
+                  onClick={() => { onSelectContrato(c.id); setDetailTab('dados') }}
                   style={{ padding: '16px 20px', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, transition: 'box-shadow 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
                   onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
@@ -535,7 +535,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
         return (
           <div
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'flex-end', zIndex: 100 }}
-            onClick={e => e.target === e.currentTarget && setSelectedContrato(null)}
+            onClick={e => e.target === e.currentTarget && onSelectContrato(null)}
           >
             <div
               className="card"
@@ -572,7 +572,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                         Editar
                       </button>
                     )}
-                    <button onClick={() => setSelectedContrato(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', display: 'flex', padding: 4 }}>
+                    <button onClick={() => onSelectContrato(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', display: 'flex', padding: 4 }}>
                       <IconX size={18} color="var(--text3)" />
                     </button>
                   </div>

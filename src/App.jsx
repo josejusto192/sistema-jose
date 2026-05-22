@@ -34,8 +34,9 @@ function parseHash() {
   const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard'
   const parts = hash.split('/').filter(Boolean)
   const section = parts[0] || 'dashboard'
-  if (section === 'leads' && parts[1]) return { view: 'detail', leadId: parts[1] }
-  return { view: section, leadId: null }
+  if (section === 'leads'     && parts[1]) return { view: 'detail',    leadId: parts[1],    contratoId: null }
+  if (section === 'contratos' && parts[1]) return { view: 'contratos', leadId: null,         contratoId: parts[1] }
+  return { view: section, leadId: null, contratoId: null }
 }
 
 export default function App() {
@@ -44,14 +45,19 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [route, setRoute] = useState(parseHash)
-  const view    = route.view
-  const leadId  = route.leadId
+  const view       = route.view
+  const leadId     = route.leadId
+  const contratoId = route.contratoId
   const [empresas, setEmpresas] = useState([])
   const selectedLead = useMemo(
     () => (view === 'detail' && leadId ? empresas.find(e => e.id === leadId) ?? null : null),
     [view, leadId, empresas]
   )
   const [contratos, setContratos] = useState([])
+  const selectedContrato = useMemo(
+    () => (contratoId ? contratos.find(c => c.id === contratoId) ?? null : null),
+    [contratoId, contratos]
+  )
   const [tasks, setTasks] = useState([])
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -655,6 +661,8 @@ export default function App() {
               onDelete={deleteContrato}
               pendingContrato={pendingContrato}
               onClearPending={() => setPendingContrato(null)}
+              selectedContrato={selectedContrato}
+              onSelectContrato={id => { window.location.hash = id ? '/contratos/' + id : '/contratos' }}
             />
           )}
           {view === 'logs' && (
