@@ -616,7 +616,7 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
 
   // ── Stats: always reflect CURRENT lead state — no period filter ──────────────
   const myLeadsBase = isSuperAdmin
-    ? empresas.filter(e => e.vendedor_id === viewUserId)
+    ? (selectedVendorId ? empresas.filter(e => e.vendedor_id === selectedVendorId) : empresas)
     : empresas
 
   const myContatos    = countLeadsByCategory(myLeadsBase, CONTATOS)
@@ -672,16 +672,25 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
           Carregando dados...
         </div>
       ) : (
-        <>
+        <div onClick={() => setSelectedVendorId(null)}>
           {/* ── Section 1: Equipe (superadmin only) ─────────────────────────── */}
           {isSuperAdmin && activeProfiles.length > 0 && (
             <section style={{ marginBottom: 32 }}>
-              <SectionTitle>Equipe</SectionTitle>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${teamCols}, 1fr)`,
-                gap: 12,
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Equipe</div>
+                {selectedVendorId && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setSelectedVendorId(null) }}
+                    style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: '2px 6px' }}
+                  >
+                    ✕ Limpar filtro
+                  </button>
+                )}
+              </div>
+              <div
+                style={{ display: 'grid', gridTemplateColumns: `repeat(${teamCols}, 1fr)`, gap: 12 }}
+                onClick={e => e.stopPropagation()}
+              >
                 {activeProfiles.map(p => (
                   <VendorCard
                     key={p.id}
@@ -699,7 +708,11 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
 
           {/* ── Section 2: Meu Desempenho ───────────────────────────────────── */}
           <section style={{ marginBottom: 32 }}>
-            <SectionTitle>{isSuperAdmin && viewName ? `Desempenho: ${viewName}` : 'Meu Desempenho'}</SectionTitle>
+            <SectionTitle>
+              {isSuperAdmin
+                ? (selectedVendorId && viewName ? `Desempenho: ${viewName}` : 'Desempenho da Equipe')
+                : 'Meu Desempenho'}
+            </SectionTitle>
             <div style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${statCols}, 1fr)`,
@@ -749,7 +762,7 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
             isSuperAdmin={isSuperAdmin}
             isMobile={isMobile}
           />
-        </>
+        </div>
       )}
     </div>
   )
