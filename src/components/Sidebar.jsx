@@ -104,7 +104,7 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
       <div style={S.logo}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <img src="/Horizontal.svg" alt="MULA MARKETING" style={{ height: 28 }} />
+            <img src="/Horizontal.svg" alt="MULA MARKETING" style={{ height: 38 }} />
           </div>
           {bellSlot}
         </div>
