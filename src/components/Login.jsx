@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { supabase } from '../supabase.js'
-import TilimIcon from './TilimIcon.jsx'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -35,9 +34,9 @@ export default function Login() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
-            <TilimIcon size={34} color="#00CB53" />
-            <div style={{ fontWeight: 800, fontSize: 26, letterSpacing: '-0.5px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
-              Tilim
+            <img src="/icone.svg" alt="MULA MARKETING" style={{ height: 38 }} />
+            <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1.1 }}>
+              MULA<br /><span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', color: 'var(--text3)' }}>MARKETING</span>
             </div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>Acesse sua conta</div>

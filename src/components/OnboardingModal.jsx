@@ -3,11 +3,11 @@ import React, { useState } from 'react'
 const STEPS = [
   {
     icon: '👋',
-    title: 'Bem-vindo ao Tilim!',
+    title: 'Bem-vindo à MULA MARKETING!',
     content: (
       <div>
         <p style={{ margin: '0 0 12px', lineHeight: 1.6, color: 'var(--text2)', fontSize: 14 }}>
-          O Tilim é o sistema de gestão de vendas da sua equipe. Aqui você acompanha seus leads, fecha contratos e monitora suas comissões — tudo em um só lugar.
+          A MULA MARKETING é o sistema de gestão de vendas da sua equipe. Aqui você acompanha seus leads, fecha contratos e monitora suas comissões — tudo em um só lugar.
         </p>
         <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--text2)', fontSize: 14 }}>
           Vamos te mostrar o que você pode fazer em menos de 2 minutos.
