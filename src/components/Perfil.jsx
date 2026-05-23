@@ -102,7 +102,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
   ]
 
   return (
-    <div style={{ padding: isMobile ? '16px' : '28px 32px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : '28px 32px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '260px 1fr', gap: 24, alignItems: 'start' }}>
 
         {/* ── Coluna esquerda: cartão de perfil ─────────────────── */}
