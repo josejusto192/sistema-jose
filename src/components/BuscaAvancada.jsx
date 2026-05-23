@@ -377,7 +377,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   const newCount   = results.filter(r => !inDb(r.cnpj) && !saved[r.cnpj]).length
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1080, margin: '0 auto' }}>
+    <div style={{ padding: '24px 28px' }}>
       <div style={{ marginBottom: 22 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Busca Avançada</h2>
         <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3, margin: 0 }}>Encontre empresas via Casa dos Dados e importe como leads.</p>

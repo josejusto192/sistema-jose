@@ -96,7 +96,7 @@ function StatCard({ label, value, sub, trendValue, tooltip }) {
   )
 }
 
-function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead }) {
+function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead, isSuperAdmin }) {
   const emojis = { 'Bom dia': '👋', 'Boa tarde': '☀️', 'Boa noite': '🌙' }
   return (
     <div style={{
@@ -109,7 +109,7 @@ function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead }) 
           {saudacao}, {nome}! {emojis[saudacao] || '👋'}
         </div>
         <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 3 }}>
-          Aqui está o desempenho do seu time hoje.
+          {isSuperAdmin ? 'Aqui está o desempenho do seu time hoje.' : 'Aqui está o seu desempenho hoje.'}
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -254,7 +254,7 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={followupCount} profile={profile} onNewLead={onNewLead} />
+      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={followupCount} profile={profile} onNewLead={onNewLead} isSuperAdmin />
 
       <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
@@ -594,7 +594,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={tasks.filter(t => !t.completed && t.due_date <= format(new Date(), 'yyyy-MM-dd')).length} profile={profile} onNewLead={onNewLead} />
+      <DashboardHeader nome={nome} saudacao={saudacao} followupCount={tasks.filter(t => !t.completed && t.due_date <= format(new Date(), 'yyyy-MM-dd')).length} profile={profile} onNewLead={onNewLead} isSuperAdmin={false} />
 
       <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
