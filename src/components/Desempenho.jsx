@@ -116,7 +116,7 @@ function MetricChip({ label, value, color, tooltip }) {
 }
 
 // ─── Vendor card (superadmin equipe view) ─────────────────────────────────────
-function VendorCard({ profile: p, rows, empresas, isCurrentUser }) {
+function VendorCard({ profile: p, rows, empresas, isCurrentUser, isSelected, onClick }) {
   // Stats reflect current lead state — no period filter
   const vendorLeads = empresas.filter(e => e.vendedor_id === p.id)
   const contatos    = countLeadsByCategory(vendorLeads, CONTATOS)
@@ -126,10 +126,16 @@ function VendorCard({ profile: p, rows, empresas, isCurrentUser }) {
   const fullName = [p.nome, p.sobrenome].filter(Boolean).join(' ')
 
   return (
-    <div className="card" style={{
-      padding: '14px 16px',
-      border: isCurrentUser ? '1.5px solid var(--accent)' : '1px solid var(--border)',
-    }}>
+    <div
+      className="card"
+      onClick={onClick}
+      style={{
+        padding: '14px 16px', cursor: 'pointer',
+        border: isSelected ? '2px solid var(--accent)' : isCurrentUser ? '1.5px solid var(--accent)' : '1px solid var(--border)',
+        transition: 'border 0.15s, box-shadow 0.15s',
+        boxShadow: isSelected ? '0 0 0 3px rgba(0,203,83,0.15)' : undefined,
+      }}
+    >
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <Avatar profile={p} size={36} />
@@ -492,11 +498,12 @@ function CommissoesSection({ contratos, session, isSuperAdmin, isMobile }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Desempenho({ session, profile, contratos = [], empresas = [] }) {
   const [periodo, setPeriodo]   = useState('mes')
-  const [history, setHistory]   = useState([])
-  const [profiles, setProfiles] = useState([])
+  const [history, setHistory]     = useState([])
+  const [profiles, setProfiles]   = useState([])
   const [chartData, setChartData] = useState([])
   const [recentRows, setRecentRows] = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading]     = useState(true)
+  const [selectedVendorId, setSelectedVendorId] = useState(null)
   const isMobile = useIsMobile()
 
   const isSuperAdmin  = profile?.role === 'superadmin'
@@ -528,9 +535,10 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
 
   // ── Load chart data (always last 7 days) ─────────────────────────────────────
   useEffect(() => {
-    loadChartData()
-    loadRecentActivity()
-  }, [])
+    const uid = selectedVendorId || currentUserId
+    loadChartData(uid)
+    loadRecentActivity(uid)
+  }, [selectedVendorId])
 
   async function loadData() {
     setLoading(true)
@@ -549,14 +557,14 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
       const { data: profs } = await supabase
         .from('profiles')
         .select('*')
-        .eq('ativo', true)
+        .order('nome', { ascending: true })
       setProfiles(profs || [])
     }
 
     setLoading(false)
   }
 
-  async function loadChartData() {
+  async function loadChartData(uid) {
     // Always last 7 days for chart, regardless of periodo
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
@@ -565,7 +573,7 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
     const { data } = await supabase
       .from('status_history')
       .select('criado_em')
-      .eq('usuario_id', currentUserId)
+      .eq('usuario_id', uid || currentUserId)
       .gte('criado_em', sevenDaysAgo.toISOString())
 
     // Build last 7 days array
@@ -591,21 +599,24 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
     setChartData(days)
   }
 
-  async function loadRecentActivity() {
+  async function loadRecentActivity(uid) {
     const { data } = await supabase
       .from('status_history')
       .select('*, leads(nome_fantasia, razao_social, nome, sobrenome, tipo)')
-      .eq('usuario_id', currentUserId)
+      .eq('usuario_id', uid || currentUserId)
       .order('criado_em', { ascending: false })
       .limit(10)
     setRecentRows(data || [])
   }
 
+  // ── Vendor selected view ────────────────────────────────────────────────────
+  const viewUserId  = selectedVendorId || currentUserId
+  const viewProfile = selectedVendorId ? profiles.find(p => p.id === selectedVendorId) : null
+  const viewName    = viewProfile ? ([viewProfile.nome, viewProfile.sobrenome].filter(Boolean).join(' ') || viewProfile.email) : null
+
   // ── Stats: always reflect CURRENT lead state — no period filter ──────────────
-  // Period selector only affects activity chart and recent activity list.
-  // This keeps numbers consistent with Dashboard and Perfil.
   const myLeadsBase = isSuperAdmin
-    ? empresas.filter(e => e.vendedor_id === currentUserId)
+    ? empresas.filter(e => e.vendedor_id === viewUserId)
     : empresas
 
   const myContatos    = countLeadsByCategory(myLeadsBase, CONTATOS)
@@ -613,10 +624,8 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
   const myFechamentos = countLeadsByCategory(myLeadsBase, FECHAMENTOS)
   const myPerdidos    = countLeadsByCategory(myLeadsBase, PERDIDOS)
 
-  // ── Vendor cards: only profiles that have any history ───────────────────────
-  const activeProfiles = isSuperAdmin
-    ? profiles.filter(p => history.some(r => r.usuario_id === p.id))
-    : []
+  // ── Vendor cards: all team members ──────────────────────────────────────────
+  const activeProfiles = isSuperAdmin ? profiles : []
 
   // Grid columns
   const teamCols    = isMobile ? 1 : activeProfiles.length >= 3 ? 3 : activeProfiles.length >= 2 ? 2 : 1
@@ -680,6 +689,8 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
                     rows={history}
                     empresas={empresas}
                     isCurrentUser={p.id === currentUserId}
+                    isSelected={selectedVendorId === p.id}
+                    onClick={() => setSelectedVendorId(prev => prev === p.id ? null : p.id)}
                   />
                 ))}
               </div>
@@ -688,7 +699,7 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
 
           {/* ── Section 2: Meu Desempenho ───────────────────────────────────── */}
           <section style={{ marginBottom: 32 }}>
-            <SectionTitle>Meu Desempenho</SectionTitle>
+            <SectionTitle>{isSuperAdmin && viewName ? `Desempenho: ${viewName}` : 'Meu Desempenho'}</SectionTitle>
             <div style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${statCols}, 1fr)`,
