@@ -2,7 +2,6 @@ import React from 'react'
 import { isToday, parseISO } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
 import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar, IconSearch } from './Icons.jsx'
-import TilimIcon from './TilimIcon.jsx'
 
 function Avatar({ profile, size = 32 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
@@ -104,11 +103,8 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
       {/* Logo */}
       <div style={S.logo}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <TilimIcon size={30} color="#00CB53" />
-            <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: '#F5F7FA', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1 }}>
-              Tilim
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <img src="/Horizontal.svg" alt="MULA MARKETING" style={{ height: 28 }} />
           </div>
           {bellSlot}
         </div>

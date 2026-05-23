@@ -573,7 +573,7 @@ export default function App() {
               >
                 <IconMenu size={20} color="var(--text)" />
               </button>
-              <span style={{ fontWeight: 800, fontSize: 17, color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>Tilim</span>
+              <img src="/icone.svg" alt="MULA MARKETING" style={{ height: 26 }} />
               <div style={{ marginLeft: 'auto' }}>
                 <NotificationBell
                   notifications={notif.notifications}
