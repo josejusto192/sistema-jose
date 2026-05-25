@@ -103,9 +103,12 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
       {/* Logo */}
       <div style={S.logo}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: '#fff', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
-              Justo <span style={{ fontWeight: 400, color: '#3D4A5C' }}>CRM</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontWeight: 900, fontSize: 13, color: '#fff', letterSpacing: '-0.5px' }}>J</span>
+            </div>
+            <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.3px', color: '#E2E8F0', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
+              Justo <span style={{ fontWeight: 500, color: '#3D4A5C', fontSize: 13 }}>CRM</span>
             </span>
           </div>
           {bellSlot}
