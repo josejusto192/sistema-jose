@@ -34,9 +34,8 @@ export default function Login() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
-            <img src="/icone.svg" alt="Justo CRM" style={{ height: 38 }} />
-            <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.5px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif", lineHeight: 1.1 }}>
-              Justo<br /><span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', color: 'var(--text3)' }}>CRM</span>
+            <div style={{ fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
+              Justo <span style={{ fontWeight: 400, color: 'var(--text3)' }}>CRM</span>
             </div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>Acesse sua conta</div>

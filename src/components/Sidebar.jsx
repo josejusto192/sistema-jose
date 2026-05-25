@@ -104,7 +104,9 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
       <div style={S.logo}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <img src="/Horizontal.svg" alt="Justo CRM" style={{ height: 38 }} />
+            <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: '#fff', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
+              Justo <span style={{ fontWeight: 400, color: '#3D4A5C' }}>CRM</span>
+            </span>
           </div>
           {bellSlot}
         </div>
