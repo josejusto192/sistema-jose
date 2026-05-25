@@ -573,7 +573,7 @@ export default function App() {
               >
                 <IconMenu size={20} color="var(--text)" />
               </button>
-              <img src="/icone.svg" alt="MULA MARKETING" style={{ height: 26 }} />
+              <img src="/icone.svg" alt="Justo CRM" style={{ height: 26 }} />
               <div style={{ marginLeft: 'auto' }}>
                 <NotificationBell
                   notifications={notif.notifications}
