@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase.js'
-import { IconPlus, IconEdit, IconTrash, IconCopy, IconCheck, IconX, IconLink, IconFileText } from './Icons.jsx'
+import { IconPlus, IconEdit, IconTrash, IconCheck, IconX, IconLink, IconFileText, IconArrowLeft } from './Icons.jsx'
 
 const TIPOS = [
   { value: 'briefing',  label: 'Briefing' },
@@ -264,7 +264,7 @@ function FormEditor({ form, onSave, onCancel }) {
 }
 
 // ─── Lista de Formulários ─────────────────────────────────────────────────────
-function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtivo }) {
+function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtivo, onViewRespostas }) {
   const [copied, setCopied] = useState(null)
 
   function copyLink(id) {
@@ -320,7 +320,13 @@ function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtiv
                 <span>{TIPOS.find(t => t.value === f.tipo)?.label || f.tipo}</span>
                 <span>·</span>
                 <span>{(f.campos || []).length} campos</span>
-                {f.total_respostas > 0 && <><span>·</span><span>{f.total_respostas} resposta{f.total_respostas > 1 ? 's' : ''}</span></>}
+                <span>·</span>
+                <button
+                  onClick={() => onViewRespostas(f)}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: f.total_respostas > 0 ? '#F05B17' : 'var(--text3)', fontFamily: 'inherit', fontWeight: f.total_respostas > 0 ? 600 : 400 }}
+                >
+                  {f.total_respostas} resposta{f.total_respostas !== 1 ? 's' : ''}
+                </button>
               </div>
             </div>
 
@@ -353,11 +359,134 @@ function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtiv
   )
 }
 
+// ─── Respostas ────────────────────────────────────────────────────────────────
+function RespostasViewer({ form, onBack }) {
+  const [respostas, setRespostas] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState(null)
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('formulario_respostas')
+        .select('*')
+        .eq('formulario_id', form.id)
+        .order('enviado_em', { ascending: false })
+      setRespostas(data || [])
+      setLoading(false)
+    }
+    load()
+  }, [form.id])
+
+  function formatDate(iso) {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  function getPreview(respostas_obj) {
+    const first = form.campos?.[0]
+    if (!first) return '—'
+    const val = respostas_obj?.[first.id]
+    if (Array.isArray(val)) return val.join(', ')
+    return val || '—'
+  }
+
+  if (selected) {
+    return (
+      <div style={{ padding: '28px 32px', maxWidth: 760, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+          <button
+            onClick={() => setSelected(null)}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            ← Voltar
+          </button>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Resposta #{respostas.findIndex(r => r.id === selected.id) + 1}</h2>
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>{formatDate(selected.enviado_em)}</span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {(form.campos || []).map(campo => {
+            const val = selected.respostas?.[campo.id]
+            const display = Array.isArray(val) ? val.join(', ') : val
+            return (
+              <div key={campo.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {campo.label}
+                </div>
+                <div style={{ fontSize: 14, color: display ? 'var(--text)' : 'var(--text3)', fontStyle: display ? 'normal' : 'italic', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {display || 'Não respondido'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button
+          onClick={onBack}
+          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          ← Voltar
+        </button>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 2px' }}>Respostas</h2>
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>{form.titulo}</div>
+        </div>
+        <div style={{ marginLeft: 'auto', background: 'var(--bg3)', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
+          {respostas.length} resposta{respostas.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>}
+
+      {!loading && respostas.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--bg2)', border: '1.5px dashed var(--border2)', borderRadius: 14 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 }}>Nenhuma resposta ainda</div>
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>Compartilhe o link público para começar a receber respostas.</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {respostas.map((r, i) => (
+          <button
+            key={r.id}
+            onClick={() => setSelected(r)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 16, width: '100%', textAlign: 'left',
+              background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10,
+              padding: '14px 18px', cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'border-color 0.15s',
+            }}
+          >
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#FEF0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#F05B17', flexShrink: 0 }}>
+              {respostas.length - i}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {getPreview(r.respostas)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{formatDate(r.enviado_em)}</div>
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--text3)' }}>Ver →</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Principal ────────────────────────────────────────────────────────────────
 export default function Formularios() {
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(null) // null = list, {} = new, form = edit
+  const [editing, setEditing] = useState(null)   // null = list, {} = new, form = edit
+  const [viewing, setViewing] = useState(null)   // form whose responses to show
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -390,6 +519,10 @@ export default function Formularios() {
     setEditing(null)
   }
 
+  if (viewing) {
+    return <RespostasViewer form={viewing} onBack={() => setViewing(null)} />
+  }
+
   if (editing !== null) {
     return (
       <FormEditor
@@ -408,6 +541,7 @@ export default function Formularios() {
       onEdit={f => setEditing(f)}
       onDelete={handleDelete}
       onToggleAtivo={handleToggleAtivo}
+      onViewRespostas={f => setViewing(f)}
     />
   )
 }
