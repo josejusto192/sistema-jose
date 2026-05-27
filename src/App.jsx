@@ -12,6 +12,8 @@ import Configuracoes from './components/Configuracoes.jsx'
 import Desempenho from './components/Desempenho.jsx'
 import Agenda from './components/Agenda.jsx'
 import BuscaAvancada from './components/BuscaAvancada.jsx'
+import Formularios from './components/Formularios.jsx'
+import FormPublico from './components/FormPublico.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
@@ -35,9 +37,10 @@ function parseHash() {
   const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard'
   const parts = hash.split('/').filter(Boolean)
   const section = parts[0] || 'dashboard'
-  if (section === 'leads'     && parts[1]) return { view: 'detail',    leadId: parts[1],    contratoId: null }
-  if (section === 'contratos' && parts[1]) return { view: 'contratos', leadId: null,         contratoId: parts[1] }
-  return { view: section, leadId: null, contratoId: null }
+  if (section === 'f'         && parts[1]) return { view: 'f',         leadId: null,         contratoId: null, formId: parts[1] }
+  if (section === 'leads'     && parts[1]) return { view: 'detail',    leadId: parts[1],     contratoId: null, formId: null }
+  if (section === 'contratos' && parts[1]) return { view: 'contratos', leadId: null,          contratoId: parts[1], formId: null }
+  return { view: section, leadId: null, contratoId: null, formId: null }
 }
 
 export default function App() {
@@ -492,6 +495,11 @@ export default function App() {
 
   const contextValue = { theme, currentUser, isSuperAdmin, profile }
 
+  // Public form route — no auth required
+  if (route.view === 'f' && route.formId) {
+    return <FormPublico formId={route.formId} />
+  }
+
   if (session === undefined) {
     return (
       <AppContext.Provider value={contextValue}>
@@ -669,6 +677,9 @@ export default function App() {
               selectedContrato={selectedContrato}
               onSelectContrato={id => { window.location.hash = id ? '/contratos/' + id : '/contratos' }}
             />
+          )}
+          {view === 'formularios' && isSuperAdmin && (
+            <Formularios />
           )}
           {view === 'logs' && (
             <Logs isSuperAdmin={isSuperAdmin} />
