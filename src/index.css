@@ -8,12 +8,12 @@
   --border:  #D9DFE9;
   --border2: #C2CAD8;
 
-  --text:    #0F1115;
+  --text:    #0E0F10;
   --text2:   #374151;
   --text3:   #64748B;
 
-  --accent:  #00CB53;
-  --accent2: #00A844;
+  --accent:  #F05B17;
+  --accent2: #EF713A;
 
   --green:      #059669;
   --green-bg:   #ECFDF5;
@@ -28,7 +28,7 @@
   --shadow:    0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
 
-  --font-body: 'Satoshi', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Funnel Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'DM Mono', 'SF Mono', monospace;
 
   --radius:    4px;
@@ -47,8 +47,8 @@
   --text2:   #9CA3AF;
   --text3:   #4B5563;
 
-  --accent:  #00CB53;
-  --accent2: #00A844;
+  --accent:  #F05B17;
+  --accent2: #EF713A;
 
   --green:      #34D399;
   --green-bg:   #052E16;

@@ -25,7 +25,7 @@ function Avatar({ profile, size = 36 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
   if (profile?.foto_url) return <img src={profile.foto_url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.36, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#F05B17', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.36, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
       {initials}
     </div>
   )
@@ -117,7 +117,7 @@ function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead, is
         <button
           onClick={onNewLead}
           style={{
-            background: '#00CB53', color: '#fff', border: 'none', borderRadius: 8,
+            background: '#F05B17', color: '#fff', border: 'none', borderRadius: 8,
             padding: '9px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
           }}
@@ -134,7 +134,7 @@ const ChartTooltip = ({ active, payload, label }) => {
   return (
     <div className="card" style={{ padding: '8px 12px', fontSize: 12 }}>
       <div style={{ color: 'var(--text3)', marginBottom: 3 }}>{label}</div>
-      <div style={{ color: '#00CB53', fontWeight: 600 }}>{payload[0]?.value}</div>
+      <div style={{ color: '#F05B17', fontWeight: 600 }}>{payload[0]?.value}</div>
     </div>
   )
 }
@@ -249,7 +249,7 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
     </div>
   )
 
-  const chartColor = '#00CB53'
+  const chartColor = '#F05B17'
   const tickColor  = theme === 'dark' ? '#4B5563' : '#9CA3AF'
 
   return (
@@ -330,7 +330,7 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
               <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>Ranking de Vendedores</div>
               <button
                 onClick={() => {}}
-                style={{ fontSize: 12, color: '#00CB53', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+                style={{ fontSize: 12, color: '#F05B17', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
               >
                 Ver todos
               </button>
@@ -355,7 +355,7 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{v.qtd} contrato{v.qtd !== 1 ? 's' : ''}</div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#00CB53', flexShrink: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F05B17', flexShrink: 0 }}>
                       {fmtBRL(v.valor)}
                     </div>
                   </div>
@@ -378,11 +378,11 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
                   formatter={(v) => [`R$ ${Number(v).toLocaleString('pt-BR')}`, 'Receita']}
                   contentStyle={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: 'var(--text3)' }}
-                  itemStyle={{ color: '#00CB53' }}
+                  itemStyle={{ color: '#F05B17' }}
                 />
                 <Bar dataKey="receita" radius={[4, 4, 0, 0]}>
                   {revenueChart.map((_, i) => (
-                    <Cell key={i} fill={i === revenueChart.length - 1 ? '#00CB53' : (theme === 'dark' ? '#374151' : '#E5E7EB')} />
+                    <Cell key={i} fill={i === revenueChart.length - 1 ? '#F05B17' : (theme === 'dark' ? '#374151' : '#E5E7EB')} />
                   ))}
                 </Bar>
               </BarChart>
@@ -421,7 +421,7 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
                 })}
                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)' }}>
                   <span>Total: {empresas.length} leads</span>
-                  <span style={{ color: '#00CB53', fontWeight: 600 }}>
+                  <span style={{ color: '#F05B17', fontWeight: 600 }}>
                     {funnelData.find(d => d.s === 'fechou')?.count || 0} fechados ({stats.conversao}% conversão)
                   </span>
                 </div>
@@ -589,7 +589,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
     </div>
   )
 
-  const chartColor = '#00CB53'
+  const chartColor = '#F05B17'
   const tickColor  = theme === 'dark' ? '#4B5563' : '#9CA3AF'
 
   return (
@@ -607,12 +607,12 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
                 {stats.fechados} <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text3)' }}>/ {stats.meta}</span>
               </div>
             </div>
-            <div style={{ fontSize: 32, fontWeight: 800, color: stats.progresso >= 100 ? 'var(--green)' : '#00CB53' }}>
+            <div style={{ fontSize: 32, fontWeight: 800, color: stats.progresso >= 100 ? 'var(--green)' : '#F05B17' }}>
               {stats.progresso}%
             </div>
           </div>
           <div style={{ height: 7, background: 'var(--bg3)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${stats.progresso}%`, background: stats.progresso >= 100 ? 'var(--green)' : '#00CB53', borderRadius: 4, transition: 'width 0.5s' }} />
+            <div style={{ height: '100%', width: `${stats.progresso}%`, background: stats.progresso >= 100 ? 'var(--green)' : '#F05B17', borderRadius: 4, transition: 'width 0.5s' }} />
           </div>
           {stats.progresso >= 100 && <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8, fontWeight: 500 }}>Meta atingida! 🎉</div>}
         </div>

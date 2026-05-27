@@ -573,7 +573,7 @@ export default function App() {
               >
                 <IconMenu size={20} color="var(--text)" />
               </button>
-              <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.3px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>Justo CRM</span>
+              <img src="/icone.svg" alt="Justo Mídias" style={{ height: 24 }} />
               <div style={{ marginLeft: 'auto' }}>
                 <NotificationBell
                   notifications={notif.notifications}

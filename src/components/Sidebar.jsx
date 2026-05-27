@@ -7,7 +7,7 @@ function Avatar({ profile, size = 32 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
   if (profile?.foto_url) return <img src={profile.foto_url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#F05B17', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.38, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
       {initials}
     </div>
   )
@@ -15,7 +15,7 @@ function Avatar({ profile, size = 32 }) {
 
 
 const S = {
-  sidebar: { width: 228, background: '#0F1115', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
+  sidebar: { width: 228, background: '#0E0F10', borderRight: '1px solid #1A1F25', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%' },
   logo: { padding: '20px 18px 16px', borderBottom: '1px solid #1A1F25' },
   nav: { padding: '10px 10px', flex: 1, overflowY: 'auto' },
   section: { marginTop: 18, paddingTop: 14, borderTop: '1px solid #1A1F25' },
@@ -31,7 +31,7 @@ function NavBtn({ item, active, onClick }) {
       style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 8, padding: '8px 12px', borderRadius: 8, border: 'none',
-        background: active ? '#00CB53' : 'transparent',
+        background: active ? '#F05B17' : 'transparent',
         color: active ? '#fff' : '#8896A9',
         fontSize: 13, fontWeight: active ? 600 : 400,
         cursor: 'pointer', marginBottom: 2, transition: 'background 0.15s, color 0.15s', textAlign: 'left',
@@ -104,9 +104,7 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
       <div style={S.logo}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.5px', color: '#fff', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
-              Justo <span style={{ fontWeight: 400, color: '#3D4A5C' }}>CRM</span>
-            </span>
+            <img src="/logo horizontal.svg" alt="Justo Mídias" style={{ height: 32 }} />
           </div>
           {bellSlot}
         </div>
@@ -164,7 +162,7 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
             <div style={{ fontSize: 12, color: '#E2E8F0', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {[profile?.nome, profile?.sobrenome].filter(Boolean).join(' ') || currentUser}
             </div>
-            <div style={{ fontSize: 10, color: isSuperAdmin ? '#00CB53' : '#3D4A5C', fontWeight: 600, marginTop: 1 }}>
+            <div style={{ fontSize: 10, color: isSuperAdmin ? '#F05B17' : '#3D4A5C', fontWeight: 600, marginTop: 1 }}>
               {isSuperAdmin ? 'Admin' : 'Vendedor'}
             </div>
           </div>
