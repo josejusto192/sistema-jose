@@ -174,7 +174,7 @@ function TaskModal({ task, empresas, userId, onSave, onClose }) {
             <button
               type="submit"
               disabled={saving}
-              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#00CB53', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#F05B17', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
             >
               {saving ? 'Salvando…' : 'Salvar'}
             </button>
@@ -336,7 +336,7 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
             </button>
             <button
               onClick={() => setModal({ task: null })}
-              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#00CB53', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#F05B17', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
             >
               <IconPlus size={14} color="#fff" /> Nova tarefa
             </button>
@@ -394,18 +394,18 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
                     cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: isSelected
-                      ? '#00CB53'
+                      ? '#F05B17'
                       : isTodayDay
                         ? (theme === 'dark' ? '#052E16' : '#ECFDF5')
                         : 'transparent',
-                    border: isTodayDay && !isSelected ? '1px solid #00CB5360' : '1px solid transparent',
+                    border: isTodayDay && !isSelected ? '1px solid #F05B1760' : '1px solid transparent',
                     transition: 'background 0.1s',
                     opacity: isCurrentMonth ? 1 : 0.3,
                   }}
                   onMouseEnter={el => { if (!isSelected) el.currentTarget.style.background = 'var(--bg3)' }}
                   onMouseLeave={el => {
                     el.currentTarget.style.background = isSelected
-                      ? '#00CB53'
+                      ? '#F05B17'
                       : isTodayDay
                         ? (theme === 'dark' ? '#052E16' : '#ECFDF5')
                         : 'transparent'
@@ -413,7 +413,7 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
                 >
                   <span style={{
                     fontSize: 13, fontWeight: isTodayDay || isSelected ? 700 : 400,
-                    color: isSelected ? '#fff' : isTodayDay ? '#00CB53' : 'var(--text)',
+                    color: isSelected ? '#fff' : isTodayDay ? '#F05B17' : 'var(--text)',
                     lineHeight: 1,
                   }}>
                     {format(day, 'd')}
@@ -464,7 +464,7 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
                 {format(selectedDay, "EEEE, d 'de' MMMM", { locale: ptBR })}
               </div>
               {isToday(selectedDay) && (
-                <div style={{ fontSize: 11, color: '#00CB53', fontWeight: 600, marginTop: 1 }}>Hoje</div>
+                <div style={{ fontSize: 11, color: '#F05B17', fontWeight: 600, marginTop: 1 }}>Hoje</div>
               )}
             </div>
             <button
@@ -488,7 +488,7 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
               <div style={{ marginTop: 12 }}>
                 <button
                   onClick={() => openNew(selectedDay)}
-                  style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: '#00CB53', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: '#F05B17', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                 >
                   + Adicionar
                 </button>

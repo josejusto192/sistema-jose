@@ -857,7 +857,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                   Cancelar
                 </button>
                 <button type="submit" disabled={taskSaving}
-                  style={{ padding: '7px 18px', borderRadius: 7, border: 'none', background: '#00CB53', color: '#fff', fontSize: 12, fontWeight: 600, cursor: taskSaving ? 'not-allowed' : 'pointer', opacity: taskSaving ? 0.7 : 1 }}>
+                  style={{ padding: '7px 18px', borderRadius: 7, border: 'none', background: '#F05B17', color: '#fff', fontSize: 12, fontWeight: 600, cursor: taskSaving ? 'not-allowed' : 'pointer', opacity: taskSaving ? 0.7 : 1 }}>
                   {taskSaving ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>

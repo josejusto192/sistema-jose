@@ -33,13 +33,8 @@ export default function Login() {
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontWeight: 900, fontSize: 17, color: '#fff', letterSpacing: '-0.5px' }}>J</span>
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.4px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>
-              Justo <span style={{ fontWeight: 400, fontSize: 16, color: 'var(--text3)' }}>CRM</span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <img src="/icone.svg" alt="Justo Mídias" style={{ height: 52 }} />
           </div>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>Acesse sua conta</div>
         </div>

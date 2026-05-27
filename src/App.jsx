@@ -573,12 +573,7 @@ export default function App() {
               >
                 <IconMenu size={20} color="var(--text)" />
               </button>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 5, background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontWeight: 900, fontSize: 11, color: '#fff' }}>J</span>
-                </div>
-                <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.3px', color: 'var(--text)', fontFamily: "'Satoshi', 'Inter', sans-serif" }}>Justo CRM</span>
-              </span>
+              <img src="/icone.svg" alt="Justo Mídias" style={{ height: 24 }} />
               <div style={{ marginLeft: 'auto' }}>
                 <NotificationBell
                   notifications={notif.notifications}

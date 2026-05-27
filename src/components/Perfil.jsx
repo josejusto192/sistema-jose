@@ -95,7 +95,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
   const lbl = { fontSize: 12, color: 'var(--text3)', marginBottom: 5, display: 'block', fontWeight: 500 }
 
   const statItems = [
-    { label: 'Fechamentos',   value: stats.fechamentos, color: '#00CB53' },
+    { label: 'Fechamentos',   value: stats.fechamentos, color: '#F05B17' },
     { label: 'Valor gerado',  value: `R$ ${stats.valorTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`, color: '#3B82F6' },
     { label: 'Conversão',     value: `${conversao}%`,   color: '#8B5CF6' },
     { label: 'Meta mensal',   value: metaMensal,         color: 'var(--text2)' },
@@ -120,7 +120,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
               >
                 {displayUrl
                   ? <img src={displayUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <div style={{ width: '100%', height: '100%', background: '#00CB53', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff' }}>{initials}</div>
+                  : <div style={{ width: '100%', height: '100%', background: '#F05B17', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff' }}>{initials}</div>
                 }
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', opacity: hover && !uploading ? 1 : 0, transition: 'opacity 0.15s', pointerEvents: 'none' }}>
                   <IconCamera size={22} color="#fff" />
@@ -138,7 +138,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
               {[nome, sobrenome].filter(Boolean).join(' ') || 'Sem nome'}
             </div>
 
-            <span style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: isSuperAdmin ? '#00CB53' : 'var(--bg3)', color: isSuperAdmin ? '#fff' : 'var(--text3)', border: isSuperAdmin ? 'none' : '1px solid var(--border)', marginBottom: cargo ? 6 : 0 }}>
+            <span style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: isSuperAdmin ? '#F05B17' : 'var(--bg3)', color: isSuperAdmin ? '#fff' : 'var(--text3)', border: isSuperAdmin ? 'none' : '1px solid var(--border)', marginBottom: cargo ? 6 : 0 }}>
               {isSuperAdmin ? 'Admin' : 'Vendedor'}
             </span>
 
@@ -173,7 +173,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{tipoPix.toUpperCase()}</div>
               <div style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all', marginBottom: 8 }}>{chavePix}</div>
               <button type="button" onClick={() => navigator.clipboard.writeText(chavePix)}
-                style={{ fontSize: 12, color: '#00CB53', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}>
+                style={{ fontSize: 12, color: '#F05B17', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}>
                 Copiar chave
               </button>
             </div>
@@ -271,7 +271,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
                       marginLeft: 16, flexShrink: 0,
                       padding: '8px 16px', borderRadius: 8, cursor: push.loading ? 'default' : 'pointer',
                       fontSize: 12, fontWeight: 600, opacity: push.loading ? 0.6 : 1,
-                      background: push.subscribed ? 'var(--bg2)' : '#00CB53',
+                      background: push.subscribed ? 'var(--bg2)' : '#F05B17',
                       color: push.subscribed ? 'var(--text3)' : '#fff',
                       border: push.subscribed ? '1px solid var(--border)' : 'none',
                     }}
@@ -327,7 +327,7 @@ export default function Perfil({ profile, session, onUpdateProfile }) {
             <button
               onClick={handleSave}
               disabled={saving || uploading}
-              style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#00CB53', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving || uploading ? 'default' : 'pointer', opacity: saving || uploading ? 0.7 : 1, fontFamily: 'inherit' }}
+              style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#F05B17', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving || uploading ? 'default' : 'pointer', opacity: saving || uploading ? 0.7 : 1, fontFamily: 'inherit' }}
             >
               {saving ? 'Salvando...' : 'Salvar perfil'}
             </button>
