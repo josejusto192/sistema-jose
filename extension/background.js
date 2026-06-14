@@ -11,8 +11,8 @@ const CONFIG_STORAGE_KEY = 'justo_crm_config'
 const LEAD_FIELDS =
   'id,razao_social,nome_fantasia,nome,sobrenome,tipo,telefone,email,cnpj,' +
   'status_prospeccao,canal_envio,vendedor_id,vendedor_nome,tags,data_followup,' +
-  'observacoes,observacoes_json,municipio,uf,bairro,porte,capital_social,' +
-  'atividade_principal,criado_em,atualizado_em,data_envio'
+  'observacoes,observacoes_json,municipio,uf,bairro,porte_descricao,capital_social,' +
+  'cnae_principal_descricao,criado_em,atualizado_em,data_envio'
 
 // ─── Configuração ───────────────────────────────────────────────────────────
 

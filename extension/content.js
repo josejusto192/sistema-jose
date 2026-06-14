@@ -307,8 +307,8 @@ function renderLeadCRM(lead) {
       <div class="jc-card">
         <div class="jc-row"><span class="k">Empresa</span><span class="v">${escapeHtml(empresa)}</span></div>
         ${local ? `<div class="jc-row"><span class="k">Local</span><span class="v">${escapeHtml(local)}</span></div>` : ''}
-        ${lead.porte ? `<div class="jc-row"><span class="k">Porte</span><span class="v">${escapeHtml(lead.porte)}</span></div>` : ''}
-        ${lead.atividade_principal ? `<div class="jc-row"><span class="k">Atividade</span><span class="v" style="max-width:200px">${escapeHtml(lead.atividade_principal)}</span></div>` : ''}
+        ${lead.porte_descricao ? `<div class="jc-row"><span class="k">Porte</span><span class="v">${escapeHtml(lead.porte_descricao)}</span></div>` : ''}
+        ${lead.cnae_principal_descricao ? `<div class="jc-row"><span class="k">Atividade</span><span class="v" style="max-width:200px">${escapeHtml(lead.cnae_principal_descricao)}</span></div>` : ''}
       </div>
     </div>
 
