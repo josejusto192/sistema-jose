@@ -1,125 +1,300 @@
+/* ════════════════════════════════════════════════════════════════════
+   Justo CRM — painel injetado no WhatsApp Web
+   Identidade visual do sistema: tema escuro + accent laranja #F05B17,
+   fontes Funnel Sans / DM Mono, cantos de 4–6px, sombras sutis.
+   Tudo namespaced em #justo-crm-panel para não vazar p/ o WhatsApp.
+   ════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Funnel+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
 #justo-crm-panel {
+  --jc-bg:      #0A0B0D;
+  --jc-bg2:     #111318;
+  --jc-bg3:     #181C22;
+  --jc-bg4:     #1F242D;
+  --jc-border:  #252B35;
+  --jc-border2: #374151;
+  --jc-text:    #F5F7FA;
+  --jc-text2:   #9CA3AF;
+  --jc-text3:   #6B7280;
+  --jc-accent:  #F05B17;
+  --jc-accent2: #EF713A;
+  --jc-green:   #34D399;
+  --jc-red:     #F87171;
+  --jc-radius:  5px;
+  --jc-radius-lg: 8px;
+
   position: fixed;
-  top: 0;
-  right: 0;
-  width: 320px;
+  top: 0; right: 0;
+  width: 392px;
   height: 100vh;
-  background: #0E0F10;
-  color: #fff;
-  z-index: 99999;
-  font-family: 'Funnel Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 13px;
-  box-shadow: -4px 0 24px rgba(0,0,0,0.3);
+  z-index: 2147483000;
+  background: var(--jc-bg);
+  border-left: 1px solid var(--jc-border);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.45);
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease;
+  font-family: 'Funnel Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--jc-text);
+  -webkit-font-smoothing: antialiased;
+  transition: transform 0.28s cubic-bezier(0.16,1,0.3,1);
 }
-#justo-crm-panel.collapsed { transform: translateX(320px); }
+#justo-crm-panel.collapsed { transform: translateX(100%); }
 
+#justo-crm-panel *, #justo-crm-panel *::before, #justo-crm-panel *::after { box-sizing: border-box; }
+#justo-crm-panel ::-webkit-scrollbar { width: 5px; height: 5px; }
+#justo-crm-panel ::-webkit-scrollbar-thumb { background: var(--jc-border2); border-radius: 3px; }
+#justo-crm-panel ::-webkit-scrollbar-track { background: transparent; }
+
+/* ─── Botão flutuante para reabrir ─── */
 #justo-crm-toggle {
   position: fixed;
-  top: 14px;
-  right: 14px;
-  z-index: 100000;
-  background: #F05B17;
+  top: 12px; right: 14px;
+  z-index: 2147482900;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px;
+  background: var(--jc-accent);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
+  border-radius: 999px;
   font-family: 'Funnel Sans', sans-serif;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  font-size: 12.5px; font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 16px rgba(240,91,23,0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-#justo-crm-panel:not(.collapsed) ~ #justo-crm-toggle,
-body:has(#justo-crm-panel:not(.collapsed)) #justo-crm-toggle { right: 334px; }
+#justo-crm-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(240,91,23,0.5); }
+#justo-crm-toggle::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #fff; }
 
-.jc-header {
-  padding: 16px 18px;
-  border-bottom: 1px solid #1A1F25;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ─── Header ─── */
+#justo-crm-panel .jc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--jc-border);
+  background: linear-gradient(180deg, var(--jc-bg2), var(--jc-bg));
 }
-.jc-logo { font-weight: 800; font-size: 14px; }
-.jc-logo span { color: #F05B17; }
-.jc-close { background: none; border: none; color: #4B5563; cursor: pointer; font-size: 16px; }
+#justo-crm-panel .jc-logo {
+  display: flex; align-items: center; gap: 9px;
+  font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+}
+#justo-crm-panel .jc-logo .jc-mark {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: var(--jc-accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 13px;
+  box-shadow: 0 2px 8px rgba(240,91,23,0.4);
+}
+#justo-crm-panel .jc-logo span { color: var(--jc-accent); }
+#justo-crm-panel .jc-header-actions { display: flex; gap: 4px; }
+#justo-crm-panel .jc-icon-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 6px;
+  color: var(--jc-text2); font-size: 15px;
+  transition: background 0.15s, color 0.15s;
+}
+#justo-crm-panel .jc-icon-btn:hover { background: var(--jc-bg3); color: var(--jc-text); }
 
-.jc-tabs { display: flex; border-bottom: 1px solid #1A1F25; }
-.jc-tab {
+/* ─── Abas ─── */
+#justo-crm-panel .jc-tabs {
+  display: flex; gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--jc-border);
+  background: var(--jc-bg);
+}
+#justo-crm-panel .jc-tab {
   flex: 1;
-  padding: 10px 0;
-  background: none;
-  border: none;
-  color: #6B7280;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 4px;
+  background: transparent; border: none; border-radius: 6px;
+  color: var(--jc-text3); font-family: inherit;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+  transition: background 0.15s, color 0.15s;
 }
-.jc-tab.active { color: #F05B17; border-bottom-color: #F05B17; }
+#justo-crm-panel .jc-tab svg { width: 17px; height: 17px; }
+#justo-crm-panel .jc-tab:hover { color: var(--jc-text2); background: var(--jc-bg2); }
+#justo-crm-panel .jc-tab.active { color: var(--jc-accent); background: var(--jc-bg3); }
 
-.jc-body { flex: 1; overflow-y: auto; padding: 16px 18px; }
-.jc-section { margin-bottom: 18px; }
-.jc-label { font-size: 10px; font-weight: 700; color: #4B5563; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+/* ─── Corpo / scroll ─── */
+#justo-crm-panel .jc-body {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 14px;
+}
+#justo-crm-panel .jc-body > * { animation: jcFade 0.22s ease both; }
+@keyframes jcFade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 
-.jc-contact-name { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
-.jc-contact-phone { font-size: 12px; color: #9CA3AF; }
+/* ─── Seções / cards ─── */
+#justo-crm-panel .jc-section { margin-bottom: 14px; }
+#justo-crm-panel .jc-label {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--jc-text3);
+  margin-bottom: 7px;
+}
+#justo-crm-panel .jc-card {
+  background: var(--jc-bg2);
+  border: 1px solid var(--jc-border);
+  border-radius: var(--jc-radius-lg);
+  padding: 13px;
+}
+#justo-crm-panel .jc-card + .jc-card { margin-top: 9px; }
 
-.jc-card { background: #181C22; border: 1px solid #252B35; border-radius: 10px; padding: 14px; }
-.jc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
-.jc-row:last-child { margin-bottom: 0; }
-.jc-row .k { color: #9CA3AF; }
-.jc-row .v { font-weight: 600; text-align: right; }
+/* ─── Cabeçalho do contato ─── */
+#justo-crm-panel .jc-contact {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 13px; margin-bottom: 13px;
+  border-bottom: 1px solid var(--jc-border);
+}
+#justo-crm-panel .jc-avatar {
+  width: 42px; height: 42px; flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--jc-accent), var(--jc-accent2));
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 16px;
+}
+#justo-crm-panel .jc-contact-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+#justo-crm-panel .jc-contact-phone { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--jc-text2); margin-top: 1px; }
 
-.jc-select, .jc-input, .jc-textarea {
+#justo-crm-panel .jc-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; }
+#justo-crm-panel .jc-row .k { color: var(--jc-text3); font-size: 12px; }
+#justo-crm-panel .jc-row .v { color: var(--jc-text); font-size: 12.5px; font-weight: 500; text-align: right; }
+
+/* ─── Badge de status ─── */
+#justo-crm-panel .jc-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+#justo-crm-panel .jc-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* ─── Inputs / selects ─── */
+#justo-crm-panel .jc-input,
+#justo-crm-panel .jc-select,
+#justo-crm-panel .jc-textarea {
   width: 100%;
-  padding: 9px 10px;
-  border-radius: 7px;
-  border: 1.5px solid #252B35;
-  background: #181C22;
-  color: #fff;
-  font-size: 12px;
-  font-family: inherit;
-  outline: none;
-  margin-top: 6px;
+  background: var(--jc-bg);
+  border: 1px solid var(--jc-border2);
+  border-radius: var(--jc-radius);
+  color: var(--jc-text);
+  font-family: inherit; font-size: 13px;
+  padding: 9px 11px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.jc-textarea { resize: vertical; min-height: 70px; }
+#justo-crm-panel .jc-input:focus,
+#justo-crm-panel .jc-select:focus,
+#justo-crm-panel .jc-textarea:focus {
+  outline: none; border-color: var(--jc-accent);
+  box-shadow: 0 0 0 3px rgba(240,91,23,0.15);
+}
+#justo-crm-panel .jc-input::placeholder,
+#justo-crm-panel .jc-textarea::placeholder { color: var(--jc-text3); }
+#justo-crm-panel .jc-textarea { resize: vertical; min-height: 64px; }
+#justo-crm-panel .jc-input + .jc-btn,
+#justo-crm-panel .jc-select + .jc-btn,
+#justo-crm-panel .jc-textarea + .jc-btn { margin-top: 9px; }
+#justo-crm-panel select.jc-select { appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+}
 
-.jc-btn {
+/* ─── Botões ─── */
+#justo-crm-panel .jc-btn {
   width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  background: #F05B17;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  margin-top: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 14px;
+  background: var(--jc-accent); color: #fff;
+  border: none; border-radius: var(--jc-radius);
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
 }
-.jc-btn:disabled { opacity: 0.6; cursor: default; }
-.jc-btn.secondary { background: #181C22; border: 1px solid #252B35; color: #fff; }
-.jc-btn.link { background: none; color: #F05B17; padding: 4px; text-decoration: underline; }
+#justo-crm-panel .jc-btn:hover { background: var(--jc-accent2); }
+#justo-crm-panel .jc-btn:active { transform: scale(0.985); }
+#justo-crm-panel .jc-btn:disabled { opacity: 0.55; cursor: default; }
+#justo-crm-panel .jc-btn.secondary { background: var(--jc-bg3); color: var(--jc-text); border: 1px solid var(--jc-border2); }
+#justo-crm-panel .jc-btn.secondary:hover { background: var(--jc-bg4); }
+#justo-crm-panel .jc-btn.ghost { background: transparent; color: var(--jc-accent); border: 1px solid var(--jc-border2); }
+#justo-crm-panel .jc-btn.ghost:hover { background: var(--jc-bg2); }
+#justo-crm-panel .jc-btn-sm { padding: 7px 10px; font-size: 12px; width: auto; }
+#justo-crm-panel .jc-btn-row { display: flex; gap: 8px; }
+#justo-crm-panel .jc-btn-row .jc-btn { width: auto; flex: 1; }
 
-.jc-msg-box {
-  background: #181C22;
-  border: 1px solid #252B35;
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #E5E7EB;
-  white-space: pre-wrap;
-  margin-top: 8px;
+/* ─── Tags ─── */
+#justo-crm-panel .jc-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+#justo-crm-panel .jc-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px 3px 10px;
+  background: var(--jc-bg3); border: 1px solid var(--jc-border2);
+  border-radius: 999px; font-size: 11.5px; color: var(--jc-text);
 }
+#justo-crm-panel .jc-chip button { background: none; border: none; color: var(--jc-text3); font-size: 13px; line-height: 1; padding: 0; }
+#justo-crm-panel .jc-chip button:hover { color: var(--jc-red); }
 
-.jc-empty { text-align: center; padding: 30px 10px; color: #6B7280; font-size: 12px; }
-.jc-error { color: #F87171; font-size: 11px; margin-top: 6px; }
-.jc-success { color: #34D399; font-size: 11px; margin-top: 6px; }
-.jc-spinner { text-align: center; padding: 30px; color: #6B7280; font-size: 12px; }
-.jc-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #252B35; color: #F05B17; }
-.jc-lead-item { margin-bottom: 8px; }
+/* ─── Notas (timeline) ─── */
+#justo-crm-panel .jc-notes { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 220px; overflow-y: auto; }
+#justo-crm-panel .jc-note {
+  position: relative;
+  background: var(--jc-bg); border: 1px solid var(--jc-border);
+  border-left: 2px solid var(--jc-accent);
+  border-radius: var(--jc-radius);
+  padding: 8px 10px;
+}
+#justo-crm-panel .jc-note .txt { font-size: 12.5px; color: var(--jc-text); white-space: pre-wrap; word-break: break-word; }
+#justo-crm-panel .jc-note .meta { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--jc-text3); margin-top: 4px; }
+
+/* ─── Métricas / Pipeline ─── */
+#justo-crm-panel .jc-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 14px; }
+#justo-crm-panel .jc-metric {
+  background: var(--jc-bg2); border: 1px solid var(--jc-border);
+  border-radius: var(--jc-radius-lg); padding: 12px 13px;
+}
+#justo-crm-panel .jc-metric .num { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-family: 'DM Mono', monospace; }
+#justo-crm-panel .jc-metric .lbl { font-size: 10.5px; color: var(--jc-text3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+#justo-crm-panel .jc-metric.accent .num { color: var(--jc-accent); }
+#justo-crm-panel .jc-metric.green .num { color: var(--jc-green); }
+
+#justo-crm-panel .jc-funnel { display: flex; flex-direction: column; gap: 6px; }
+#justo-crm-panel .jc-funnel-row { display: flex; align-items: center; gap: 9px; }
+#justo-crm-panel .jc-funnel-row .name { width: 96px; flex-shrink: 0; font-size: 11.5px; color: var(--jc-text2); }
+#justo-crm-panel .jc-funnel-bar { flex: 1; height: 22px; background: var(--jc-bg3); border-radius: 4px; overflow: hidden; position: relative; }
+#justo-crm-panel .jc-funnel-fill { height: 100%; border-radius: 4px; min-width: 2px; transition: width 0.4s cubic-bezier(0.16,1,0.3,1); }
+#justo-crm-panel .jc-funnel-row .cnt { width: 26px; text-align: right; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; }
+
+/* ─── Lista de leads / itens clicáveis ─── */
+#justo-crm-panel .jc-lead-item { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+#justo-crm-panel .jc-lead-item:hover { border-color: var(--jc-border2); background: var(--jc-bg3); }
+#justo-crm-panel .jc-lead-item .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+#justo-crm-panel .jc-lead-item .nm { font-size: 13px; font-weight: 600; }
+#justo-crm-panel .jc-lead-item .ph { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--jc-text2); margin-top: 2px; }
+#justo-crm-panel .jc-lead-actions { display: flex; gap: 7px; margin-top: 9px; }
+
+/* ─── IA: caixa de resultado ─── */
+#justo-crm-panel .jc-msg-box {
+  background: var(--jc-bg); border: 1px solid var(--jc-border2);
+  border-radius: var(--jc-radius); padding: 11px 12px;
+  font-size: 13px; white-space: pre-wrap; word-break: break-word;
+  margin: 10px 0 9px; line-height: 1.55;
+}
+#justo-crm-panel .jc-seg { display: flex; gap: 6px; background: var(--jc-bg); border: 1px solid var(--jc-border2); border-radius: var(--jc-radius); padding: 3px; margin-bottom: 9px; }
+#justo-crm-panel .jc-seg button { flex: 1; padding: 6px 4px; background: transparent; border: none; border-radius: 4px; color: var(--jc-text2); font-family: inherit; font-size: 11.5px; font-weight: 600; }
+#justo-crm-panel .jc-seg button.active { background: var(--jc-accent); color: #fff; }
+
+/* ─── Templates ─── */
+#justo-crm-panel .jc-tpl { cursor: pointer; }
+#justo-crm-panel .jc-tpl .ttl { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+#justo-crm-panel .jc-tpl .preview { font-size: 11.5px; color: var(--jc-text2); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ─── Estados ─── */
+#justo-crm-panel .jc-empty { text-align: center; color: var(--jc-text3); font-size: 12.5px; padding: 36px 18px; line-height: 1.6; }
+#justo-crm-panel .jc-empty svg { width: 34px; height: 34px; opacity: 0.4; margin-bottom: 10px; }
+#justo-crm-panel .jc-spinner { display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--jc-text3); font-size: 12.5px; padding: 40px 0; }
+#justo-crm-panel .jc-spinner::before { content: ''; width: 15px; height: 15px; border: 2px solid var(--jc-border2); border-top-color: var(--jc-accent); border-radius: 50%; animation: jcSpin 0.7s linear infinite; }
+@keyframes jcSpin { to { transform: rotate(360deg); } }
+#justo-crm-panel .jc-success { color: var(--jc-green); font-size: 12px; margin-top: 8px; display: flex; align-items: center; gap: 5px; }
+#justo-crm-panel .jc-error { color: var(--jc-red); font-size: 12px; margin-top: 8px; line-height: 1.5; }
+#justo-crm-panel .jc-hint { color: var(--jc-text3); font-size: 11.5px; margin-bottom: 8px; line-height: 1.5; }
+
+#justo-crm-panel .jc-search { position: relative; margin-bottom: 12px; }
+#justo-crm-panel .jc-search .jc-input { padding-left: 32px; }
+#justo-crm-panel .jc-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--jc-text3); }

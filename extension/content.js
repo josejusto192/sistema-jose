@@ -1,33 +1,72 @@
-// Painel lateral injetado no WhatsApp Web.
-// Observa a conversa ativa, casa o número com um lead do CRM e permite
-// criar/atualizar leads, gerar mensagens de abordagem com IA e iniciar
-// conversas a partir da base de leads do CRM.
+// ════════════════════════════════════════════════════════════════════
+// Justo CRM — painel profissional injetado no WhatsApp Web
+// Abas: Lead (CRM rico) · Pipeline (métricas/funil) · IA (geração + templates)
+// · Leads (lista/busca). Interação robusta com o WhatsApp Web.
+// Toda a comunicação com Supabase/Gemini passa por background.js.
+// ════════════════════════════════════════════════════════════════════
 
-const STATUS_OPTIONS = [
-  { value: 'novo',             label: 'Novo' },
-  { value: 'contatado',        label: 'Contatado' },
-  { value: 'aguardando',       label: 'Aguardando' },
-  { value: 'respondeu',        label: 'Respondeu' },
-  { value: 'call_agendada',    label: 'Call agendada' },
-  { value: 'call_realizada',   label: 'Call realizada' },
-  { value: 'proposta_enviada', label: 'Proposta enviada' },
-  { value: 'fechou',           label: 'Fechou' },
-  { value: 'perdido',          label: 'Perdido' },
-  { value: 'descartado',       label: 'Descartado' },
+// ─── Config de status (espelha src/constants.js, variantes dark) ────────────
+const STATUS_CONFIG = {
+  novo:             { label: 'Novo',             dot: '#3B82F6', color: '#60A5FA', bg: '#1E3A5F' },
+  contatado:        { label: 'Contatado',        dot: '#F59E0B', color: '#FCD34D', bg: '#2D1F00' },
+  aguardando:       { label: 'Aguardando',       dot: '#8B5CF6', color: '#A78BFA', bg: '#1E1040' },
+  respondeu:        { label: 'Respondeu',        dot: '#06B6D4', color: '#22D3EE', bg: '#062028' },
+  call_agendada:    { label: 'Call agendada',    dot: '#10B981', color: '#34D399', bg: '#052E16' },
+  call_realizada:   { label: 'Call realizada',   dot: '#10B981', color: '#6EE7B7', bg: '#052E16' },
+  proposta_enviada: { label: 'Proposta enviada', dot: '#F59E0B', color: '#FCD34D', bg: '#2D1A00' },
+  fechou:           { label: 'Fechou',           dot: '#10B981', color: '#34D399', bg: '#052E16' },
+  perdido:          { label: 'Perdido',          dot: '#EF4444', color: '#F87171', bg: '#2D0A0A' },
+  descartado:       { label: 'Descartado',       dot: '#9CA3AF', color: '#6B7280', bg: '#1F2937' },
+}
+const STATUS_ORDER = Object.keys(STATUS_CONFIG)
+const FUNNEL_ORDER = ['novo', 'contatado', 'aguardando', 'respondeu', 'call_agendada', 'call_realizada', 'proposta_enviada', 'fechou']
+
+// ─── Templates (fallback embutido; se houver tabela "scripts", ela prevalece) ──
+const FALLBACK_TEMPLATES = [
+  { id: 'wp_sem_site', titulo: 'Prospecção inicial', etapa: 'primeiro',
+    texto: `Oi, [Nome]! Tudo bem? 👋\n\nSou o José, trabalho com criação de sites e gestão de anúncios para empresas.\n\nVi que vocês ainda não têm uma página própria na internet — isso faz perder clientes que pesquisam online antes de fechar negócio.\n\nTenho uma ideia pra [Empresa], posso mostrar em 15 minutos? 🤝` },
+  { id: 'wp_followup1', titulo: 'Follow-up (3 dias)', etapa: 'followup',
+    texto: `Oi [Nome], tudo bem? 😊\n\nSó passando pra ver se viu minha mensagem anterior.\n\nSe quiser, posso mandar uma prévia do que pensei pra [Empresa] direto aqui no WhatsApp, sem precisar de call 👀` },
+  { id: 'wp_followup2', titulo: 'Follow-up final (7 dias)', etapa: 'followup',
+    texto: `Oi [Nome]! Última tentativa — sei que é corrido por aí 😅\n\nSe um dia tiver interesse em melhorar a captação de clientes online, é só me chamar. Fico à disposição!\n\nUm abraço 🤝` },
+  { id: 'proposta_ed', titulo: 'Proposta — Estrutura Digital', etapa: 'proposta',
+    texto: `[Nome], preparei a proposta pra [Empresa]! 🎯\n\n📌 *Pacote Estrutura Digital — R$ 1.997*\n✅ Landing Page profissional (WordPress)\n✅ Configuração completa Meta Ads\n✅ Criativos para os anúncios\n✅ Entrega em 5 dias úteis\n✅ 30 dias de suporte incluído\n\n💳 Pagamento: 50% na assinatura + 50% na entrega\n\nTopam uma call rápida de 20 min pra eu apresentar? 🤝` },
+  { id: 'proposta_gt', titulo: 'Proposta — Gestão de Tráfego', etapa: 'proposta',
+    texto: `[Nome], segue minha proposta para gestão dos anúncios de [Empresa]! 🚀\n\n📌 *Gestão de Tráfego Mensal — R$ 997/mês*\n✅ Gestão de até 2 campanhas no Meta Ads\n✅ Otimização semanal\n✅ Criativos para os anúncios\n✅ Relatório mensal detalhado\n✅ Reunião mensal de resultado\n\n📋 Fidelidade mínima: 3 meses\n\nVamos marcar uma call? 🤝` },
 ]
 
-const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map(s => [s.value, s.label]))
+// ─── SVG icons ──────────────────────────────────────────────────────────────
+const IC = {
+  lead:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  pipeline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  ia:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5 10.1 10.9 5.5 9l4.6-1.4L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>',
+  leads:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  search:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  check:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  empty:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+}
 
-let currentChat = null // { jid, canonPhone, name }
+// ─── Estado ──────────────────────────────────────────────────────────────────
+let currentChat = null   // { key, jid, phone, canonPhone, name }
 let currentLead = null
-let activeTab = 'chat' // 'chat' | 'leads'
+let activeTab = 'lead'    // 'lead' | 'pipeline' | 'ia' | 'leads'
+let config = null
 let leadsCache = null
-let leadsError = null
-let panelEl = null
-let bodyEl = null
+let metricsCache = null
+let scriptsCache = null
+let iaState = { etapa: 'primeiro', tom: 'consultivo', result: null }
+let panelEl = null, bodyEl = null
 
-// ─── UI bootstrap ──────────────────────────────────────────────────────────
+// ─── Wrapper de mensagens p/ o background ────────────────────────────────────
+function api(type, extra = {}) {
+  return new Promise(resolve => {
+    chrome.runtime.sendMessage({ type, ...extra }, resolve)
+  })
+}
 
+// ════════════════════════════════════════════════════════════════════════════
+// Bootstrap do painel
+// ════════════════════════════════════════════════════════════════════════════
 function injectPanel() {
   if (document.getElementById('justo-crm-panel')) return
 
@@ -35,12 +74,17 @@ function injectPanel() {
   panelEl.id = 'justo-crm-panel'
   panelEl.innerHTML = `
     <div class="jc-header">
-      <div class="jc-logo">Justo <span>CRM</span></div>
-      <button class="jc-close" id="jc-close">✕</button>
+      <div class="jc-logo"><span class="jc-mark">J</span>Justo <span>CRM</span></div>
+      <div class="jc-header-actions">
+        <button class="jc-icon-btn" id="jc-refresh" title="Atualizar">↻</button>
+        <button class="jc-icon-btn" id="jc-collapse" title="Recolher">✕</button>
+      </div>
     </div>
     <div class="jc-tabs">
-      <button class="jc-tab active" id="jc-tab-chat">Conversa</button>
-      <button class="jc-tab" id="jc-tab-leads">Meus leads</button>
+      <button class="jc-tab active" data-tab="lead">${IC.lead}Lead</button>
+      <button class="jc-tab" data-tab="pipeline">${IC.pipeline}Pipeline</button>
+      <button class="jc-tab" data-tab="ia">${IC.ia}IA</button>
+      <button class="jc-tab" data-tab="leads">${IC.leads}Leads</button>
     </div>
     <div class="jc-body" id="jc-body"></div>
   `
@@ -49,15 +93,24 @@ function injectPanel() {
   const toggle = document.createElement('button')
   toggle.id = 'justo-crm-toggle'
   toggle.textContent = 'Justo CRM'
+  toggle.style.display = 'none'
   document.body.appendChild(toggle)
 
-  bodyEl = document.getElementById('jc-body')
+  bodyEl = panelEl.querySelector('#jc-body')
 
-  document.getElementById('jc-close').addEventListener('click', () => panelEl.classList.add('collapsed'))
-  toggle.addEventListener('click', () => panelEl.classList.toggle('collapsed'))
-
-  document.getElementById('jc-tab-chat').addEventListener('click', () => switchTab('chat'))
-  document.getElementById('jc-tab-leads').addEventListener('click', () => switchTab('leads'))
+  panelEl.querySelector('#jc-collapse').addEventListener('click', () => {
+    panelEl.classList.add('collapsed'); toggle.style.display = 'inline-flex'
+  })
+  toggle.addEventListener('click', () => {
+    panelEl.classList.remove('collapsed'); toggle.style.display = 'none'
+  })
+  panelEl.querySelector('#jc-refresh').addEventListener('click', () => {
+    leadsCache = null; metricsCache = null; scriptsCache = null
+    if (currentChat?.canonPhone) loadLeadForCurrentChat(); else render()
+  })
+  panelEl.querySelectorAll('.jc-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab))
+  })
 
   renderLoading()
   checkAuthThenLoad()
@@ -66,82 +119,67 @@ function injectPanel() {
 function switchTab(tab) {
   if (activeTab === tab) return
   activeTab = tab
-  document.getElementById('jc-tab-chat').classList.toggle('active', tab === 'chat')
-  document.getElementById('jc-tab-leads').classList.toggle('active', tab === 'leads')
+  panelEl.querySelectorAll('.jc-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab))
   render()
 }
 
-function renderLoading() {
-  bodyEl.innerHTML = `<div class="jc-spinner">Carregando...</div>`
-}
-
-function renderLoggedOut() {
-  bodyEl.innerHTML = `
-    <div class="jc-empty">
-      Faça login no ícone da extensão (barra do navegador) para usar o painel.
-    </div>
-  `
-}
-
 async function checkAuthThenLoad() {
-  const res = await chrome.runtime.sendMessage({ type: 'GET_SESSION' })
-  if (!res.ok || !res.data) {
-    renderLoggedOut()
-    return
-  }
+  const res = await api('GET_SESSION')
+  if (!res || !res.ok || !res.data) { renderLoggedOut(); return }
+  const cfgRes = await api('GET_CONFIG')
+  config = cfgRes?.data || null
   startObserving()
+  render()
 }
 
-// ─── Detecção de chat ativo ──────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// Detecção do chat ativo (robusta — sem depender do data-id @c.us, já extinto)
+// ════════════════════════════════════════════════════════════════════════════
+function readChatTitle(header) {
+  const testid = header.querySelector('[data-testid="conversation-info-header-chat-title"]')
+  if (testid && testid.textContent.trim()) return testid.textContent.trim()
+  const titled = header.querySelector('span[dir="auto"][title]') || header.querySelector('span[title]')
+  if (titled) {
+    const v = (titled.getAttribute('title') || titled.textContent || '').trim()
+    if (v) return v
+  }
+  const span = header.querySelector('span[dir="auto"]')
+  return span && span.textContent.trim() ? span.textContent.trim() : null
+}
 
-// O WhatsApp Web muda o DOM com frequência e, para contatos com a privacidade
-// de número ativada, usa identificadores "@lid" que não trazem o telefone.
-// Por isso usamos várias estratégias, da mais para a menos confiável, e
-// sempre permitimos ao usuário digitar/corrigir o número manualmente no painel.
+function phoneFromText(text) {
+  if (!text) return null
+  const digits = String(text).replace(/\D/g, '')
+  if (digits.length < 10) return null
+  return normalizePhone(digits)
+}
+
 function extractActiveChat() {
   const main = document.querySelector('#main')
   if (!main) return null
-
   const header = main.querySelector('header')
   if (!header) return null
 
-  let jid = null
-  let phone = null
-  let name = null
-
-  // 1) data-id de mensagens/itens com o formato clássico "...@c.us"
+  let jid = null, phone = null
   const msgEl = main.querySelector('[data-id*="@c.us"]')
   if (msgEl) {
-    const dataId = msgEl.getAttribute('data-id') || ''
-    const match = dataId.match(/(\d{8,15}@c\.us)/)
-    if (match) {
-      jid = match[1]
-      phone = phoneFromJid(jid)
-    }
+    const m = (msgEl.getAttribute('data-id') || '').match(/(\d{8,15})@c\.us/)
+    if (m) { jid = m[1] + '@c.us'; phone = m[1] }
   }
 
-  // 2) Título exibido no cabeçalho da conversa (nome salvo ou o próprio número)
-  const titleEl =
-    header.querySelector('[data-testid="conversation-info-header-chat-title"]') ||
-    header.querySelector('span[dir="auto"][title]') ||
-    header.querySelector('span[title]')
-  if (titleEl) {
-    name = titleEl.getAttribute('title') || titleEl.textContent?.trim() || null
-  }
+  const title = readChatTitle(header)
+  const box = main.querySelector('footer [contenteditable="true"]')
+  const inputAria = box ? (box.getAttribute('aria-label') || '') : ''
 
-  let canonPhone = phone ? normalizePhone(phone) : null
+  const canonPhone =
+    (phone ? normalizePhone(phone) : null) ||
+    phoneFromText(inputAria) ||
+    phoneFromText(title)
 
-  // 3) Se não foi possível extrair via JID, e o título exibido parece ser um
-  // número de telefone (contato não salvo na agenda), usa ele diretamente.
-  if (!canonPhone && name) {
-    canonPhone = normalizePhone(name)
-  }
-
-  // Chave de identificação do chat para detectar troca de conversa mesmo sem telefone
+  const name = title || phone || null
   const key = jid || canonPhone || name
   if (!key) return null
-
-  return { key, jid, phone, canonPhone, name: name || phone || null }
+  return { key, jid, phone, canonPhone, name }
 }
 
 function startObserving() {
@@ -154,169 +192,439 @@ function startObserving() {
   })
   observer.observe(document.body, { childList: true, subtree: true })
 
-  // checagem inicial
   const chat = extractActiveChat()
-  if (chat) {
-    currentChat = chat
-    onChatChanged(chat)
-  } else if (activeTab === 'chat') {
-    bodyEl.innerHTML = `<div class="jc-empty">Abra uma conversa no WhatsApp para ver os dados do lead.</div>`
-  }
+  if (chat) { currentChat = chat; onChatChanged(chat) }
 }
-
-// ─── Carregamento do lead ──────────────────────────────────────────────────
 
 async function onChatChanged(chat) {
   currentLead = null
-  if (activeTab !== 'chat') return
-  if (!chat.canonPhone) {
-    render()
-    return
-  }
+  iaState.result = null
+  if (activeTab !== 'lead') { if (activeTab === 'ia') render(); return }
+  if (!chat.canonPhone) { render(); return }
   await loadLeadForCurrentChat()
 }
 
 async function loadLeadForCurrentChat() {
-  if (!currentChat?.canonPhone) {
-    currentLead = null
-    render()
-    return
-  }
-  renderLoading()
-  const res = await chrome.runtime.sendMessage({ type: 'FIND_LEAD', canonPhone: currentChat.canonPhone })
+  if (!currentChat?.canonPhone) { currentLead = null; render(); return }
+  if (activeTab === 'lead') renderLoading()
+  const res = await api('FIND_LEAD', { canonPhone: currentChat.canonPhone })
   if (!res.ok) {
     if (res.error === 'not_authenticated') return renderLoggedOut()
-    bodyEl.innerHTML = `<div class="jc-empty">Erro ao buscar lead: ${escapeHtml(res.error)}</div>`
+    if (activeTab === 'lead') bodyEl.innerHTML = `<div class="jc-error">Erro ao buscar lead: ${escapeHtml(res.error)}</div>`
     return
   }
   currentLead = res.data
-  render()
+  if (activeTab === 'lead' || activeTab === 'ia') render()
 }
 
-// ─── Render principal ───────────────────────────────────────────────────────
-
+// ════════════════════════════════════════════════════════════════════════════
+// Render principal
+// ════════════════════════════════════════════════════════════════════════════
 function render() {
-  if (activeTab === 'leads') {
-    renderLeadsTab()
-    return
-  }
-  renderChatTab()
+  if (!bodyEl) return
+  if (activeTab === 'pipeline') return renderPipeline()
+  if (activeTab === 'ia') return renderIA()
+  if (activeTab === 'leads') return renderLeadsTab()
+  return renderLeadTab()
 }
 
-function renderChatTab() {
+function renderLoading() { bodyEl.innerHTML = `<div class="jc-spinner">Carregando…</div>` }
+function renderLoggedOut() {
+  bodyEl.innerHTML = `<div class="jc-empty">${IC.lead}<div>Faça login pelo ícone da extensão (na barra do navegador) para usar o painel.</div></div>`
+}
+
+// ─── Aba LEAD ────────────────────────────────────────────────────────────────
+function contactHeaderHTML() {
+  const name = currentChat?.name || 'Sem nome'
+  const phoneDisplay = currentChat?.canonPhone ? formatCanonPhone(currentChat.canonPhone) : ''
+  return `
+    <div class="jc-contact">
+      <div class="jc-avatar">${escapeHtml(initials(name))}</div>
+      <div>
+        <div class="jc-contact-name">${escapeHtml(name)}</div>
+        ${phoneDisplay ? `<div class="jc-contact-phone">${escapeHtml(phoneDisplay)}</div>` : ''}
+      </div>
+    </div>`
+}
+
+function renderLeadTab() {
   if (!currentChat) {
-    bodyEl.innerHTML = `<div class="jc-empty">Abra uma conversa no WhatsApp para ver os dados do lead.</div>`
+    bodyEl.innerHTML = `<div class="jc-empty">${IC.empty}<div>Abra uma conversa no WhatsApp para ver e gerenciar o lead.</div></div>`
     return
   }
 
-  const phoneDisplay = currentChat.canonPhone ? formatCanonPhone(currentChat.canonPhone) : ''
-
-  let html = `
-    <div class="jc-section">
-      <div class="jc-contact-name">${escapeHtml(currentChat.name || 'Sem nome')}</div>
-      ${phoneDisplay ? `<div class="jc-contact-phone">${escapeHtml(phoneDisplay)}</div>` : ''}
-    </div>
-  `
-
-  // Quando não conseguimos detectar o telefone automaticamente (comum em
-  // contatos com privacidade de número ativada), permite digitar manualmente.
-  html += `
-    <div class="jc-section">
-      <div class="jc-label">Número do contato</div>
-      <div class="jc-card">
-        ${!currentChat.canonPhone ? `<div style="color:#9CA3AF; margin-bottom: 8px;">Não detectamos o número automaticamente. Digite abaixo para localizar o lead.</div>` : ''}
-        <input class="jc-input" id="jc-manual-phone" placeholder="(DDD) 99999-9999" value="${currentChat.canonPhone ? escapeHtml(formatCanonPhone(currentChat.canonPhone)) : ''}" />
-        <button class="jc-btn secondary" id="jc-search-phone">Buscar lead</button>
-        <div id="jc-phone-msg"></div>
-      </div>
-    </div>
-  `
+  let html = contactHeaderHTML()
 
   if (!currentChat.canonPhone) {
+    html += `
+      <div class="jc-section">
+        <div class="jc-label">Número não detectado</div>
+        <div class="jc-card">
+          <div class="jc-hint">Contato salvo na agenda? O WhatsApp não expõe o número. Digite abaixo para localizar o lead.</div>
+          <input class="jc-input" id="jc-manual-phone" placeholder="(DDD) 99999-9999" />
+          <button class="jc-btn" id="jc-search-phone">Buscar lead</button>
+          <div id="jc-phone-msg"></div>
+        </div>
+      </div>`
     bodyEl.innerHTML = html
-    bindEvents()
+    bindLeadEvents()
     return
   }
 
   if (currentLead) {
-    html += `
-      <div class="jc-section">
-        <div class="jc-label">Lead no CRM</div>
-        <div class="jc-card">
-          <div class="jc-row"><span class="k">Empresa</span><span class="v">${escapeHtml(currentLead.nome_fantasia || currentLead.razao_social || '—')}</span></div>
-          <div class="jc-row"><span class="k">Vendedor</span><span class="v">${escapeHtml(currentLead.vendedor_nome || '—')}</span></div>
-          <select class="jc-select" id="jc-status">
-            ${STATUS_OPTIONS.map(s => `<option value="${s.value}" ${s.value === currentLead.status_prospeccao ? 'selected' : ''}>${s.label}</option>`).join('')}
-          </select>
-          <button class="jc-btn" id="jc-save-status">Atualizar status</button>
-          <div id="jc-status-msg"></div>
-        </div>
-      </div>
-    `
+    html += renderLeadCRM(currentLead)
   } else {
     html += `
       <div class="jc-section">
-        <div class="jc-label">Lead não encontrado</div>
+        <div class="jc-label">Lead não está no CRM</div>
         <div class="jc-card">
-          <div style="color:#9CA3AF; margin-bottom: 8px;">Este número ainda não está no CRM.</div>
+          <div class="jc-hint">Este número ainda não está cadastrado. Crie o lead para começar a prospecção.</div>
           <input class="jc-input" id="jc-new-empresa" placeholder="Nome da empresa / cliente" value="${escapeHtml(currentChat.name || '')}" />
-          <button class="jc-btn" id="jc-create-lead">Criar lead</button>
+          <button class="jc-btn" id="jc-create-lead">+ Criar lead</button>
           <div id="jc-create-msg"></div>
         </div>
-      </div>
-    `
+      </div>`
   }
 
-  html += `
+  bodyEl.innerHTML = html
+  bindLeadEvents()
+}
+
+function renderLeadCRM(lead) {
+  const cfg = STATUS_CONFIG[lead.status_prospeccao] || STATUS_CONFIG.novo
+  const empresa = lead.nome_fantasia || lead.razao_social || '—'
+  const local = [lead.municipio, lead.uf].filter(Boolean).join(' / ')
+  const notas = parseNotas(lead.observacoes_json)
+  const tags = lead.tags || []
+  const followup = lead.data_followup || ''
+
+  let h = `
     <div class="jc-section">
-      <div class="jc-label">Mensagem de abordagem (IA)</div>
+      <div class="jc-row" style="margin-bottom:8px">
+        <span class="jc-badge" style="background:${cfg.bg};color:${cfg.color}"><span class="dot" style="background:${cfg.dot}"></span>${cfg.label}</span>
+        ${lead.vendedor_nome ? `<span class="jc-row v" style="font-size:11px;color:var(--jc-text3)">${escapeHtml(lead.vendedor_nome)}</span>` : ''}
+      </div>
       <div class="jc-card">
-        <textarea class="jc-textarea" id="jc-contexto" placeholder="Contexto extra (opcional): segmento, dor do cliente, gancho..."></textarea>
-        <button class="jc-btn" id="jc-generate">Gerar mensagem</button>
-        <div id="jc-gen-result"></div>
+        <div class="jc-row"><span class="k">Empresa</span><span class="v">${escapeHtml(empresa)}</span></div>
+        ${local ? `<div class="jc-row"><span class="k">Local</span><span class="v">${escapeHtml(local)}</span></div>` : ''}
+        ${lead.porte ? `<div class="jc-row"><span class="k">Porte</span><span class="v">${escapeHtml(lead.porte)}</span></div>` : ''}
+        ${lead.atividade_principal ? `<div class="jc-row"><span class="k">Atividade</span><span class="v" style="max-width:200px">${escapeHtml(lead.atividade_principal)}</span></div>` : ''}
+      </div>
+    </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Status da prospecção</div>
+      <select class="jc-select" id="jc-status">
+        ${STATUS_ORDER.map(s => `<option value="${s}" ${s === lead.status_prospeccao ? 'selected' : ''}>${STATUS_CONFIG[s].label}</option>`).join('')}
+      </select>
+      <div id="jc-status-msg"></div>
+    </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Próximo follow-up</div>
+      <input type="date" class="jc-input" id="jc-followup" value="${escapeHtml(followup)}" />
+      <div id="jc-followup-msg"></div>
+    </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Tags</div>
+      <div class="jc-tags" id="jc-tags">
+        ${tags.map(t => `<span class="jc-chip">${escapeHtml(t)}<button data-tag="${escapeHtml(t)}">×</button></span>`).join('') || '<span class="jc-hint">Sem tags</span>'}
+      </div>
+      <input class="jc-input" id="jc-tag-input" placeholder="Adicionar tag e Enter" />
+    </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Notas</div>
+      <textarea class="jc-textarea" id="jc-nota" placeholder="Anotar uma observação sobre o lead…"></textarea>
+      <button class="jc-btn secondary" id="jc-add-nota">+ Adicionar nota</button>
+      <div class="jc-notes" id="jc-notes-list">
+        ${notas.length ? notas.slice().reverse().map(n => `
+          <div class="jc-note"><div class="txt">${escapeHtml(n.texto)}</div><div class="meta">${formatDateTime(n.data)}</div></div>
+        `).join('') : '<div class="jc-hint" style="margin-top:8px">Nenhuma nota ainda.</div>'}
+      </div>
+    </div>
+
+    <div class="jc-section jc-btn-row">
+      <button class="jc-btn ghost" id="jc-goto-ia">✨ Gerar mensagem</button>
+      ${config?.APP_URL ? `<button class="jc-btn secondary" id="jc-open-system">Abrir no sistema</button>` : ''}
+    </div>
+  `
+  return h
+}
+
+function bindLeadEvents() {
+  const $ = id => document.getElementById(id)
+
+  $('jc-search-phone')?.addEventListener('click', async () => {
+    const canon = normalizePhone($('jc-manual-phone').value)
+    const msg = $('jc-phone-msg')
+    if (!canon) { msg.innerHTML = `<div class="jc-error">Número inválido. Use (DDD) 99999-9999.</div>`; return }
+    currentChat = { ...currentChat, canonPhone: canon }
+    await loadLeadForCurrentChat()
+  })
+
+  $('jc-create-lead')?.addEventListener('click', async () => {
+    const nome = $('jc-new-empresa').value.trim()
+    const msg = $('jc-create-msg')
+    if (!nome) { msg.innerHTML = `<div class="jc-error">Informe o nome da empresa/cliente.</div>`; return }
+    const btn = $('jc-create-lead'); btn.disabled = true; btn.textContent = 'Criando…'
+    const res = await api('CREATE_LEAD', { payload: {
+      razao_social: nome, nome_fantasia: nome,
+      telefone: formatCanonPhone(currentChat.canonPhone),
+      canal_envio: 'whatsapp', status_prospeccao: 'novo',
+    }})
+    btn.disabled = false; btn.textContent = '+ Criar lead'
+    if (res.ok) { currentLead = res.data; leadsCache = null; metricsCache = null; render() }
+    else msg.innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`
+  })
+
+  $('jc-status')?.addEventListener('change', async (e) => {
+    const status = e.target.value
+    const prev = currentLead.status_prospeccao
+    const msg = $('jc-status-msg')
+    const res = await api('UPDATE_STATUS', { id: currentLead.id, status, prevStatus: prev })
+    if (res.ok) {
+      currentLead.status_prospeccao = status; leadsCache = null; metricsCache = null
+      msg.innerHTML = `<div class="jc-success">${IC.check} Status atualizado</div>`
+      setTimeout(() => render(), 600)
+    } else msg.innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`
+  })
+
+  $('jc-followup')?.addEventListener('change', async (e) => {
+    const res = await api('UPDATE_LEAD', { id: currentLead.id, patch: { data_followup: e.target.value || null } })
+    const msg = $('jc-followup-msg')
+    if (res.ok) { currentLead.data_followup = e.target.value; metricsCache = null; msg.innerHTML = `<div class="jc-success">${IC.check} Follow-up salvo</div>` }
+    else msg.innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`
+  })
+
+  $('jc-tag-input')?.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const t = e.target.value.trim()
+    if (!t) return
+    const tags = [...(currentLead.tags || [])]
+    if (tags.includes(t)) { e.target.value = ''; return }
+    tags.push(t)
+    const res = await api('UPDATE_LEAD', { id: currentLead.id, patch: { tags } })
+    if (res.ok) { currentLead.tags = tags; render() }
+  })
+
+  document.querySelectorAll('#jc-tags .jc-chip button').forEach(b => {
+    b.addEventListener('click', async () => {
+      const tags = (currentLead.tags || []).filter(t => t !== b.dataset.tag)
+      const res = await api('UPDATE_LEAD', { id: currentLead.id, patch: { tags } })
+      if (res.ok) { currentLead.tags = tags; render() }
+    })
+  })
+
+  $('jc-add-nota')?.addEventListener('click', async () => {
+    const texto = $('jc-nota').value.trim()
+    if (!texto) return
+    const notas = parseNotas(currentLead.observacoes_json)
+    notas.push({ texto, data: new Date().toISOString() })
+    const res = await api('UPDATE_LEAD', { id: currentLead.id, patch: { observacoes_json: JSON.stringify(notas) } })
+    if (res.ok) { currentLead.observacoes_json = JSON.stringify(notas); render() }
+  })
+
+  $('jc-goto-ia')?.addEventListener('click', () => switchTab('ia'))
+  $('jc-open-system')?.addEventListener('click', () => {
+    window.open(`${config.APP_URL.replace(/\/+$/, '')}/?lead=${currentLead.id}`, '_blank')
+  })
+}
+
+// ─── Aba PIPELINE ────────────────────────────────────────────────────────────
+async function renderPipeline() {
+  if (!metricsCache) {
+    bodyEl.innerHTML = `<div class="jc-spinner">Carregando métricas…</div>`
+    const res = await api('METRICS_LEADS')
+    if (!res.ok) {
+      if (res.error === 'not_authenticated') return renderLoggedOut()
+      bodyEl.innerHTML = `<div class="jc-error">Erro ao carregar métricas: ${escapeHtml(res.error)}</div>`
+      return
+    }
+    metricsCache = res.data || []
+    if (activeTab !== 'pipeline') return
+  }
+
+  const leads = metricsCache
+  const byStatus = {}
+  STATUS_ORDER.forEach(s => byStatus[s] = 0)
+  leads.forEach(l => { if (byStatus[l.status_prospeccao] != null) byStatus[l.status_prospeccao]++ })
+
+  const ativos = FUNNEL_ORDER.reduce((a, s) => a + byStatus[s], 0) - byStatus.fechou
+  const fechados = byStatus.fechou
+  const novosHoje = leads.filter(l => isToday(l.criado_em)).length
+  const followHoje = leads.filter(l => l.data_followup && isTodayOrOverdue(l.data_followup)
+    && !['fechou', 'perdido', 'descartado'].includes(l.status_prospeccao)).length
+
+  const maxFunnel = Math.max(1, ...FUNNEL_ORDER.map(s => byStatus[s]))
+
+  let h = `
+    <div class="jc-metrics">
+      <div class="jc-metric accent"><div class="num">${ativos}</div><div class="lbl">Em prospecção</div></div>
+      <div class="jc-metric green"><div class="num">${fechados}</div><div class="lbl">Fechados</div></div>
+      <div class="jc-metric"><div class="num">${novosHoje}</div><div class="lbl">Novos hoje</div></div>
+      <div class="jc-metric"><div class="num">${followHoje}</div><div class="lbl">Follow-ups p/ hoje</div></div>
+    </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Funil de prospecção</div>
+      <div class="jc-funnel">
+        ${FUNNEL_ORDER.map(s => {
+          const c = STATUS_CONFIG[s]; const n = byStatus[s]
+          const w = Math.round((n / maxFunnel) * 100)
+          return `<div class="jc-funnel-row">
+            <span class="name">${c.label}</span>
+            <div class="jc-funnel-bar"><div class="jc-funnel-fill" style="width:${w}%;background:${c.dot}"></div></div>
+            <span class="cnt" style="color:${c.color}">${n}</span>
+          </div>`
+        }).join('')}
       </div>
     </div>
   `
 
-  bodyEl.innerHTML = html
-  bindEvents()
+  // Follow-ups pendentes (clicáveis)
+  const pend = leads.filter(l => l.data_followup && isTodayOrOverdue(l.data_followup)
+    && !['fechou', 'perdido', 'descartado'].includes(l.status_prospeccao))
+    .sort((a, b) => (a.data_followup > b.data_followup ? 1 : -1)).slice(0, 12)
+
+  h += `<div class="jc-section"><div class="jc-label">Follow-ups pendentes</div>`
+  if (!pend.length) h += `<div class="jc-hint">Nenhum follow-up pendente. 🎉</div>`
+  else h += pend.map(l => leadItemHTML(l, `vence ${formatDate(l.data_followup)}`)).join('')
+  h += `</div>`
+
+  bodyEl.innerHTML = h
+  bindLeadItemEvents()
 }
 
-// ─── Aba "Meus leads" ─────────────────────────────────────────────────────
+// ─── Aba IA ──────────────────────────────────────────────────────────────────
+async function renderIA() {
+  const nomeContato = currentChat?.name || ''
+  const nomeEmpresa = currentLead?.nome_fantasia || currentLead?.razao_social || nomeContato
 
-async function renderLeadsTab(forceReload) {
-  if (!leadsCache || forceReload) {
-    bodyEl.innerHTML = `<div class="jc-spinner">Carregando leads...</div>`
-    const res = await chrome.runtime.sendMessage({ type: 'LIST_LEADS' })
+  if (!scriptsCache) {
+    const res = await api('LIST_SCRIPTS')
+    const fromDb = (res?.ok && Array.isArray(res.data)) ? res.data : []
+    scriptsCache = fromDb.length
+      ? fromDb.map(s => ({ id: s.id, titulo: s.titulo, texto: s.texto, etapa: s.etapa }))
+      : FALLBACK_TEMPLATES
+  }
+
+  const etapas = [['primeiro', '1º contato'], ['followup', 'Follow-up'], ['proposta', 'Proposta']]
+  const tons = [['consultivo', 'Consultivo'], ['casual', 'Casual'], ['direto', 'Direto'], ['curioso', 'Curioso']]
+
+  let h = `
+    <div class="jc-section">
+      <div class="jc-label">Gerar mensagem com IA</div>
+      <div class="jc-card">
+        ${nomeContato ? `<div class="jc-hint">Para: <b style="color:var(--jc-text)">${escapeHtml(nomeEmpresa)}</b></div>` : `<div class="jc-hint">Abra uma conversa para personalizar com o nome do contato.</div>`}
+        <div class="jc-label" style="margin-top:4px">Etapa</div>
+        <div class="jc-seg" id="jc-seg-etapa">
+          ${etapas.map(([v, l]) => `<button data-v="${v}" class="${iaState.etapa === v ? 'active' : ''}">${l}</button>`).join('')}
+        </div>
+        <div class="jc-label">Tom</div>
+        <div class="jc-seg" id="jc-seg-tom">
+          ${tons.map(([v, l]) => `<button data-v="${v}" class="${iaState.tom === v ? 'active' : ''}">${l}</button>`).join('')}
+        </div>
+        <textarea class="jc-textarea" id="jc-contexto" placeholder="Contexto extra (opcional): segmento, dor do cliente, gancho…"></textarea>
+        <button class="jc-btn" id="jc-generate">✨ Gerar mensagem</button>
+        <div id="jc-gen-result">${iaState.result ? iaResultHTML(iaState.result) : ''}</div>
+      </div>
+    </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Templates prontos</div>
+      ${scriptsCache.map(t => `
+        <div class="jc-card jc-tpl" data-tpl="${escapeHtml(t.id)}" style="margin-bottom:8px">
+          <div class="ttl">${escapeHtml(t.titulo)}</div>
+          <div class="preview">${escapeHtml((t.texto || '').replace(/\n+/g, ' '))}</div>
+          <div class="jc-lead-actions">
+            <button class="jc-btn secondary jc-btn-sm jc-tpl-insert" data-tpl="${escapeHtml(t.id)}">Inserir</button>
+            <button class="jc-btn ghost jc-btn-sm jc-tpl-copy" data-tpl="${escapeHtml(t.id)}">Copiar</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `
+  bodyEl.innerHTML = h
+  bindIAEvents(nomeContato, nomeEmpresa)
+}
+
+function iaResultHTML(text) {
+  return `<div class="jc-msg-box" id="jc-msg-text">${escapeHtml(text)}</div>
+    <div class="jc-btn-row">
+      <button class="jc-btn jc-btn-sm" id="jc-insert-msg">Inserir no WhatsApp</button>
+      <button class="jc-btn ghost jc-btn-sm" id="jc-copy-msg">Copiar</button>
+    </div>`
+}
+
+function bindIAEvents(nomeContato, nomeEmpresa) {
+  const $ = id => document.getElementById(id)
+
+  document.querySelectorAll('#jc-seg-etapa button').forEach(b => b.addEventListener('click', () => {
+    iaState.etapa = b.dataset.v
+    document.querySelectorAll('#jc-seg-etapa button').forEach(x => x.classList.toggle('active', x === b))
+  }))
+  document.querySelectorAll('#jc-seg-tom button').forEach(b => b.addEventListener('click', () => {
+    iaState.tom = b.dataset.v
+    document.querySelectorAll('#jc-seg-tom button').forEach(x => x.classList.toggle('active', x === b))
+  }))
+
+  $('jc-generate')?.addEventListener('click', async () => {
+    const btn = $('jc-generate'); btn.disabled = true; btn.textContent = 'Gerando…'
+    const res = await api('GENERATE_MESSAGE', { payload: {
+      nomeContato, nomeEmpresa,
+      contexto: $('jc-contexto').value.trim(),
+      tom: iaState.tom, etapa: iaState.etapa,
+    }})
+    btn.disabled = false; btn.textContent = '✨ Gerar mensagem'
+    if (!res.ok) { $('jc-gen-result').innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`; return }
+    iaState.result = res.data
+    $('jc-gen-result').innerHTML = iaResultHTML(res.data)
+    bindResultButtons(res.data)
+  })
+
+  if (iaState.result) bindResultButtons(iaState.result)
+
+  document.querySelectorAll('.jc-tpl-insert').forEach(b => b.addEventListener('click', () => {
+    insertIntoWhatsApp(fillTemplate(findTpl(b.dataset.tpl), nomeContato, nomeEmpresa))
+  }))
+  document.querySelectorAll('.jc-tpl-copy').forEach(b => b.addEventListener('click', () => {
+    copyText(fillTemplate(findTpl(b.dataset.tpl), nomeContato, nomeEmpresa), b)
+  }))
+}
+
+function bindResultButtons(text) {
+  document.getElementById('jc-insert-msg')?.addEventListener('click', () => insertIntoWhatsApp(text))
+  document.getElementById('jc-copy-msg')?.addEventListener('click', (e) => copyText(text, e.currentTarget))
+}
+
+function findTpl(id) { return (scriptsCache || FALLBACK_TEMPLATES).find(t => String(t.id) === String(id)) }
+function fillTemplate(t, nome, empresa) {
+  if (!t) return ''
+  return (t.texto || '').replace(/\[Nome\]/g, nome || 'tudo bem').replace(/\[Empresa\]/g, empresa || 'sua empresa')
+}
+
+// ─── Aba LEADS ───────────────────────────────────────────────────────────────
+async function renderLeadsTab() {
+  if (!leadsCache) {
+    bodyEl.innerHTML = `<div class="jc-spinner">Carregando leads…</div>`
+    const res = await api('LIST_LEADS')
     if (!res.ok) {
       if (res.error === 'not_authenticated') return renderLoggedOut()
-      leadsCache = []
-      leadsError = res.error
-    } else {
-      leadsCache = res.data || []
-      leadsError = null
+      bodyEl.innerHTML = `<div class="jc-error">Erro ao carregar leads: ${escapeHtml(res.error)}</div>`
+      return
     }
+    leadsCache = res.data || []
     if (activeTab !== 'leads') return
   }
 
-  if (leadsError) {
-    bodyEl.innerHTML = `<div class="jc-empty">Erro ao carregar leads: ${escapeHtml(leadsError)}</div>`
-    return
-  }
+  if (!leadsCache.length) { bodyEl.innerHTML = `<div class="jc-empty">${IC.leads}<div>Nenhum lead em prospecção ativa.</div></div>`; return }
 
-  if (leadsCache.length === 0) {
-    bodyEl.innerHTML = `<div class="jc-empty">Nenhum lead em prospecção ativa.</div>`
-    return
-  }
-
-  let html = `
-    <div class="jc-section">
-      <input class="jc-input" id="jc-leads-search" placeholder="Buscar por nome..." />
-    </div>
-    <div class="jc-section" id="jc-leads-list"></div>
-  `
-  bodyEl.innerHTML = html
-
+  bodyEl.innerHTML = `
+    <div class="jc-search">${IC.search}<input class="jc-input" id="jc-leads-search" placeholder="Buscar por nome…" /></div>
+    <div id="jc-leads-list"></div>`
   const searchEl = document.getElementById('jc-leads-search')
   searchEl.addEventListener('input', () => renderLeadsList(searchEl.value))
   renderLeadsList('')
@@ -325,176 +633,110 @@ async function renderLeadsTab(forceReload) {
 function renderLeadsList(filter) {
   const listEl = document.getElementById('jc-leads-list')
   if (!listEl) return
-
   const q = (filter || '').trim().toLowerCase()
   const leads = leadsCache.filter(l => {
     if (!q) return true
-    const nome = `${l.nome_fantasia || ''} ${l.razao_social || ''}`.toLowerCase()
-    return nome.includes(q)
+    return `${l.nome_fantasia || ''} ${l.razao_social || ''}`.toLowerCase().includes(q)
   })
+  if (!leads.length) { listEl.innerHTML = `<div class="jc-empty">Nenhum lead encontrado.</div>`; return }
+  listEl.innerHTML = leads.map(l => leadItemHTML(l)).join('')
+  bindLeadItemEvents()
+}
 
-  if (leads.length === 0) {
-    listEl.innerHTML = `<div class="jc-empty">Nenhum lead encontrado.</div>`
-    return
-  }
-
-  listEl.innerHTML = leads.map(l => {
-    const canon = normalizePhone(l.telefone)
-    const waNumber = canon ? toWhatsappNumber(canon) : null
-    return `
-      <div class="jc-card jc-lead-item">
-        <div class="jc-row"><span class="v">${escapeHtml(l.nome_fantasia || l.razao_social || 'Sem nome')}</span></div>
-        <div class="jc-row">
-          <span class="k">${escapeHtml(canon ? formatCanonPhone(canon) : (l.telefone || '—'))}</span>
-          <span class="jc-badge">${escapeHtml(STATUS_LABEL[l.status_prospeccao] || l.status_prospeccao || '—')}</span>
-        </div>
-        ${waNumber
-          ? `<button class="jc-btn secondary jc-open-chat" data-phone="${waNumber}">Iniciar conversa</button>`
-          : `<div class="jc-error">Telefone inválido</div>`}
+function leadItemHTML(l, badge) {
+  const cfg = STATUS_CONFIG[l.status_prospeccao] || STATUS_CONFIG.novo
+  const canon = normalizePhone(l.telefone)
+  const phone = canon ? formatCanonPhone(canon) : (l.telefone || '—')
+  const nome = l.nome_fantasia || l.razao_social || 'Sem nome'
+  return `
+    <div class="jc-card jc-lead-item" data-phone="${escapeHtml(l.telefone || '')}" style="margin-bottom:8px">
+      <div class="top">
+        <div><div class="nm">${escapeHtml(nome)}</div><div class="ph">${escapeHtml(phone)}</div></div>
+        <span class="jc-badge" style="background:${cfg.bg};color:${cfg.color}"><span class="dot" style="background:${cfg.dot}"></span>${cfg.label}</span>
       </div>
-    `
-  }).join('')
+      ${badge ? `<div class="jc-hint" style="margin:6px 0 0">⏰ ${escapeHtml(badge)}</div>` : ''}
+      <div class="jc-lead-actions">
+        <button class="jc-btn secondary jc-btn-sm jc-open-chat" data-phone="${escapeHtml(l.telefone || '')}">Abrir conversa</button>
+      </div>
+    </div>`
+}
 
-  listEl.querySelectorAll('.jc-open-chat').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const phone = btn.getAttribute('data-phone')
-      window.location.href = `https://web.whatsapp.com/send?phone=${phone}`
-    })
+function bindLeadItemEvents() {
+  document.querySelectorAll('.jc-open-chat').forEach(b => {
+    b.addEventListener('click', (e) => { e.stopPropagation(); openChat(b.dataset.phone) })
   })
 }
 
-function bindEvents() {
-  const searchPhoneBtn = document.getElementById('jc-search-phone')
-  if (searchPhoneBtn) {
-    searchPhoneBtn.addEventListener('click', async () => {
-      const raw = document.getElementById('jc-manual-phone').value
-      const canon = normalizePhone(raw)
-      const msgEl = document.getElementById('jc-phone-msg')
-      if (!canon) {
-        msgEl.innerHTML = `<div class="jc-error">Número inválido. Use o formato (DDD) 99999-9999.</div>`
-        return
-      }
-      currentChat = { ...currentChat, canonPhone: canon }
-      await loadLeadForCurrentChat()
-    })
-  }
-
-  const saveStatusBtn = document.getElementById('jc-save-status')
-  if (saveStatusBtn) {
-    saveStatusBtn.addEventListener('click', async () => {
-      const status = document.getElementById('jc-status').value
-      const msgEl = document.getElementById('jc-status-msg')
-      saveStatusBtn.disabled = true
-      saveStatusBtn.textContent = 'Salvando...'
-      const res = await chrome.runtime.sendMessage({ type: 'UPDATE_STATUS', id: currentLead.id, status })
-      saveStatusBtn.disabled = false
-      saveStatusBtn.textContent = 'Atualizar status'
-      if (res.ok) {
-        currentLead.status_prospeccao = status
-        msgEl.innerHTML = `<div class="jc-success">Status atualizado!</div>`
-        leadsCache = null // força recarregar a lista de leads na próxima visita
-      } else {
-        msgEl.innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`
-      }
-    })
-  }
-
-  const createBtn = document.getElementById('jc-create-lead')
-  if (createBtn) {
-    createBtn.addEventListener('click', async () => {
-      const nome = document.getElementById('jc-new-empresa').value.trim()
-      const msgEl = document.getElementById('jc-create-msg')
-      if (!nome) {
-        msgEl.innerHTML = `<div class="jc-error">Informe o nome da empresa/cliente.</div>`
-        return
-      }
-      createBtn.disabled = true
-      createBtn.textContent = 'Criando...'
-      const payload = {
-        razao_social: nome,
-        nome_fantasia: nome,
-        telefone: formatCanonPhone(currentChat.canonPhone),
-        canal_envio: 'whatsapp',
-        status_prospeccao: 'contatado',
-      }
-      const res = await chrome.runtime.sendMessage({ type: 'CREATE_LEAD', payload })
-      createBtn.disabled = false
-      createBtn.textContent = 'Criar lead'
-      if (res.ok) {
-        currentLead = res.data
-        leadsCache = null
-        render()
-      } else {
-        msgEl.innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`
-      }
-    })
-  }
-
-  const generateBtn = document.getElementById('jc-generate')
-  if (generateBtn) {
-    generateBtn.addEventListener('click', async () => {
-      const contexto = document.getElementById('jc-contexto').value.trim()
-      const resultEl = document.getElementById('jc-gen-result')
-      generateBtn.disabled = true
-      generateBtn.textContent = 'Gerando...'
-      resultEl.innerHTML = ''
-      const res = await chrome.runtime.sendMessage({
-        type: 'GENERATE_MESSAGE',
-        payload: {
-          nomeContato: currentChat.name,
-          nomeEmpresa: currentLead?.nome_fantasia || currentLead?.razao_social || currentChat.name,
-          contexto,
-        },
-      })
-      generateBtn.disabled = false
-      generateBtn.textContent = 'Gerar mensagem'
-      if (!res.ok) {
-        resultEl.innerHTML = `<div class="jc-error">${escapeHtml(res.error)}</div>`
-        return
-      }
-      resultEl.innerHTML = `
-        <div class="jc-msg-box" id="jc-msg-text">${escapeHtml(res.data)}</div>
-        <button class="jc-btn secondary" id="jc-insert-msg">Inserir no WhatsApp</button>
-      `
-      document.getElementById('jc-insert-msg').addEventListener('click', () => insertIntoWhatsApp(res.data))
-    })
-  }
+function openChat(rawPhone) {
+  const num = toDialNumber(rawPhone) || (normalizePhone(rawPhone) ? toWhatsappNumber(normalizePhone(rawPhone)) : null)
+  if (!num) { alert('Telefone inválido para abrir a conversa.'); return }
+  window.location.href = `https://web.whatsapp.com/send?phone=${num}`
 }
 
-// ─── Inserção de texto no campo de mensagem do WhatsApp ─────────────────────
-
+// ════════════════════════════════════════════════════════════════════════════
+// Inserção robusta no campo de mensagem do WhatsApp
+// ════════════════════════════════════════════════════════════════════════════
 function insertIntoWhatsApp(text) {
   const box = document.querySelector('#main footer [contenteditable="true"]') || document.querySelector('footer [contenteditable="true"]')
-  if (!box) {
-    alert('Não foi possível encontrar o campo de mensagem. Clique na conversa e tente novamente.')
-    return
-  }
+  if (!box) { alert('Não foi possível encontrar o campo de mensagem. Abra a conversa e tente novamente.'); return }
   box.focus()
+  const sel = window.getSelection()
+  if (sel) { sel.selectAllChildren(box); sel.collapseToEnd() }
+  let ok = false
+  try { ok = document.execCommand('insertText', false, text) } catch (e) { ok = false }
+  if (!ok || box.textContent.indexOf(text.slice(0, 12)) === -1) {
+    try {
+      box.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertText', data: text, bubbles: true, cancelable: true }))
+      box.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: text, bubbles: true }))
+    } catch (e) {}
+  }
+  box.dispatchEvent(new Event('input', { bubbles: true }))
+  box.focus()
+}
 
-  // WhatsApp Web usa um editor controlado por React; o jeito mais confiável
-  // de inserir texto é via execCommand insertText, que dispara os eventos
-  // de input esperados pelo editor.
-  document.execCommand('insertText', false, text)
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    if (!btn) return
+    const old = btn.textContent; btn.textContent = 'Copiado!'
+    setTimeout(() => { btn.textContent = old }, 1500)
+  })
 }
 
 // ─── Utils ───────────────────────────────────────────────────────────────────
-
 function escapeHtml(str) {
   if (str == null) return ''
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '?'
+  if (/^\+?\d/.test(parts[0])) return '#'
+  return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase()
+}
+function parseNotas(json) { try { return JSON.parse(json || '[]') } catch { return [] } }
+function formatDate(d) {
+  if (!d) return ''
+  const dt = new Date(d.length === 10 ? d + 'T00:00:00' : d)
+  return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+function formatDateTime(d) {
+  if (!d) return ''
+  return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+function isToday(iso) {
+  if (!iso) return false
+  const d = new Date(iso), n = new Date()
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
+}
+function isTodayOrOverdue(dateStr) {
+  if (!dateStr) return false
+  const d = new Date(dateStr.length === 10 ? dateStr + 'T23:59:59' : dateStr)
+  return d.getTime() <= Date.now() || isToday(dateStr)
 }
 
-// ─── Bootstrap ───────────────────────────────────────────────────────────────
-
+// ─── Boot ─────────────────────────────────────────────────────────────────────
 const bootObserver = new MutationObserver(() => {
-  if (document.querySelector('#app') && !document.getElementById('justo-crm-panel')) {
-    injectPanel()
-  }
+  if (document.querySelector('#app') && !document.getElementById('justo-crm-panel')) injectPanel()
 })
 bootObserver.observe(document.body, { childList: true, subtree: true })
-
 if (document.querySelector('#app')) injectPanel()
