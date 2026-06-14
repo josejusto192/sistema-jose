@@ -670,7 +670,9 @@ function bindLeadItemEvents() {
 function openChat(rawPhone) {
   const num = toDialNumber(rawPhone) || (normalizePhone(rawPhone) ? toWhatsappNumber(normalizePhone(rawPhone)) : null)
   if (!num) { alert('Telefone inválido para abrir a conversa.'); return }
-  window.location.href = `https://web.whatsapp.com/send?phone=${num}`
+  // Abre em uma nova aba em vez de navegar a aba atual: recarregar o WhatsApp
+  // Web na mesma aba reinicia toda a sessão (lento e perde o estado do painel).
+  window.open(`https://web.whatsapp.com/send?phone=${num}`, '_blank')
 }
 
 // ════════════════════════════════════════════════════════════════════════════
