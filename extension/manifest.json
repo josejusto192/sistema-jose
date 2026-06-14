@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Justo CRM — Prospecção WhatsApp",
+  "version": "0.1.0",
+  "description": "Painel lateral no WhatsApp Web para prospecção: cria/atualiza leads no Justo CRM e gera mensagens de abordagem com IA.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "https://*.supabase.co/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Justo CRM"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["lib/phone.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "128": "icons/icon128.png"
+  }
+}
