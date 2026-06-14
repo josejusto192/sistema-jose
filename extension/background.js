@@ -154,6 +154,11 @@ async function findLeadByPhone(canonPhone) {
   return data && data.length ? data[0] : null
 }
 
+// Lista leads em prospecção ativa (para iniciar conversas a partir do painel).
+async function listLeads() {
+  return pgFetch(`leads?select=id,razao_social,nome_fantasia,telefone,status_prospeccao,vendedor_nome&status_prospeccao=in.(novo,contatado,aguardando,respondeu,call_agendada,call_realizada,proposta_enviada)&order=atualizado_em.desc&limit=100`)
+}
+
 async function createLead(payload) {
   const data = await pgFetch('leads', {
     method: 'POST',
@@ -243,6 +248,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         case 'FIND_LEAD':
           return sendResponse({ ok: true, data: await findLeadByPhone(msg.canonPhone) })
+        case 'LIST_LEADS':
+          return sendResponse({ ok: true, data: await listLeads() })
         case 'CREATE_LEAD':
           return sendResponse({ ok: true, data: await createLead(msg.payload) })
         case 'UPDATE_STATUS':

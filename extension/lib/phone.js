@@ -66,7 +66,20 @@ function formatCanonPhone(canon) {
   return `(${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`
 }
 
+/**
+ * Converte um telefone canônico (DDD+8) para o formato usado pelo link
+ * "click to chat" do WhatsApp: 55 + DDD + 9 + 8 dígitos.
+ * @param {string} canon
+ * @returns {string|null}
+ */
+function toWhatsappNumber(canon) {
+  if (!canon || canon.length !== 10) return null
+  const ddd = canon.slice(0, 2)
+  const number = canon.slice(2)
+  return `55${ddd}9${number}`
+}
+
 // Exporta para uso no content script (escopo global) e no service worker (module)
 if (typeof module !== 'undefined') {
-  module.exports = { normalizePhone, phoneFromJid, formatCanonPhone }
+  module.exports = { normalizePhone, phoneFromJid, formatCanonPhone, toWhatsappNumber }
 }
