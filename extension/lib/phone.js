@@ -79,7 +79,28 @@ function toWhatsappNumber(canon) {
   return `55${ddd}9${number}`
 }
 
+
+/**
+ * Monta o número para o link "click to chat" do WhatsApp a partir do telefone
+ * ORIGINAL cadastrado (preservando o 9º dígito e DDDs corretamente). Só força
+ * o DDI 55 quando ele não está presente. É mais fiel que reconstruir a partir
+ * do canônico (que descarta o 9), evitando discar número errado.
+ * @param {string} raw
+ * @returns {string|null}
+ */
+function toDialNumber(raw) {
+  if (!raw) return null
+  let d = String(raw).replace(/\D/g, '')
+  if (!d) return null
+  // remove zero de discagem local (0XX...)
+  if (d.length === 12 && d.startsWith('0')) d = d.slice(1)
+  if (d.startsWith('55') && d.length >= 12) return d        // já tem DDI
+  if (d.length === 10 || d.length === 11) return '55' + d   // DDD + número
+  if (d.length >= 12) return d
+  return null
+}
+
 // Exporta para uso no content script (escopo global) e no service worker (module)
 if (typeof module !== 'undefined') {
-  module.exports = { normalizePhone, phoneFromJid, formatCanonPhone, toWhatsappNumber }
+  module.exports = { normalizePhone, phoneFromJid, formatCanonPhone, toWhatsappNumber, toDialNumber }
 }
