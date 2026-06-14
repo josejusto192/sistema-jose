@@ -12,6 +12,8 @@ const outPath = `${__dirname}/../public/justo-crm-config.json`
 const config = {
   SUPABASE_URL: process.env.VITE_SUPABASE_URL || '',
   SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || '',
+  GEMINI_API_KEY: process.env.VITE_GEMINI_API_KEY || '',
+  GEMINI_MODEL: process.env.VITE_GEMINI_MODEL || 'gemini-2.0-flash',
 }
 
 mkdirSync(`${__dirname}/../public`, { recursive: true })

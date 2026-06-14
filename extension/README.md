@@ -24,8 +24,8 @@ conecta automaticamente ao sistema.
 ## 2. Uso
 
 1. Clique no ícone da extensão na barra do navegador e faça **login** com sua conta do Justo Mídias CRM (mesmo e-mail/senha do sistema).
-   - No primeiro login, a extensão busca automaticamente `SUPABASE_URL`/`SUPABASE_ANON_KEY`
-     em `https://sistema.josejusto.com.br/justo-crm-config.json` (gerado no build do sistema) e os salva localmente.
+   - No primeiro login, a extensão busca automaticamente `SUPABASE_URL`, `SUPABASE_ANON_KEY` e a chave do
+     Gemini em `https://sistema.josejusto.com.br/justo-crm-config.json` (gerado no build do sistema) e os salva localmente.
 2. Abra o **WhatsApp Web** (`web.whatsapp.com`).
 3. Um botão laranja "Justo CRM" aparece no canto superior direito — clique para abrir/fechar o painel.
 4. Ao abrir uma conversa, o painel mostra:
@@ -35,15 +35,11 @@ conecta automaticamente ao sistema.
 
 ## Como funciona a geração de mensagens com IA
 
-A extensão chama a Edge Function `generate-message` do Supabase (autenticada
-com o token de login do usuário), que por sua vez chama a API do Gemini.
-A chave do Gemini fica apenas no Supabase, como secret da função — nunca na
-extensão. Para configurar (uma única vez, feito pelo administrador do sistema):
-
-```
-supabase secrets set GEMINI_API_KEY=sua_chave --project-ref prilivwxekihepvdeass
-supabase functions deploy generate-message --project-ref prilivwxekihepvdeass
-```
+A extensão chama a API do Gemini diretamente, usando a chave configurada nas
+variáveis de ambiente do build do sistema (Coolify): `VITE_GEMINI_API_KEY` e,
+opcionalmente, `VITE_GEMINI_MODEL` (padrão `gemini-2.0-flash`). Essas chaves
+são publicadas em `justo-crm-config.json` (mesmo arquivo público que já expõe
+a anon key do Supabase) e a extensão as lê automaticamente no primeiro login.
 
 ## Como funciona o casamento de números
 

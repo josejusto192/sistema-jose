@@ -30,7 +30,13 @@ async function autoDiscoverConfig(appUrl) {
   if (!res.ok) throw new Error('Não foi possível obter a configuração do sistema. Verifique a URL.')
   const data = await res.json()
   if (!data.SUPABASE_URL || !data.SUPABASE_ANON_KEY) throw new Error('Configuração incompleta no sistema (justo-crm-config.json).')
-  return setConfig({ APP_URL: base, SUPABASE_URL: data.SUPABASE_URL, SUPABASE_ANON_KEY: data.SUPABASE_ANON_KEY })
+  return setConfig({
+    APP_URL: base,
+    SUPABASE_URL: data.SUPABASE_URL,
+    SUPABASE_ANON_KEY: data.SUPABASE_ANON_KEY,
+    GEMINI_API_KEY: data.GEMINI_API_KEY || '',
+    GEMINI_MODEL: data.GEMINI_MODEL || DEFAULT_CONFIG.GEMINI_MODEL,
+  })
 }
 
 function assertConfigured(cfg) {
@@ -175,24 +181,40 @@ async function insertStatusHistory(empresa_id, status_prospeccao, usuario_id) {
 // ─── Gemini ────────────────────────────────────────────────────────────────
 
 async function generateMessage({ nomeContato, nomeEmpresa, contexto }) {
-  const cfg = await getConfig()
-  assertConfigured(cfg)
+  let cfg = await getConfig()
+  if (!cfg.GEMINI_API_KEY) {
+    cfg = await autoDiscoverConfig(cfg.APP_URL || DEFAULT_CONFIG.APP_URL)
+  }
+  if (!cfg.GEMINI_API_KEY) throw new Error('Chave do Gemini não configurada no sistema.')
 
-  const session = await getValidSession()
-  if (!session) throw new Error('not_authenticated')
+  const prompt = `Você é um especialista em prospecção comercial via WhatsApp para uma agência de marketing chamada Justo Mídias.
+Escreva UMA mensagem curta (máx. 4 linhas), em português do Brasil, casual e direta, para o primeiro contato com um lead.
 
-  const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/generate-message`, {
+Nome do contato: ${nomeContato || 'não informado'}
+Empresa: ${nomeEmpresa || 'não informado'}
+Contexto adicional: ${contexto || 'nenhum'}
+
+Regras:
+- Não use saudações genéricas como "Espero que esteja bem".
+- Vá direto ao ponto, gere curiosidade, sem parecer spam.
+- Não use emojis em excesso (no máximo 1).
+- Retorne APENAS o texto da mensagem, sem aspas, sem explicações.`
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.GEMINI_MODEL}:generateContent?key=${cfg.GEMINI_API_KEY}`
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: cfg.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({ nomeContato, nomeEmpresa, contexto }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.8, maxOutputTokens: 200 },
+    }),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Erro ao gerar mensagem')
-  return data.message
+  if (!res.ok) throw new Error(data.error?.message || 'Erro ao gerar mensagem')
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+  if (!text) throw new Error('Resposta vazia da IA')
+  return text
 }
 
 // ─── Roteamento de mensagens ───────────────────────────────────────────────
