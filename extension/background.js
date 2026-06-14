@@ -248,12 +248,25 @@ const TOM_INSTRUCOES = {
   curioso:    'Tom que desperta curiosidade, com um gancho que dá vontade de responder.',
 }
 
+// Modelos válidos atualmente servidos pela API do Gemini. Protege contra
+// nomes de modelo inexistentes presos em configurações antigas em cache
+// (ex.: "gemini-3.5-flash", que nunca existiu e gerava respostas truncadas/erradas).
+const VALID_GEMINI_MODELS = new Set([
+  'gemini-2.0-flash', 'gemini-2.0-flash-lite',
+  'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro',
+  'gemini-1.5-flash', 'gemini-1.5-pro',
+])
+
 async function generateMessage({ nomeContato, nomeEmpresa, contexto, tom, etapa }) {
   let cfg = await getConfig()
   if (!cfg.GEMINI_API_KEY) {
     cfg = await autoDiscoverConfig(cfg.APP_URL || DEFAULT_CONFIG.APP_URL)
   }
   if (!cfg.GEMINI_API_KEY) throw new Error('Chave do Gemini não configurada no sistema.')
+  if (!VALID_GEMINI_MODELS.has(cfg.GEMINI_MODEL)) {
+    cfg = { ...cfg, GEMINI_MODEL: 'gemini-2.0-flash' }
+    await setConfig({ GEMINI_MODEL: cfg.GEMINI_MODEL })
+  }
 
   const tomTxt = TOM_INSTRUCOES[tom] || TOM_INSTRUCOES.consultivo
   const etapaTxt = {
@@ -296,8 +309,17 @@ Regras:
     throw new Error(apiMsg || 'Erro ao gerar mensagem')
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+  let text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
   if (!text) throw new Error('Resposta vazia da IA')
+
+  // Remove formatação markdown (**negrito**, marcadores de lista) que o
+  // modelo às vezes inclui mesmo sendo instruído a retornar texto puro.
+  text = text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/^[*\-•]\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
   return text
 }
 
