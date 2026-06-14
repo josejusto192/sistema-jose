@@ -910,6 +910,52 @@ function ScriptsTab({ logAction }) {
   )
 }
 
+/* ─── Aba Extensão ────────────────────────────────────────────────────────── */
+
+function ExtensaoTab() {
+  const steps = [
+    'Clique em "Baixar extensão" abaixo e extraia (descompacte) o arquivo .zip em uma pasta no seu computador.',
+    'No Chrome, acesse chrome://extensions e ative o "Modo do desenvolvedor" (canto superior direito).',
+    'Clique em "Carregar sem compactação" e selecione a pasta que você extraiu.',
+    'Abra o WhatsApp Web normalmente. Um painel lateral do Justo CRM vai aparecer.',
+    'Clique no ícone da extensão e faça login com seu e-mail e senha do sistema — a configuração é automática, nada para colar.',
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Extensão de prospecção (WhatsApp Web)</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16, maxWidth: 640 }}>
+          Instale a extensão do Justo Mídias CRM no Chrome para gerar mensagens de abordagem com IA, criar leads
+          e acompanhar status diretamente pelo WhatsApp Web. Não é necessário colar nenhuma chave — basta instalar
+          e fazer login com sua conta do sistema.
+        </div>
+        <a
+          href="/justo-crm-extension.zip"
+          download
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 22px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}
+        >
+          Baixar extensão (.zip)
+        </a>
+      </div>
+
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Como instalar</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {steps.map((step, i) => (
+            <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--bg3)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+                {i + 1}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, paddingTop: 1 }}>{step}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
 export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
@@ -971,6 +1017,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
         <button style={tabStyle('sistema')} onClick={() => setActiveTab('sistema')}>Sistema</button>
         <button style={tabStyle('servicos')} onClick={() => setActiveTab('servicos')}>Serviços</button>
         <button style={tabStyle('scripts')} onClick={() => setActiveTab('scripts')}>Scripts</button>
+        <button style={tabStyle('extensao')} onClick={() => setActiveTab('extensao')}>Extensão</button>
       </div>
 
       {/* ── Usuários ── */}
@@ -1063,6 +1110,9 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
 
       {/* ── Scripts ── */}
       {activeTab === 'scripts' && <ScriptsTab logAction={logAction} />}
+
+      {/* ── Extensão ── */}
+      {activeTab === 'extensao' && <ExtensaoTab />}
 
       {/* Modal edição */}
       {selectedUser && (

@@ -5,6 +5,39 @@
 importScripts('config.js')
 
 const AUTH_STORAGE_KEY = 'justo_crm_session'
+const CONFIG_STORAGE_KEY = 'justo_crm_config'
+
+// ─── Configuração ───────────────────────────────────────────────────────────
+
+async function getConfig() {
+  const data = await chrome.storage.local.get(CONFIG_STORAGE_KEY)
+  return { ...DEFAULT_CONFIG, ...(data[CONFIG_STORAGE_KEY] || {}) }
+}
+
+async function setConfig(partial) {
+  const current = await getConfig()
+  const next = { ...current, ...partial }
+  await chrome.storage.local.set({ [CONFIG_STORAGE_KEY]: next })
+  return next
+}
+
+// Busca SUPABASE_URL / SUPABASE_ANON_KEY automaticamente a partir do app
+// (publicado em <APP_URL>/justo-crm-config.json). Assim o usuário só precisa
+// informar a URL do sistema uma vez — nada de copiar/colar chaves.
+async function autoDiscoverConfig(appUrl) {
+  const base = appUrl.replace(/\/+$/, '')
+  const res = await fetch(`${base}/justo-crm-config.json`, { cache: 'no-store' })
+  if (!res.ok) throw new Error('Não foi possível obter a configuração do sistema. Verifique a URL.')
+  const data = await res.json()
+  if (!data.SUPABASE_URL || !data.SUPABASE_ANON_KEY) throw new Error('Configuração incompleta no sistema (justo-crm-config.json).')
+  return setConfig({ APP_URL: base, SUPABASE_URL: data.SUPABASE_URL, SUPABASE_ANON_KEY: data.SUPABASE_ANON_KEY })
+}
+
+function assertConfigured(cfg) {
+  if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+    throw new Error('not_configured')
+  }
+}
 
 // ─── Sessão / Autenticação ────────────────────────────────────────────────
 
@@ -22,11 +55,16 @@ async function clearSession() {
 }
 
 async function login(email, password) {
-  const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+  let cfg = await getConfig()
+  if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+    cfg = await autoDiscoverConfig(cfg.APP_URL || DEFAULT_CONFIG.APP_URL)
+  }
+
+  const res = await fetch(`${cfg.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: CONFIG.SUPABASE_ANON_KEY,
+      apikey: cfg.SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({ email, password }),
   })
@@ -44,11 +82,12 @@ async function login(email, password) {
 }
 
 async function refreshSession(session) {
-  const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+  const cfg = await getConfig()
+  const res = await fetch(`${cfg.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: CONFIG.SUPABASE_ANON_KEY,
+      apikey: cfg.SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({ refresh_token: session.refresh_token }),
   })
@@ -77,14 +116,17 @@ async function getValidSession() {
 // ─── PostgREST helper ──────────────────────────────────────────────────────
 
 async function pgFetch(path, options = {}) {
+  const cfg = await getConfig()
+  assertConfigured(cfg)
+
   const session = await getValidSession()
   if (!session) throw new Error('not_authenticated')
 
-  const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/${path}`, {
+  const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      apikey: CONFIG.SUPABASE_ANON_KEY,
+      apikey: cfg.SUPABASE_ANON_KEY,
       Authorization: `Bearer ${session.access_token}`,
       Prefer: options.prefer || 'return=representation',
       ...(options.headers || {}),
@@ -101,8 +143,6 @@ async function pgFetch(path, options = {}) {
 // Busca lead pelo telefone canônico (DDD + 8 dígitos), comparando pelos
 // últimos 8 dígitos do campo "telefone" via ilike.
 async function findLeadByPhone(canonPhone) {
-  // canonPhone = DDD(2) + numero(8). Buscamos por ddd+numero E pelo numero puro
-  // (caso o telefone esteja salvo sem DDD ou em formatos variados).
   const last8 = canonPhone.slice(-8)
   const data = await pgFetch(`leads?select=id,razao_social,nome_fantasia,telefone,status_prospeccao,vendedor_id,vendedor_nome&telefone=ilike.*${last8}*&limit=5`)
   return data && data.length ? data[0] : null
@@ -135,34 +175,24 @@ async function insertStatusHistory(empresa_id, status_prospeccao, usuario_id) {
 // ─── Gemini ────────────────────────────────────────────────────────────────
 
 async function generateMessage({ nomeContato, nomeEmpresa, contexto }) {
-  const prompt = `Você é um especialista em prospecção comercial via WhatsApp para uma agência de marketing chamada Justo Mídias.
-Escreva UMA mensagem curta (máx. 4 linhas), em português do Brasil, casual e direta, para o primeiro contato com um lead.
+  const cfg = await getConfig()
+  assertConfigured(cfg)
 
-Nome do contato: ${nomeContato || 'não informado'}
-Empresa: ${nomeEmpresa || 'não informado'}
-Contexto adicional: ${contexto || 'nenhum'}
+  const session = await getValidSession()
+  if (!session) throw new Error('not_authenticated')
 
-Regras:
-- Não use saudações genéricas como "Espero que esteja bem".
-- Vá direto ao ponto, gere curiosidade, sem parecer spam.
-- Não use emojis em excesso (no máximo 1).
-- Retorne APENAS o texto da mensagem, sem aspas, sem explicações.`
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.GEMINI_MODEL}:generateContent?key=${CONFIG.GEMINI_API_KEY}`
-  const res = await fetch(url, {
+  const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/generate-message`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, maxOutputTokens: 200 },
-    }),
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: cfg.SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ nomeContato, nomeEmpresa, contexto }),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error?.message || 'Erro ao gerar mensagem')
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) throw new Error('Resposta vazia da IA')
-  return text.trim()
+  if (!res.ok) throw new Error(data.error || 'Erro ao gerar mensagem')
+  return data.message
 }
 
 // ─── Roteamento de mensagens ───────────────────────────────────────────────
@@ -178,6 +208,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           return sendResponse({ ok: true })
         case 'GET_SESSION':
           return sendResponse({ ok: true, data: await getValidSession() })
+        case 'GET_CONFIG':
+          return sendResponse({ ok: true, data: await getConfig() })
+        case 'SET_CONFIG':
+          return sendResponse({ ok: true, data: await setConfig(msg.config) })
+        case 'ENSURE_CONFIG': {
+          let cfg = await getConfig()
+          if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+            cfg = await autoDiscoverConfig(msg.appUrl || cfg.APP_URL || DEFAULT_CONFIG.APP_URL)
+          }
+          return sendResponse({ ok: true, data: cfg })
+        }
         case 'FIND_LEAD':
           return sendResponse({ ok: true, data: await findLeadByPhone(msg.canonPhone) })
         case 'CREATE_LEAD':

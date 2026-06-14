@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/write-extension-config.js && node scripts/zip-extension.js",
     "build": "vite build",
     "preview": "vite preview"
   },
