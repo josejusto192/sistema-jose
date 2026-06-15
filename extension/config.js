@@ -7,6 +7,6 @@ const DEFAULT_CONFIG = {
   SUPABASE_URL: '',
   SUPABASE_ANON_KEY: '',
   GEMINI_API_KEY: '',
-  GEMINI_MODEL: 'gemini-2.0-flash',
+  GEMINI_MODEL: 'gemini-3.5-flash',
   APP_URL: 'https://sistema.josejusto.com.br',
 }

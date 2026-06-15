@@ -9,10 +9,13 @@ const CONFIG_STORAGE_KEY = 'justo_crm_config'
 
 // Campos do lead que o painel usa (mantém o payload enxuto).
 const LEAD_FIELDS =
-  'id,razao_social,nome_fantasia,nome,sobrenome,tipo,telefone,email,cnpj,' +
+  'id,razao_social,nome_fantasia,nome,sobrenome,tipo,telefone,email,cnpj,cnpj_raiz,' +
   'status_prospeccao,canal_envio,vendedor_id,vendedor_nome,tags,data_followup,' +
   'observacoes,observacoes_json,municipio,uf,bairro,porte_descricao,capital_social,' +
-  'cnae_principal_descricao,criado_em,atualizado_em,data_envio'
+  'cnae_principal_descricao,cnae_principal_codigo,cnaes_secundarios,natureza_juridica_descricao,' +
+  'data_abertura,situacao_cadastral,tipo_logradouro,logradouro,numero,complemento,cep,' +
+  'email_valido,telefone_ddd,telefone_tipo,instagram_url,linkedin_url,facebook_url,site_url,' +
+  'quadro_societario,criado_em,atualizado_em,data_envio'
 
 // ─── Configuração ───────────────────────────────────────────────────────────
 
@@ -248,25 +251,12 @@ const TOM_INSTRUCOES = {
   curioso:    'Tom que desperta curiosidade, com um gancho que dá vontade de responder.',
 }
 
-// Modelos válidos atualmente servidos pela API do Gemini. Protege contra
-// nomes de modelo inexistentes presos em configurações antigas em cache
-// (ex.: "gemini-3.5-flash", que nunca existiu e gerava respostas truncadas/erradas).
-const VALID_GEMINI_MODELS = new Set([
-  'gemini-2.0-flash', 'gemini-2.0-flash-lite',
-  'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro',
-  'gemini-1.5-flash', 'gemini-1.5-pro',
-])
-
 async function generateMessage({ nomeContato, nomeEmpresa, contexto, tom, etapa }) {
   let cfg = await getConfig()
   if (!cfg.GEMINI_API_KEY) {
     cfg = await autoDiscoverConfig(cfg.APP_URL || DEFAULT_CONFIG.APP_URL)
   }
   if (!cfg.GEMINI_API_KEY) throw new Error('Chave do Gemini não configurada no sistema.')
-  if (!VALID_GEMINI_MODELS.has(cfg.GEMINI_MODEL)) {
-    cfg = { ...cfg, GEMINI_MODEL: 'gemini-2.0-flash' }
-    await setConfig({ GEMINI_MODEL: cfg.GEMINI_MODEL })
-  }
 
   const tomTxt = TOM_INSTRUCOES[tom] || TOM_INSTRUCOES.consultivo
   const etapaTxt = {
@@ -291,13 +281,21 @@ Regras:
 - No máximo 1 emoji.
 - Retorne APENAS o texto da mensagem, sem aspas, sem explicações.`
 
+  const generationConfig = { temperature: 0.85, maxOutputTokens: 1024 }
+  // Modelos com "thinking" (ex.: gemini-2.5/3.x) consomem o orçamento de
+  // tokens com raciocínio interno antes da resposta final, o que cortava a
+  // mensagem pela metade. Desativa o thinking nesses modelos.
+  if (/gemini-(2\.5|3)/.test(cfg.GEMINI_MODEL)) {
+    generationConfig.thinkingConfig = { thinkingBudget: 0 }
+  }
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.GEMINI_MODEL}:generateContent?key=${cfg.GEMINI_API_KEY}`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.85, maxOutputTokens: 220 },
+      generationConfig,
     }),
   })
   const data = await res.json()
