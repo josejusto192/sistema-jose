@@ -290,6 +290,27 @@ function renderLeadTab() {
   bindLeadEvents()
 }
 
+// Renderiza uma linha "chave: valor" apenas se o valor existir (evita poluir
+// o painel com campos vazios, já que muitos leads não têm todos os dados).
+function dataRow(label, value, opts = {}) {
+  if (value == null || value === '') return ''
+  const v = opts.html ? value : escapeHtml(String(value))
+  const style = opts.maxWidth ? ` style="max-width:${opts.maxWidth}px;text-align:right"` : ''
+  return `<div class="jc-row"><span class="k">${escapeHtml(label)}</span><span class="v"${style}>${v}</span></div>`
+}
+
+function formatCnpj(cnpj) {
+  const d = String(cnpj || '').replace(/\D/g, '')
+  if (d.length !== 14) return cnpj || ''
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
+}
+
+function formatFullDate(d) {
+  if (!d) return ''
+  const dt = new Date(d.length === 10 ? d + 'T00:00:00' : d)
+  return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 function renderLeadCRM(lead) {
   const cfg = STATUS_CONFIG[lead.status_prospeccao] || STATUS_CONFIG.novo
   const empresa = lead.nome_fantasia || lead.razao_social || '—'
@@ -306,11 +327,74 @@ function renderLeadCRM(lead) {
       </div>
       <div class="jc-card">
         <div class="jc-row"><span class="k">Empresa</span><span class="v">${escapeHtml(empresa)}</span></div>
+        ${lead.razao_social && lead.razao_social !== empresa ? dataRow('Razão social', lead.razao_social, { maxWidth: 200 }) : ''}
         ${local ? `<div class="jc-row"><span class="k">Local</span><span class="v">${escapeHtml(local)}</span></div>` : ''}
         ${lead.porte_descricao ? `<div class="jc-row"><span class="k">Porte</span><span class="v">${escapeHtml(lead.porte_descricao)}</span></div>` : ''}
         ${lead.cnae_principal_descricao ? `<div class="jc-row"><span class="k">Atividade</span><span class="v" style="max-width:200px">${escapeHtml(lead.cnae_principal_descricao)}</span></div>` : ''}
       </div>
     </div>
+
+    <div class="jc-section">
+      <div class="jc-label">Dados completos</div>
+      <div class="jc-card">
+        ${dataRow('CNPJ', formatCnpj(lead.cnpj), { maxWidth: 160 })}
+        ${dataRow('Natureza jurídica', lead.natureza_juridica_descricao, { maxWidth: 200 })}
+        ${dataRow('Data de abertura', formatFullDate(lead.data_abertura))}
+        ${dataRow('Situação cadastral', lead.situacao_cadastral)}
+        ${dataRow('Capital social', lead.capital_social ? `R$ ${Number(lead.capital_social).toLocaleString('pt-BR')}` : null)}
+        ${dataRow('E-mail', lead.email, { maxWidth: 200 })}
+        ${dataRow('E-mail válido', lead.email_valido != null ? (lead.email_valido ? 'Sim' : 'Não') : null)}
+        ${dataRow('Telefone', lead.telefone, { maxWidth: 160 })}
+        ${dataRow('DDD / Tipo', lead.telefone_ddd ? `${lead.telefone_ddd} · ${lead.telefone_tipo || ''}` : null)}
+      </div>
+    </div>
+
+    ${lead.cnae_principal_descricao || lead.cnaes_secundarios?.length ? `
+    <div class="jc-section">
+      <div class="jc-label">Atividade econômica</div>
+      <div class="jc-card">
+        ${dataRow('CNAE principal', lead.cnae_principal_descricao ? `${lead.cnae_principal_codigo ? lead.cnae_principal_codigo + ' — ' : ''}${lead.cnae_principal_descricao}` : null, { maxWidth: 200 })}
+        ${lead.cnaes_secundarios?.length ? `
+          <div class="jc-hint" style="margin-top:6px;margin-bottom:4px">CNAEs secundários</div>
+          ${lead.cnaes_secundarios.slice(0, 8).map(c => `
+            <div class="jc-row"><span class="k" style="font-family:monospace">${escapeHtml(c.codigo || '')}</span><span class="v" style="max-width:200px">${escapeHtml(c.descricao || '')}</span></div>
+          `).join('')}
+        ` : ''}
+      </div>
+    </div>` : ''}
+
+    ${(lead.logradouro || lead.bairro || lead.cep) ? `
+    <div class="jc-section">
+      <div class="jc-label">Endereço</div>
+      <div class="jc-card">
+        ${dataRow('Logradouro', [lead.tipo_logradouro, lead.logradouro, lead.numero].filter(Boolean).join(' '), { maxWidth: 200 })}
+        ${dataRow('Complemento', lead.complemento, { maxWidth: 200 })}
+        ${dataRow('Bairro', lead.bairro)}
+        ${dataRow('Município/UF', local)}
+        ${dataRow('CEP', lead.cep)}
+      </div>
+    </div>` : ''}
+
+    ${(lead.instagram_url || lead.linkedin_url || lead.facebook_url || lead.site_url) ? `
+    <div class="jc-section">
+      <div class="jc-label">Redes / site</div>
+      <div class="jc-card">
+        ${lead.site_url ? dataRow('Site', `<a href="${escapeHtml(lead.site_url)}" target="_blank" rel="noopener">${escapeHtml(lead.site_url)}</a>`, { html: true, maxWidth: 200 }) : ''}
+        ${lead.instagram_url ? dataRow('Instagram', `<a href="${escapeHtml(lead.instagram_url)}" target="_blank" rel="noopener">abrir</a>`, { html: true }) : ''}
+        ${lead.linkedin_url ? dataRow('LinkedIn', `<a href="${escapeHtml(lead.linkedin_url)}" target="_blank" rel="noopener">abrir</a>`, { html: true }) : ''}
+        ${lead.facebook_url ? dataRow('Facebook', `<a href="${escapeHtml(lead.facebook_url)}" target="_blank" rel="noopener">abrir</a>`, { html: true }) : ''}
+      </div>
+    </div>` : ''}
+
+    ${lead.quadro_societario?.length ? `
+    <div class="jc-section">
+      <div class="jc-label">Quadro societário (${lead.quadro_societario.length})</div>
+      <div class="jc-card">
+        ${lead.quadro_societario.map(s => `
+          <div class="jc-row"><span class="k">${escapeHtml(s.nome || '')}</span><span class="v" style="max-width:200px">${escapeHtml([s.qualificacao_socio, s.faixa_etaria_descricao].filter(Boolean).join(' · '))}</span></div>
+        `).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="jc-section">
       <div class="jc-label">Status da prospecção</div>
@@ -667,12 +751,58 @@ function bindLeadItemEvents() {
   })
 }
 
-function openChat(rawPhone) {
+// Abre a conversa usando a busca interna do WhatsApp Web, sem recarregar a
+// página (que reinicia toda a sessão e é muito lento). Como fallback, se a
+// busca falhar (mudança de layout do WhatsApp), abre via link "click to chat".
+async function openChatInPlace(num) {
+  const digits = num.replace(/\D/g, '')
+  const candidates = [digits, digits.replace(/^55/, '')]
+
+  const searchBox = document.querySelector('div[contenteditable="true"][data-tab="3"]')
+    || document.querySelector('[data-testid="chat-list-search"]')
+    || document.querySelector('div[role="textbox"][title*="esquisa" i]')
+    || document.querySelector('div[role="textbox"][aria-label*="earch" i]')
+  if (!searchBox) return false
+
+  searchBox.focus()
+  // Insere o texto e dispara os eventos que o React do WhatsApp escuta.
+  document.execCommand('insertText', false, candidates[0])
+  searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }))
+
+  await new Promise(r => setTimeout(r, 600))
+
+  const list = document.querySelector('[aria-label*="ista de conversas" i]')
+    || document.querySelector('[data-testid="chat-list"]')
+    || document.querySelector('#pane-side')
+  const firstResult = list?.querySelector('div[role="listitem"], div[role="row"]')
+
+  if (!firstResult) {
+    document.execCommand('selectAll', false)
+    document.execCommand('delete')
+    searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    return false
+  }
+
+  firstResult.click()
+  await new Promise(r => setTimeout(r, 200))
+
+  // Limpa a busca para voltar a lista de conversas ao normal.
+  document.execCommand('selectAll', false)
+  document.execCommand('delete')
+  searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }))
+  searchBox.blur()
+
+  return true
+}
+
+async function openChat(rawPhone) {
   const num = toDialNumber(rawPhone) || (normalizePhone(rawPhone) ? toWhatsappNumber(normalizePhone(rawPhone)) : null)
   if (!num) { alert('Telefone inválido para abrir a conversa.'); return }
-  // Abre em uma nova aba em vez de navegar a aba atual: recarregar o WhatsApp
-  // Web na mesma aba reinicia toda a sessão (lento e perde o estado do painel).
-  window.open(`https://web.whatsapp.com/send?phone=${num}`, '_blank')
+
+  const opened = await openChatInPlace(num).catch(() => false)
+  if (!opened) {
+    window.open(`https://web.whatsapp.com/send?phone=${num}`, '_blank')
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
