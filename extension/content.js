@@ -184,17 +184,45 @@ function extractActiveChat() {
 }
 
 function startObserving() {
-  const observer = new MutationObserver(() => {
+  let debounce = null
+  let titleObs = null
+
+  function checkChat() {
     const chat = extractActiveChat()
     if (!chat) return
     if (currentChat && currentChat.key === chat.key) return
     currentChat = chat
     onChatChanged(chat)
+  }
+
+  // Quando o título da conversa aparece no DOM, trocamos o observer largo
+  // pelo observer cirúrgico que escuta apenas mudanças nesse elemento.
+  function tryAttachTitleObserver() {
+    if (titleObs) return
+    const titleEl = document.querySelector('[data-testid="conversation-info-header-chat-title"]')
+    if (!titleEl) return
+    titleObs = new MutationObserver(() => {
+      clearTimeout(debounce)
+      debounce = setTimeout(checkChat, 150)
+    })
+    titleObs.observe(titleEl.closest('[data-testid="conversation-header"]') || titleEl, {
+      childList: true, subtree: true, characterData: true,
+    })
+  }
+
+  // Observer largo com debounce — usado até o título aparecer no DOM.
+  const broadObs = new MutationObserver(() => {
+    clearTimeout(debounce)
+    debounce = setTimeout(() => {
+      tryAttachTitleObserver()
+      checkChat()
+    }, 250)
   })
-  observer.observe(document.body, { childList: true, subtree: true })
+  broadObs.observe(document.body, { childList: true, subtree: true })
 
   const chat = extractActiveChat()
   if (chat) { currentChat = chat; onChatChanged(chat) }
+  tryAttachTitleObserver()
 }
 
 async function onChatChanged(chat) {
@@ -291,6 +319,18 @@ function renderLeadTab() {
   bindLeadEvents()
 }
 
+// Lê as últimas mensagens da conversa aberta diretamente do DOM do WhatsApp.
+function getRecentMessages(limit = 8) {
+  const panel = document.querySelector('[data-testid="conversation-panel-messages"]')
+  if (!panel) return []
+  const all = [...panel.querySelectorAll('[data-testid^="conv-msg-"]')]
+  return all.slice(-limit).map(msg => ({
+    text: msg.querySelector('[data-testid="selectable-text"]')?.textContent?.trim() || '',
+    time: (msg.querySelector('[data-testid="msg-meta"]')?.textContent || '').replace(/[^\d:apm]/gi, '').trim(),
+    sent: !!msg.querySelector('[data-testid="tail-out"]'),
+  })).filter(m => m.text)
+}
+
 // Renderiza uma linha "chave: valor" apenas se o valor existir (evita poluir
 // o painel com campos vazios, já que muitos leads não têm todos os dados).
 function dataRow(label, value, opts = {}) {
@@ -320,7 +360,20 @@ function renderLeadCRM(lead) {
   const tags = lead.tags || []
   const followup = lead.data_followup || ''
 
+  const msgs = getRecentMessages(8)
+  const leadReplied = msgs.length > 0 && !msgs[msgs.length - 1].sent
+  const showReplyBanner = leadReplied && !['respondeu', 'call_agendada', 'call_realizada', 'proposta_enviada', 'fechou'].includes(lead.status_prospeccao)
+
   let h = `
+    ${showReplyBanner ? `
+    <div class="jc-reply-banner" id="jc-reply-banner">
+      <div>💬 <b>${escapeHtml(empresa)}</b> respondeu! Atualizar status para <b>Respondeu</b>?</div>
+      <div class="jc-btn-row" style="margin-top:6px">
+        <button class="jc-btn jc-btn-sm" id="jc-mark-respondeu">Sim, atualizar</button>
+        <button class="jc-btn ghost jc-btn-sm" id="jc-dismiss-banner">Ignorar</button>
+      </div>
+    </div>` : ''}
+
     <div class="jc-section">
       <div class="jc-row" style="margin-bottom:8px">
         <span class="jc-badge" style="background:${cfg.bg};color:${cfg.color}"><span class="dot" style="background:${cfg.dot}"></span>${cfg.label}</span>
@@ -430,6 +483,19 @@ function renderLeadCRM(lead) {
       </div>
     </div>
 
+    ${msgs.length ? `
+    <div class="jc-section">
+      <div class="jc-label">Conversa recente</div>
+      <div class="jc-messages">
+        ${msgs.map(m => `
+          <div class="jc-msg ${m.sent ? 'sent' : 'recv'}">
+            <div class="jc-msg-bubble">${escapeHtml(m.text)}</div>
+            ${m.time ? `<div class="jc-msg-time">${escapeHtml(m.time)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
     <div class="jc-section jc-btn-row">
       <button class="jc-btn ghost" id="jc-goto-ia">✨ Gerar mensagem</button>
       ${config?.APP_URL ? `<button class="jc-btn secondary" id="jc-open-system">Abrir no sistema</button>` : ''}
@@ -515,6 +581,19 @@ function bindLeadEvents() {
   $('jc-goto-ia')?.addEventListener('click', () => switchTab('ia'))
   $('jc-open-system')?.addEventListener('click', () => {
     window.open(`${config.APP_URL.replace(/\/+$/, '')}/?lead=${currentLead.id}`, '_blank')
+  })
+
+  $('jc-mark-respondeu')?.addEventListener('click', async () => {
+    const prev = currentLead.status_prospeccao
+    const res = await api('UPDATE_STATUS', { id: currentLead.id, status: 'respondeu', prevStatus: prev })
+    if (res.ok) {
+      currentLead.status_prospeccao = 'respondeu'
+      leadsCache = null; metricsCache = null
+      render()
+    }
+  })
+  $('jc-dismiss-banner')?.addEventListener('click', () => {
+    $('jc-reply-banner')?.remove()
   })
 }
 
@@ -639,7 +718,8 @@ async function renderIA() {
 function iaResultHTML(text) {
   return `<div class="jc-msg-box" id="jc-msg-text">${escapeHtml(text)}</div>
     <div class="jc-btn-row">
-      <button class="jc-btn jc-btn-sm" id="jc-insert-msg">Inserir no WhatsApp</button>
+      <button class="jc-btn jc-btn-sm" id="jc-insert-send-msg">Inserir e Enviar</button>
+      <button class="jc-btn secondary jc-btn-sm" id="jc-insert-msg">Inserir</button>
       <button class="jc-btn ghost jc-btn-sm" id="jc-copy-msg">Copiar</button>
     </div>`
 }
@@ -680,9 +760,23 @@ function bindIAEvents(nomeContato, nomeEmpresa) {
   }))
 }
 
+function sendWhatsAppMessage() {
+  const box = document.querySelector('[data-testid="conversation-compose-box-input"]')
+    || document.querySelector('footer [contenteditable="true"]')
+  if (!box) return
+  box.focus()
+  box.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true,
+  }))
+}
+
 function bindResultButtons(text) {
   document.getElementById('jc-insert-msg')?.addEventListener('click', () => insertIntoWhatsApp(text))
   document.getElementById('jc-copy-msg')?.addEventListener('click', (e) => copyText(text, e.currentTarget))
+  document.getElementById('jc-insert-send-msg')?.addEventListener('click', () => {
+    insertIntoWhatsApp(text)
+    setTimeout(sendWhatsAppMessage, 300)
+  })
 }
 
 function findTpl(id) { return (scriptsCache || FALLBACK_TEMPLATES).find(t => String(t.id) === String(id)) }

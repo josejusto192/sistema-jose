@@ -298,3 +298,23 @@
 #justo-crm-panel .jc-search { position: relative; margin-bottom: 12px; }
 #justo-crm-panel .jc-search .jc-input { padding-left: 32px; }
 #justo-crm-panel .jc-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--jc-text3); }
+
+/* ─── Mensagens recentes ─── */
+#justo-crm-panel .jc-messages { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+#justo-crm-panel .jc-msg { display: flex; flex-direction: column; }
+#justo-crm-panel .jc-msg.sent { align-items: flex-end; }
+#justo-crm-panel .jc-msg.recv { align-items: flex-start; }
+#justo-crm-panel .jc-msg-bubble {
+  max-width: 85%; padding: 7px 10px; border-radius: 10px;
+  font-size: 12px; line-height: 1.5; word-break: break-word; white-space: pre-wrap;
+}
+#justo-crm-panel .jc-msg.sent .jc-msg-bubble { background: var(--jc-accent); color: #fff; border-bottom-right-radius: 3px; }
+#justo-crm-panel .jc-msg.recv .jc-msg-bubble { background: var(--jc-bg3); color: var(--jc-text); border-bottom-left-radius: 3px; }
+#justo-crm-panel .jc-msg-time { font-size: 9.5px; color: var(--jc-text3); margin-top: 2px; font-family: 'DM Mono', monospace; }
+
+/* ─── Banner de resposta detectada ─── */
+#justo-crm-panel .jc-reply-banner {
+  background: color-mix(in srgb, var(--jc-green) 12%, var(--jc-bg2));
+  border: 1px solid color-mix(in srgb, var(--jc-green) 35%, var(--jc-border));
+  border-radius: var(--jc-radius); padding: 11px 13px; margin-bottom: 2px; font-size: 12.5px;
+}
