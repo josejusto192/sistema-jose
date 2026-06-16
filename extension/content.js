@@ -168,7 +168,8 @@ function extractActiveChat() {
   }
 
   const title = readChatTitle(header)
-  const box = main.querySelector('footer [contenteditable="true"]')
+  const box = main.querySelector('[data-testid="conversation-compose-box-input"]')
+    || main.querySelector('footer [contenteditable="true"]')
   const inputAria = box ? (box.getAttribute('aria-label') || '') : ''
 
   const canonPhone =
@@ -751,48 +752,90 @@ function bindLeadItemEvents() {
   })
 }
 
-// Abre a conversa usando a busca interna do WhatsApp Web, sem recarregar a
-// página (que reinicia toda a sessão e é muito lento). Como fallback, se a
-// busca falhar (mudança de layout do WhatsApp), abre via link "click to chat".
-async function openChatInPlace(num) {
-  const digits = num.replace(/\D/g, '')
-  const candidates = [digits, digits.replace(/^55/, '')]
+// Seta valor em um <input> React/nativo sem que o React ignore o evento.
+function setNativeInputValue(input, value) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+  if (setter) setter.call(input, value)
+  else input.value = value
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
 
-  const searchBox = document.querySelector('div[contenteditable="true"][data-tab="3"]')
-    || document.querySelector('[data-testid="chat-list-search"]')
-    || document.querySelector('div[role="textbox"][title*="esquisa" i]')
-    || document.querySelector('div[role="textbox"][aria-label*="earch" i]')
-  if (!searchBox) return false
+// Estratégia 1: busca pela sidebar (ideal para conversas já existentes).
+async function searchAndOpenChat(num) {
+  const input = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]')
+  if (!input) return false
 
-  searchBox.focus()
-  // Insere o texto e dispara os eventos que o React do WhatsApp escuta.
-  document.execCommand('insertText', false, candidates[0])
-  searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }))
+  input.focus()
+  setNativeInputValue(input, num)
+  await new Promise(r => setTimeout(r, 700))
 
-  await new Promise(r => setTimeout(r, 600))
+  const list = document.querySelector('[data-testid="chat-list"]')
+  const firstItem = list?.querySelector('[data-testid="list-item-0"] [data-testid="cell-frame-container"]')
+    || list?.querySelector('[data-testid^="list-item-"] [data-testid="cell-frame-container"]')
 
-  const list = document.querySelector('[aria-label*="ista de conversas" i]')
-    || document.querySelector('[data-testid="chat-list"]')
-    || document.querySelector('#pane-side')
-  const firstResult = list?.querySelector('div[role="listitem"], div[role="row"]')
+  if (!firstItem) {
+    // Sem resultado — limpa e sinaliza falha para tentar outra estratégia.
+    setNativeInputValue(input, '')
+    input.blur()
+    return false
+  }
 
+  firstItem.click()
+  await new Promise(r => setTimeout(r, 200))
+  setNativeInputValue(input, '')
+  input.blur()
+  return true
+}
+
+// Estratégia 2: drawer "Nova conversa" (funciona para qualquer número,
+// mesmo que não esteja nos contatos — o WhatsApp aceita digitar o número).
+async function openNewChatDrawer(num) {
+  const newChatBtn = document.querySelector('button[aria-label="Nova conversa"]')
+  if (!newChatBtn) return false
+
+  newChatBtn.click()
+  await waitForElement('[data-testid="new-chat-drawer"]', 2500).catch(() => null)
+
+  const searchInput = document.querySelector('input[aria-label="Pesquisar nome ou número"]')
+  if (!searchInput) {
+    // Fecha o drawer — pressiona Escape.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    return false
+  }
+
+  searchInput.focus()
+  setNativeInputValue(searchInput, num)
+  await new Promise(r => setTimeout(r, 800))
+
+  const firstResult = document.querySelector(
+    '[data-testid="new-chat-drawer"] [data-testid="cell-frame-container"]'
+  )
   if (!firstResult) {
-    document.execCommand('selectAll', false)
-    document.execCommand('delete')
-    searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     return false
   }
 
   firstResult.click()
-  await new Promise(r => setTimeout(r, 200))
-
-  // Limpa a busca para voltar a lista de conversas ao normal.
-  document.execCommand('selectAll', false)
-  document.execCommand('delete')
-  searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }))
-  searchBox.blur()
-
   return true
+}
+
+function waitForElement(selector, timeout = 3000) {
+  return new Promise((resolve, reject) => {
+    const el = document.querySelector(selector)
+    if (el) return resolve(el)
+    const obs = new MutationObserver(() => {
+      const el = document.querySelector(selector)
+      if (el) { obs.disconnect(); resolve(el) }
+    })
+    obs.observe(document.body, { childList: true, subtree: true })
+    setTimeout(() => { obs.disconnect(); reject(new Error('timeout')) }, timeout)
+  })
+}
+
+async function openChatInPlace(num) {
+  if (await searchAndOpenChat(num).catch(() => false)) return true
+  if (await openNewChatDrawer(num).catch(() => false)) return true
+  return false
 }
 
 async function openChat(rawPhone) {
@@ -809,20 +852,20 @@ async function openChat(rawPhone) {
 // Inserção robusta no campo de mensagem do WhatsApp
 // ════════════════════════════════════════════════════════════════════════════
 function insertIntoWhatsApp(text) {
-  const box = document.querySelector('#main footer [contenteditable="true"]') || document.querySelector('footer [contenteditable="true"]')
+  // Seletor estável baseado em data-testid (não muda com deploy do WhatsApp).
+  const box = document.querySelector('[data-testid="conversation-compose-box-input"]')
+    || document.querySelector('footer [contenteditable="true"]')
   if (!box) { alert('Não foi possível encontrar o campo de mensagem. Abra a conversa e tente novamente.'); return }
   box.focus()
   const sel = window.getSelection()
   if (sel) { sel.selectAllChildren(box); sel.collapseToEnd() }
+  // O Lexical aceita insertText via execCommand (mais confiável que BeforeInputEvent).
   let ok = false
   try { ok = document.execCommand('insertText', false, text) } catch (e) { ok = false }
-  if (!ok || box.textContent.indexOf(text.slice(0, 12)) === -1) {
-    try {
-      box.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertText', data: text, bubbles: true, cancelable: true }))
-      box.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: text, bubbles: true }))
-    } catch (e) {}
+  if (!ok || !box.textContent.includes(text.slice(0, 12))) {
+    box.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertText', data: text, bubbles: true, cancelable: true }))
+    box.dispatchEvent(new InputEvent('input',       { inputType: 'insertText', data: text, bubbles: true }))
   }
-  box.dispatchEvent(new Event('input', { bubbles: true }))
   box.focus()
 }
 
