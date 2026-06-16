@@ -57,7 +57,7 @@ let scriptsCache = null
 let iaState = { etapa: 'primeiro', tom: 'consultivo', result: null }
 let panelEl = null, bodyEl = null
 const chatLeadMap = {}   // chatKey (name/phone) → lead
-let disparoState = { leads: [], template: '', delay: 30, running: false, index: 0, errors: [], sent: [] }
+let disparoState = { leads: [], template: '', delayMin: 25, delayMax: 45, running: false, index: 0, errors: [], sent: [] }
 
 // ─── Wrapper de mensagens p/ o background ────────────────────────────────────
 function api(type, extra = {}) {
@@ -1067,14 +1067,31 @@ function renderDisparoStep2() {
       <textarea class="jc-textarea" id="jc-disp-template" placeholder="Oi [Nome]! Tudo bem? Sou o José..." style="min-height:100px">${escapeHtml(disparoState.template)}</textarea>
     </div>
     <div class="jc-section">
-      <div class="jc-label">Intervalo entre envios: <span id="jc-delay-val">${disparoState.delay}s</span></div>
-      <input type="range" id="jc-disp-delay" min="20" max="120" value="${disparoState.delay}" style="width:100%;margin:6px 0" />
-      ${disparoState.delay < 30 ? `<div class="jc-error" style="margin-top:0">⚠️ Menos de 30s aumenta o risco de banimento!</div>` : ''}
+      <div class="jc-label">Intervalo entre envios</div>
+      <div class="jc-hint">O tempo real será aleatório entre mínimo e máximo — simula comportamento humano.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+        <div>
+          <div style="font-size:11px;color:var(--jc-text3);margin-bottom:4px">Mínimo</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" id="jc-delay-min" min="15" max="90" step="5" value="${disparoState.delayMin}" style="flex:1" />
+            <span id="jc-delay-min-val" style="font-family:monospace;font-size:12px;min-width:30px">${disparoState.delayMin}s</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--jc-text3);margin-bottom:4px">Máximo</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" id="jc-delay-max" min="20" max="180" step="5" value="${disparoState.delayMax}" style="flex:1" />
+            <span id="jc-delay-max-val" style="font-family:monospace;font-size:12px;min-width:30px">${disparoState.delayMax}s</span>
+          </div>
+        </div>
+      </div>
+      ${disparoState.delayMin < 20 ? `<div class="jc-error" style="margin-top:0">⚠️ Menos de 20s aumenta muito o risco de banimento!</div>` : ''}
     </div>
     <div class="jc-section">
       <div class="jc-label">Progresso: ${idx}/${total}</div>
       <div class="jc-disp-progress-bar"><div class="jc-disp-progress-fill" style="width:${progress}%"></div></div>
-      ${currentLeadName ? `<div style="font-size:12px;color:var(--jc-text2);margin-top:6px">Enviando para: <b>${escapeHtml(currentLeadName)}</b>…</div>` : ''}
+      ${currentLeadName ? `<div style="font-size:12px;color:var(--jc-text2);margin-top:6px">Digitando para: <b>${escapeHtml(currentLeadName)}</b>…</div>` : ''}
+      ${disparoState.running && idx < total && !currentLeadName ? `<div id="jc-disp-countdown" style="font-size:12px;color:var(--jc-text3);margin-top:6px">Aguardando intervalo…</div>` : ''}
       ${idx === total && total > 0 ? `<div class="jc-success" style="margin-top:8px">${IC.check} Disparo concluído! ${disparoState.sent.length} enviados, ${disparoState.errors.length} erros.</div>` : ''}
     </div>
     <div class="jc-btn-row">
@@ -1098,10 +1115,22 @@ function renderDisparoStep2() {
     disparoState.template = e.target.value
   })
 
-  document.getElementById('jc-disp-delay')?.addEventListener('input', (e) => {
-    disparoState.delay = Number(e.target.value)
-    const valEl = document.getElementById('jc-delay-val')
-    if (valEl) valEl.textContent = disparoState.delay + 's'
+  document.getElementById('jc-delay-min')?.addEventListener('input', (e) => {
+    disparoState.delayMin = Number(e.target.value)
+    if (disparoState.delayMax < disparoState.delayMin + 5) {
+      disparoState.delayMax = disparoState.delayMin + 5
+      const maxEl = document.getElementById('jc-delay-max')
+      const maxValEl = document.getElementById('jc-delay-max-val')
+      if (maxEl) maxEl.value = disparoState.delayMax
+      if (maxValEl) maxValEl.textContent = disparoState.delayMax + 's'
+    }
+    const el = document.getElementById('jc-delay-min-val')
+    if (el) el.textContent = disparoState.delayMin + 's'
+  })
+  document.getElementById('jc-delay-max')?.addEventListener('input', (e) => {
+    disparoState.delayMax = Math.max(Number(e.target.value), disparoState.delayMin + 5)
+    const el = document.getElementById('jc-delay-max-val')
+    if (el) el.textContent = disparoState.delayMax + 's'
   })
 
   document.getElementById('jc-disp-back')?.addEventListener('click', () => {
@@ -1129,6 +1158,31 @@ function renderDisparoStep2() {
   })
 }
 
+// Intervalo aleatório entre min e max (ms ou s conforme uso).
+function randBetween(min, max) { return min + Math.random() * (max - min) }
+
+// Digita o texto no compose box palavra por palavra para simular digitação humana.
+async function humanType(text) {
+  const box = document.querySelector('[data-testid="conversation-compose-box-input"]')
+    || document.querySelector('footer [contenteditable="true"]')
+  if (!box) { insertIntoWhatsApp(text); return }
+  box.focus()
+  const sel = window.getSelection()
+  if (sel) { sel.selectAllChildren(box); sel.collapseToEnd() }
+
+  const words = text.split(' ')
+  let i = 0
+  while (i < words.length) {
+    // Digita 1–3 palavras por vez com velocidade variável
+    const chunk = words.slice(i, i + Math.ceil(randBetween(1, 3))).join(' ')
+    try { document.execCommand('insertText', false, (i === 0 ? '' : ' ') + chunk) } catch (_) {}
+    i += chunk.split(' ').length
+    if (i < words.length) await new Promise(r => setTimeout(r, randBetween(60, 240)))
+  }
+  // "Revisar" antes de enviar: 0.6–2s
+  await new Promise(r => setTimeout(r, randBetween(600, 2000)))
+}
+
 async function runDisparo() {
   const leads = disparoState.leads
   while (disparoState.running && disparoState.index < leads.length) {
@@ -1140,27 +1194,43 @@ async function runDisparo() {
       .replace(/\[Empresa\]/g, empresa)
 
     try {
+      // 1. Abre a conversa
       const opened = await openChatInPlace(toDialNumber(lead.telefone) || lead.telefone).catch(() => false)
       if (!opened) {
         disparoState.errors.push(`${empresa} — não foi possível abrir a conversa`)
-        disparoState.index++
-        renderDisparoStep2()
-        continue
+        disparoState.index++; renderDisparoStep2(); continue
       }
-      await new Promise(r => setTimeout(r, 1500))
-      insertIntoWhatsApp(msg)
-      await new Promise(r => setTimeout(r, 300))
+
+      // 2. "Lê" a conversa antes de digitar (1.5–4s)
+      await new Promise(r => setTimeout(r, randBetween(1500, 4000)))
+      if (!disparoState.running) break
+
+      // 3. Digita humanamente (palavra por palavra com timing variável)
+      await humanType(msg)
+      if (!disparoState.running) break
+
+      // 4. Envia
       sendWhatsAppMessage()
       disparoState.sent.push(empresa)
     } catch (err) {
-      disparoState.errors.push(`${empresa} — erro: ${err.message || 'desconhecido'}`)
+      disparoState.errors.push(`${empresa} — ${err.message || 'erro desconhecido'}`)
     }
 
     disparoState.index++
     renderDisparoStep2()
 
+    // 5. Intervalo aleatório entre delayMin e delayMax com countdown visual
     if (disparoState.index < leads.length && disparoState.running) {
-      await new Promise(r => setTimeout(r, disparoState.delay * 1000))
+      const waitMs = randBetween(disparoState.delayMin, disparoState.delayMax) * 1000
+      const endAt = Date.now() + waitMs
+      const tick = setInterval(() => {
+        const rem = Math.ceil((endAt - Date.now()) / 1000)
+        const el = document.querySelector('#jc-disp-countdown')
+        if (el) el.textContent = `Próximo envio em ${rem}s…`
+        if (rem <= 0) clearInterval(tick)
+      }, 500)
+      await new Promise(r => setTimeout(r, waitMs))
+      clearInterval(tick)
     }
   }
 
