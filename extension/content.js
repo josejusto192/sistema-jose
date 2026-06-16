@@ -1188,38 +1188,64 @@ async function runDisparo() {
   while (disparoState.running && disparoState.index < leads.length) {
     const lead = leads[disparoState.index]
     const nome = (lead.nome_fantasia || lead.razao_social || '').split(' ')[0] || 'tudo bem'
-    const empresa = lead.nome_fantasia || lead.razao_social || 'sua empresa'
+    const empresa = lead.nome_fantasia || lead.razao_social || 'Sem nome'
+
+    // ── Validações antes de tentar ──────────────────────────────────────────
+    if (!lead.telefone) {
+      disparoState.errors.push(`${empresa} — sem telefone cadastrado`)
+      disparoState.index++; renderDisparoStep2(); continue
+    }
+    const dialNum = toDialNumber(lead.telefone)
+    if (!dialNum) {
+      disparoState.errors.push(`${empresa} — telefone inválido: ${lead.telefone}`)
+      disparoState.index++; renderDisparoStep2(); continue
+    }
+
     const msg = (disparoState.template || '')
       .replace(/\[Nome\]/g, nome)
       .replace(/\[Empresa\]/g, empresa)
 
+    let success = false
     try {
-      // 1. Abre a conversa
-      const opened = await openChatInPlace(toDialNumber(lead.telefone) || lead.telefone).catch(() => false)
+      // 1. Abre a conversa (com reset de estado antes de cada tentativa)
+      const opened = await openChatInPlace(dialNum).catch(() => false)
       if (!opened) {
-        disparoState.errors.push(`${empresa} — não foi possível abrir a conversa`)
-        disparoState.index++; renderDisparoStep2(); continue
+        // Retry único: reseta UI e tenta de novo
+        await resetWaUiState()
+        await new Promise(r => setTimeout(r, 1000))
+        const retry = await openChatInPlace(dialNum).catch(() => false)
+        if (!retry) throw new Error('Não foi possível abrir a conversa após 2 tentativas')
       }
 
-      // 2. "Lê" a conversa antes de digitar (1.5–4s)
+      // 2. Confirma que a conversa abriu (compose box está presente)
+      await waitForElement('[data-testid="conversation-compose-box-input"]', 4000)
+        .catch(() => { throw new Error('Campo de mensagem não encontrado') })
+
+      // 3. "Lê" a conversa antes de digitar (simula comportamento humano)
       await new Promise(r => setTimeout(r, randBetween(1500, 4000)))
       if (!disparoState.running) break
 
-      // 3. Digita humanamente (palavra por palavra com timing variável)
+      // 4. Digita humanamente
       await humanType(msg)
       if (!disparoState.running) break
 
-      // 4. Envia
+      // 5. Envia e aguarda o compose box esvaziar (confirma envio)
       sendWhatsAppMessage()
+      const sent = await waitForComposeEmpty(3000)
+      if (!sent) throw new Error('Mensagem pode não ter sido enviada (compose não esvaziou)')
+
       disparoState.sent.push(empresa)
+      success = true
     } catch (err) {
       disparoState.errors.push(`${empresa} — ${err.message || 'erro desconhecido'}`)
+      // Reseta a UI após erro para não deixar estado sujo
+      await resetWaUiState().catch(() => {})
     }
 
     disparoState.index++
     renderDisparoStep2()
 
-    // 5. Intervalo aleatório entre delayMin e delayMax com countdown visual
+    // 6. Intervalo aleatório com countdown visual (apenas se houver próximo)
     if (disparoState.index < leads.length && disparoState.running) {
       const waitMs = randBetween(disparoState.delayMin, disparoState.delayMax) * 1000
       const endAt = Date.now() + waitMs
@@ -1234,10 +1260,61 @@ async function runDisparo() {
     }
   }
 
-  if (disparoState.index >= leads.length) {
-    disparoState.running = false
-    renderDisparoStep2()
+  disparoState.running = false
+  renderDisparoStep2()
+}
+
+// Aguarda o compose box esvaziar após sendWhatsAppMessage (confirma envio real).
+async function waitForComposeEmpty(timeout = 3000) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const box = document.querySelector('[data-testid="conversation-compose-box-input"]')
+      || document.querySelector('footer [contenteditable="true"]')
+    if (!box || !box.textContent.trim()) return true
+    await new Promise(r => setTimeout(r, 200))
   }
+  return false
+}
+
+// Reseta o estado da UI do WhatsApp antes de cada navegação:
+// fecha drawers/modais abertos e limpa a caixa de busca.
+async function resetWaUiState() {
+  // Fechar qualquer drawer ou painel aberto
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  await new Promise(r => setTimeout(r, 350))
+
+  // Limpar search box se tiver conteúdo
+  const searchInput = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]')
+  if (searchInput && searchInput.value.trim()) {
+    setNativeInputValue(searchInput, '')
+    await new Promise(r => setTimeout(r, 250))
+  }
+}
+
+// Retorna o título atual da conversa aberta (null se nenhuma aberta).
+function currentConversationTitle() {
+  return document.querySelector('[data-testid="conversation-info-header-chat-title"]')?.textContent?.trim() || null
+}
+
+// Verifica se o número já está na conversa ativa (evita reabrir desnecessariamente).
+function isCurrentConversation(num) {
+  const title = currentConversationTitle()
+  if (!title) return false
+  const digitsNum = num.replace(/\D/g, '').slice(-8)
+  const digitsTitle = title.replace(/\D/g, '').slice(-8)
+  if (digitsTitle.length >= 8 && digitsNum === digitsTitle) return true
+  return false
+}
+
+// Aguarda até que o título da conversa mude (confirma que o chat foi aberto).
+async function waitForConversationChange(prevTitle, timeout = 4000) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const cur = currentConversationTitle()
+    if (cur && cur !== prevTitle) return true
+    await new Promise(r => setTimeout(r, 150))
+  }
+  return false
 }
 
 // Seta valor em um <input> React/nativo sem que o React ignore o evento.
@@ -1248,65 +1325,7 @@ function setNativeInputValue(input, value) {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-// Estratégia 1: busca pela sidebar (ideal para conversas já existentes).
-async function searchAndOpenChat(num) {
-  const input = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]')
-  if (!input) return false
-
-  input.focus()
-  setNativeInputValue(input, num)
-  await new Promise(r => setTimeout(r, 700))
-
-  const list = document.querySelector('[data-testid="chat-list"]')
-  const firstItem = list?.querySelector('[data-testid="list-item-0"] [data-testid="cell-frame-container"]')
-    || list?.querySelector('[data-testid^="list-item-"] [data-testid="cell-frame-container"]')
-
-  if (!firstItem) {
-    // Sem resultado — limpa e sinaliza falha para tentar outra estratégia.
-    setNativeInputValue(input, '')
-    input.blur()
-    return false
-  }
-
-  firstItem.click()
-  await new Promise(r => setTimeout(r, 200))
-  setNativeInputValue(input, '')
-  input.blur()
-  return true
-}
-
-// Estratégia 2: drawer "Nova conversa" (funciona para qualquer número,
-// mesmo que não esteja nos contatos — o WhatsApp aceita digitar o número).
-async function openNewChatDrawer(num) {
-  const newChatBtn = document.querySelector('button[aria-label="Nova conversa"]')
-  if (!newChatBtn) return false
-
-  newChatBtn.click()
-  await waitForElement('[data-testid="new-chat-drawer"]', 2500).catch(() => null)
-
-  const searchInput = document.querySelector('input[aria-label="Pesquisar nome ou número"]')
-  if (!searchInput) {
-    // Fecha o drawer — pressiona Escape.
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    return false
-  }
-
-  searchInput.focus()
-  setNativeInputValue(searchInput, num)
-  await new Promise(r => setTimeout(r, 800))
-
-  const firstResult = document.querySelector(
-    '[data-testid="new-chat-drawer"] [data-testid="cell-frame-container"]'
-  )
-  if (!firstResult) {
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    return false
-  }
-
-  firstResult.click()
-  return true
-}
-
+// Aguarda um elemento aparecer no DOM (com timeout).
 function waitForElement(selector, timeout = 3000) {
   return new Promise((resolve, reject) => {
     const el = document.querySelector(selector)
@@ -1320,9 +1339,89 @@ function waitForElement(selector, timeout = 3000) {
   })
 }
 
+// Estratégia 1: busca na sidebar (para conversas já existentes no histórico).
+async function searchAndOpenChat(num) {
+  const input = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]')
+  if (!input) return false
+
+  const prevTitle = currentConversationTitle()
+
+  // Limpa → busca → aguarda resultados
+  setNativeInputValue(input, '')
+  await new Promise(r => setTimeout(r, 150))
+  input.focus()
+  setNativeInputValue(input, num)
+  await new Promise(r => setTimeout(r, 800))
+
+  const list = document.querySelector('[data-testid="chat-list"]')
+  const firstItem = list?.querySelector('[data-testid="list-item-0"] [data-testid="cell-frame-container"]')
+    || list?.querySelector('[data-testid^="list-item-"] [data-testid="cell-frame-container"]')
+
+  if (!firstItem) {
+    setNativeInputValue(input, '')
+    input.blur()
+    return false
+  }
+
+  firstItem.click()
+  // Aguarda a conversa abrir de fato (título da conversa muda)
+  const opened = await waitForConversationChange(prevTitle, 3500)
+  setNativeInputValue(input, '')
+  input.blur()
+  return opened
+}
+
+// Estratégia 2: drawer "Nova conversa" — funciona mesmo para números sem histórico.
+async function openNewChatDrawer(num) {
+  const newChatBtn = document.querySelector('button[aria-label="Nova conversa"]')
+  if (!newChatBtn) return false
+
+  const prevTitle = currentConversationTitle()
+  newChatBtn.click()
+
+  const drawer = await waitForElement('[data-testid="new-chat-drawer"]', 2500).catch(() => null)
+  if (!drawer) return false
+
+  const searchInput = document.querySelector('input[aria-label="Pesquisar nome ou número"]')
+  if (!searchInput) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    return false
+  }
+
+  searchInput.focus()
+  setNativeInputValue(searchInput, '')
+  await new Promise(r => setTimeout(r, 100))
+  setNativeInputValue(searchInput, num)
+  await new Promise(r => setTimeout(r, 900))
+
+  const firstResult = document.querySelector('[data-testid="new-chat-drawer"] [data-testid="cell-frame-container"]')
+  if (!firstResult) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await new Promise(r => setTimeout(r, 300))
+    return false
+  }
+
+  firstResult.click()
+  return await waitForConversationChange(prevTitle, 3500)
+}
+
+// Abre uma conversa via busca interna do WhatsApp sem recarregar a página.
+// Tenta sidebar search primeiro, depois drawer "Nova conversa".
+// Retorna true se conseguiu abrir, false caso contrário.
 async function openChatInPlace(num) {
+  // Verifica se a conversa já está aberta
+  if (isCurrentConversation(num)) return true
+
+  await resetWaUiState()
+
+  // Tenta sidebar search
   if (await searchAndOpenChat(num).catch(() => false)) return true
+
+  await resetWaUiState()
+
+  // Tenta drawer de nova conversa
   if (await openNewChatDrawer(num).catch(() => false)) return true
+
   return false
 }
 
