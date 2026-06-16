@@ -49,12 +49,14 @@ const IC = {
 // ─── Estado ──────────────────────────────────────────────────────────────────
 let currentChat = null   // { key, jid, phone, canonPhone, name }
 let currentLead = null
-let activeTab = 'lead'    // 'lead' | 'pipeline' | 'ia' | 'leads'
+let activeTab = 'lead'    // 'lead' | 'pipeline' | 'ia' | 'leads' | 'disparar'
 let config = null
 let leadsCache = null
 let metricsCache = null
 let scriptsCache = null
 let iaState = { etapa: 'primeiro', tom: 'consultivo', result: null }
+let disparoState = { step: 1, selected: new Set(), template: '', delay: 30, running: false, idx: 0, log: [] }
+let chatLeadMap = {}  // nome-chat-em-lower | canonPhone → lead (populado conforme o usuário abre chats)
 let panelEl = null, bodyEl = null
 
 // ─── Wrapper de mensagens p/ o background ────────────────────────────────────
@@ -82,13 +84,15 @@ function injectPanel() {
     </div>
     <div class="jc-tabs">
       <button class="jc-tab active" data-tab="lead">${IC.lead}Lead</button>
-      <button class="jc-tab" data-tab="pipeline">${IC.pipeline}Pipeline</button>
+      <button class="jc-tab" data-tab="pipeline">${IC.pipeline}Kanban</button>
       <button class="jc-tab" data-tab="ia">${IC.ia}IA</button>
       <button class="jc-tab" data-tab="leads">${IC.leads}Leads</button>
+      <button class="jc-tab" data-tab="disparar">🚀</button>
     </div>
     <div class="jc-body" id="jc-body"></div>
   `
   document.body.appendChild(panelEl)
+  document.body.classList.add('jc-panel-open')
 
   const toggle = document.createElement('button')
   toggle.id = 'justo-crm-toggle'
@@ -99,10 +103,14 @@ function injectPanel() {
   bodyEl = panelEl.querySelector('#jc-body')
 
   panelEl.querySelector('#jc-collapse').addEventListener('click', () => {
-    panelEl.classList.add('collapsed'); toggle.style.display = 'inline-flex'
+    panelEl.classList.add('collapsed')
+    document.body.classList.remove('jc-panel-open')
+    toggle.style.display = 'inline-flex'
   })
   toggle.addEventListener('click', () => {
-    panelEl.classList.remove('collapsed'); toggle.style.display = 'none'
+    panelEl.classList.remove('collapsed')
+    document.body.classList.add('jc-panel-open')
+    toggle.style.display = 'none'
   })
   panelEl.querySelector('#jc-refresh').addEventListener('click', () => {
     leadsCache = null; metricsCache = null; scriptsCache = null
@@ -123,12 +131,58 @@ function switchTab(tab) {
   render()
 }
 
+// Injeta badge de status do CRM nos itens da lista de conversas do WhatsApp.
+// Opera apenas nos chats que o usuário já abriu (chatLeadMap é preenchido on-demand).
+function injectChatListBadges() {
+  document.querySelectorAll('[data-testid^="list-item-"]').forEach(item => {
+    if (item.dataset.jcBadged === '1') return
+    const titleEl = item.querySelector('[data-testid="cell-frame-title"]')
+    if (!titleEl) return
+
+    const text = titleEl.textContent.trim()
+    let lead = chatLeadMap[text.toLowerCase()]
+    if (!lead) {
+      const canon = normalizePhone(text)
+      if (canon) lead = chatLeadMap[canon]
+    }
+    if (!lead) return
+
+    const cfg = STATUS_CONFIG[lead.status_prospeccao] || STATUS_CONFIG.novo
+    const badge = document.createElement('span')
+    badge.className = 'jc-list-badge'
+    badge.textContent = cfg.label
+    badge.style.cssText = `background:${cfg.bg};color:${cfg.color};`
+    titleEl.style.cssText += 'display:flex;align-items:center;gap:4px;'
+    titleEl.appendChild(badge)
+    item.dataset.jcBadged = '1'
+  })
+}
+
+function startChatListBadgeObserver() {
+  let t = null
+  const obs = new MutationObserver(() => {
+    clearTimeout(t)
+    t = setTimeout(injectChatListBadges, 400)
+  })
+  const chatList = document.querySelector('[data-testid="chat-list"]')
+  if (chatList) obs.observe(chatList, { childList: true, subtree: true })
+  // Also watch for the chat list to appear if not yet rendered
+  else {
+    const bodyObs = new MutationObserver(() => {
+      const cl = document.querySelector('[data-testid="chat-list"]')
+      if (cl) { bodyObs.disconnect(); obs.observe(cl, { childList: true, subtree: true }) }
+    })
+    bodyObs.observe(document.body, { childList: true, subtree: true })
+  }
+}
+
 async function checkAuthThenLoad() {
   const res = await api('GET_SESSION')
   if (!res || !res.ok || !res.data) { renderLoggedOut(); return }
   const cfgRes = await api('GET_CONFIG')
   config = cfgRes?.data || null
   startObserving()
+  startChatListBadgeObserver()
   render()
 }
 
@@ -243,6 +297,11 @@ async function loadLeadForCurrentChat() {
     return
   }
   currentLead = res.data
+  if (currentLead && currentChat) {
+    if (currentChat.canonPhone) chatLeadMap[currentChat.canonPhone] = currentLead
+    if (currentChat.name) chatLeadMap[currentChat.name.toLowerCase()] = currentLead
+    injectChatListBadges()
+  }
   if (activeTab === 'lead' || activeTab === 'ia') render()
 }
 
@@ -254,6 +313,7 @@ function render() {
   if (activeTab === 'pipeline') return renderPipeline()
   if (activeTab === 'ia') return renderIA()
   if (activeTab === 'leads') return renderLeadsTab()
+  if (activeTab === 'disparar') return renderDisparo()
   return renderLeadTab()
 }
 
@@ -622,36 +682,46 @@ async function renderPipeline() {
   const followHoje = leads.filter(l => l.data_followup && isTodayOrOverdue(l.data_followup)
     && !['fechou', 'perdido', 'descartado'].includes(l.status_prospeccao)).length
 
-  const maxFunnel = Math.max(1, ...FUNNEL_ORDER.map(s => byStatus[s]))
-
   let h = `
     <div class="jc-metrics">
       <div class="jc-metric accent"><div class="num">${ativos}</div><div class="lbl">Em prospecção</div></div>
       <div class="jc-metric green"><div class="num">${fechados}</div><div class="lbl">Fechados</div></div>
       <div class="jc-metric"><div class="num">${novosHoje}</div><div class="lbl">Novos hoje</div></div>
-      <div class="jc-metric"><div class="num">${followHoje}</div><div class="lbl">Follow-ups p/ hoje</div></div>
+      <div class="jc-metric"><div class="num">${followHoje}</div><div class="lbl">Follow-ups hoje</div></div>
     </div>
 
     <div class="jc-section">
-      <div class="jc-label">Funil de prospecção</div>
-      <div class="jc-funnel">
+      <div class="jc-label">Kanban</div>
+      <div class="jc-kanban">
         ${FUNNEL_ORDER.map(s => {
-          const c = STATUS_CONFIG[s]; const n = byStatus[s]
-          const w = Math.round((n / maxFunnel) * 100)
-          return `<div class="jc-funnel-row">
-            <span class="name">${c.label}</span>
-            <div class="jc-funnel-bar"><div class="jc-funnel-fill" style="width:${w}%;background:${c.dot}"></div></div>
-            <span class="cnt" style="color:${c.color}">${n}</span>
+          const c = STATUS_CONFIG[s]
+          const colLeads = leads.filter(l => l.status_prospeccao === s)
+            .sort((a, b) => new Date(b.atualizado_em) - new Date(a.atualizado_em))
+            .slice(0, 8)
+          return `<div class="jc-kanban-col">
+            <div class="jc-kanban-col-head" style="border-top:2px solid ${c.dot}">
+              <span style="color:${c.color}">${c.label}</span>
+              <span class="jc-kanban-cnt">${byStatus[s]}</span>
+            </div>
+            ${colLeads.map(l => {
+              const nome = l.nome_fantasia || l.razao_social || '—'
+              const overdue = l.data_followup && isTodayOrOverdue(l.data_followup)
+              return `<div class="jc-kanban-card" data-lead-id="${l.id}">
+                <div class="jc-kanban-name">${escapeHtml(nome)}</div>
+                ${overdue ? `<div class="jc-kanban-fu">⏰ ${formatDate(l.data_followup)}</div>` : ''}
+              </div>`
+            }).join('')}
+            ${byStatus[s] > 8 ? `<div class="jc-hint" style="padding:4px 6px;font-size:10px">+${byStatus[s]-8} mais</div>` : ''}
           </div>`
         }).join('')}
       </div>
     </div>
   `
 
-  // Follow-ups pendentes (clicáveis)
+  // Follow-ups pendentes
   const pend = leads.filter(l => l.data_followup && isTodayOrOverdue(l.data_followup)
     && !['fechou', 'perdido', 'descartado'].includes(l.status_prospeccao))
-    .sort((a, b) => (a.data_followup > b.data_followup ? 1 : -1)).slice(0, 12)
+    .sort((a, b) => (a.data_followup > b.data_followup ? 1 : -1)).slice(0, 10)
 
   h += `<div class="jc-section"><div class="jc-label">Follow-ups pendentes</div>`
   if (!pend.length) h += `<div class="jc-hint">Nenhum follow-up pendente. 🎉</div>`
@@ -660,6 +730,18 @@ async function renderPipeline() {
 
   bodyEl.innerHTML = h
   bindLeadItemEvents()
+
+  // Kanban cards clicáveis — abre o lead no painel
+  bodyEl.querySelectorAll('.jc-kanban-card').forEach(card => {
+    card.addEventListener('click', async () => {
+      const lead = metricsCache.find(l => l.id === card.dataset.leadId)
+      if (!lead) return
+      if (activeTab !== 'lead') switchTab('lead')
+      bodyEl.innerHTML = `<div class="jc-spinner">Carregando lead…</div>`
+      const res = await api('GET_LEAD', { id: lead.id })
+      if (res.ok && res.data) { currentLead = res.data; render() }
+    })
+  })
 }
 
 // ─── Aba IA ──────────────────────────────────────────────────────────────────
@@ -968,6 +1050,210 @@ function copyText(text, btn) {
     if (!btn) return
     const old = btn.textContent; btn.textContent = 'Copiado!'
     setTimeout(() => { btn.textContent = old }, 1500)
+  })
+}
+
+// ─── Aba DISPARAR ────────────────────────────────────────────────────────────
+async function renderDisparo() {
+  if (!leadsCache) {
+    bodyEl.innerHTML = `<div class="jc-spinner">Carregando leads…</div>`
+    const res = await api('LIST_LEADS')
+    if (!res.ok) {
+      if (res.error === 'not_authenticated') return renderLoggedOut()
+      bodyEl.innerHTML = `<div class="jc-error">Erro: ${escapeHtml(res.error)}</div>`
+      return
+    }
+    leadsCache = res.data || []
+    if (activeTab !== 'disparar') return
+  }
+
+  if (disparoState.running) return renderDisparoRunning()
+  if (disparoState.step === 2) return renderDisparoConfig()
+  renderDisparoSelect()
+}
+
+function renderDisparoSelect() {
+  const leads = leadsCache || []
+  const q = (document.getElementById('jc-disp-search')?.value || '').toLowerCase()
+  const filtered = q ? leads.filter(l =>
+    (l.nome_fantasia || l.razao_social || '').toLowerCase().includes(q) ||
+    (l.telefone || '').includes(q)
+  ) : leads
+
+  let h = `
+    <div class="jc-section">
+      <div class="jc-label">🚀 Disparo em lote</div>
+      <div class="jc-hint">⚠️ Use com moderação — envios em massa podem resultar em banimento da conta pelo WhatsApp.</div>
+      <div class="jc-search">
+        ${IC.search}
+        <input class="jc-input" id="jc-disp-search" placeholder="Filtrar leads…" value="" style="padding-left:32px" />
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span class="jc-hint" style="margin:0">${disparoState.selected.size} selecionado(s)</span>
+        <button class="jc-btn ghost jc-btn-sm" id="jc-disp-selall">Selecionar todos</button>
+      </div>
+      <div class="jc-disp-list">
+        ${filtered.map(l => {
+          const nome = l.nome_fantasia || l.razao_social || '—'
+          const cfg = STATUS_CONFIG[l.status_prospeccao] || STATUS_CONFIG.novo
+          const checked = disparoState.selected.has(l.id)
+          return `<label class="jc-disp-item ${checked ? 'selected' : ''}">
+            <input type="checkbox" data-id="${l.id}" data-phone="${escapeHtml(l.telefone || '')}" ${checked ? 'checked' : ''} />
+            <div class="jc-disp-item-info">
+              <div class="nm">${escapeHtml(nome)}</div>
+              <span class="jc-badge" style="background:${cfg.bg};color:${cfg.color}"><span class="dot" style="background:${cfg.dot}"></span>${cfg.label}</span>
+            </div>
+          </label>`
+        }).join('')}
+        ${!filtered.length ? '<div class="jc-hint">Nenhum lead encontrado.</div>' : ''}
+      </div>
+      <button class="jc-btn" id="jc-disp-next" ${disparoState.selected.size === 0 ? 'disabled' : ''} style="margin-top:12px;width:100%">
+        Configurar envio (${disparoState.selected.size}) →
+      </button>
+    </div>
+  `
+  bodyEl.innerHTML = h
+
+  document.getElementById('jc-disp-search')?.addEventListener('input', () => renderDisparoSelect())
+  document.getElementById('jc-disp-selall')?.addEventListener('click', () => {
+    const allIds = filtered.map(l => l.id)
+    const allSelected = allIds.every(id => disparoState.selected.has(id))
+    if (allSelected) allIds.forEach(id => disparoState.selected.delete(id))
+    else allIds.forEach(id => disparoState.selected.add(id))
+    renderDisparoSelect()
+  })
+  bodyEl.querySelectorAll('.jc-disp-item input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) disparoState.selected.add(cb.dataset.id)
+      else disparoState.selected.delete(cb.dataset.id)
+      document.getElementById('jc-disp-next')?.setAttribute('disabled', '')
+      if (disparoState.selected.size > 0) document.getElementById('jc-disp-next')?.removeAttribute('disabled')
+      document.getElementById('jc-disp-next').textContent = `Configurar envio (${disparoState.selected.size}) →`
+      cb.closest('.jc-disp-item').classList.toggle('selected', cb.checked)
+    })
+  })
+  document.getElementById('jc-disp-next')?.addEventListener('click', () => {
+    if (disparoState.selected.size === 0) return
+    disparoState.step = 2
+    renderDisparoConfig()
+  })
+}
+
+function renderDisparoConfig() {
+  const selectedLeads = (leadsCache || []).filter(l => disparoState.selected.has(l.id))
+  const tpl = disparoState.template
+  const delay = disparoState.delay
+
+  bodyEl.innerHTML = `
+    <div class="jc-section">
+      <div class="jc-label">🚀 Configurar disparo</div>
+      <div class="jc-hint">${selectedLeads.length} lead(s) selecionado(s)</div>
+
+      <div class="jc-label">Mensagem</div>
+      <div class="jc-hint">Use <b>[Nome]</b> e <b>[Empresa]</b> para personalizar.</div>
+      <textarea class="jc-textarea" id="jc-disp-tpl" placeholder="Oi [Nome]! Somos a Justo Mídias e ajudamos [Empresa] a…" style="min-height:110px">${escapeHtml(tpl)}</textarea>
+
+      <div class="jc-label" style="margin-top:4px">Intervalo entre envios</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <input type="range" id="jc-disp-delay" min="20" max="120" step="5" value="${delay}" style="flex:1" />
+        <span id="jc-disp-delay-val" style="font-family:monospace;min-width:40px">${delay}s</span>
+      </div>
+      ${delay < 30 ? `<div class="jc-error" style="margin-bottom:8px">⚠️ Menos de 30s aumenta risco de bloqueio.</div>` : ''}
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="jc-btn ghost jc-btn-sm" id="jc-disp-back">← Voltar</button>
+        <button class="jc-btn" id="jc-disp-start" style="flex:1">Iniciar disparo 🚀</button>
+      </div>
+    </div>
+  `
+  document.getElementById('jc-disp-delay')?.addEventListener('input', e => {
+    disparoState.delay = Number(e.target.value)
+    document.getElementById('jc-disp-delay-val').textContent = `${disparoState.delay}s`
+    if (disparoState.delay < 30) renderDisparoConfig()
+  })
+  document.getElementById('jc-disp-tpl')?.addEventListener('input', e => { disparoState.template = e.target.value })
+  document.getElementById('jc-disp-back')?.addEventListener('click', () => { disparoState.step = 1; renderDisparoSelect() })
+  document.getElementById('jc-disp-start')?.addEventListener('click', () => {
+    const tmpl = document.getElementById('jc-disp-tpl').value.trim()
+    if (!tmpl) { alert('Escreva a mensagem antes de disparar.'); return }
+    disparoState.template = tmpl
+    disparoState.running = true
+    disparoState.idx = 0
+    disparoState.log = []
+    runDisparoLoop(selectedLeads)
+  })
+}
+
+async function runDisparoLoop(leads) {
+  for (let i = 0; i < leads.length; i++) {
+    disparoState.idx = i
+    renderDisparoRunning(leads)
+    if (!disparoState.running) break
+
+    const l = leads[i]
+    const nome = l.nome_fantasia || l.razao_social || ''
+    const msg = disparoState.template
+      .replace(/\[Nome\]/g, nome)
+      .replace(/\[Empresa\]/g, nome)
+
+    try {
+      const opened = await openChatInPlace(
+        toDialNumber(l.telefone) || (normalizePhone(l.telefone) ? toWhatsappNumber(normalizePhone(l.telefone)) : '')
+      ).catch(() => false)
+      if (!opened) throw new Error('Não foi possível abrir a conversa')
+
+      await new Promise(r => setTimeout(r, 1500))
+      insertIntoWhatsApp(msg)
+      await new Promise(r => setTimeout(r, 400))
+      sendWhatsAppMessage()
+      disparoState.log.push({ nome, status: 'ok' })
+    } catch (e) {
+      disparoState.log.push({ nome, status: 'erro', msg: e.message })
+    }
+
+    if (i < leads.length - 1) {
+      await new Promise(r => setTimeout(r, disparoState.delay * 1000))
+    }
+  }
+  disparoState.running = false
+  disparoState.idx = leads.length
+  renderDisparoRunning(leads)
+}
+
+function renderDisparoRunning(leads) {
+  leads = leads || (leadsCache || []).filter(l => disparoState.selected.has(l.id))
+  const total = leads.length
+  const done = disparoState.log.length
+  const current = disparoState.running ? (leads[disparoState.idx]?.nome_fantasia || leads[disparoState.idx]?.razao_social || '') : ''
+  const pct = total ? Math.round((done / total) * 100) : 0
+
+  let h = `
+    <div class="jc-section">
+      <div class="jc-label">${disparoState.running ? '🚀 Disparando…' : '✅ Disparo concluído'}</div>
+      <div style="margin:10px 0">
+        <div style="background:var(--jc-bg3);border-radius:4px;height:8px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:var(--jc-accent);transition:width 0.4s"></div>
+        </div>
+        <div class="jc-hint" style="margin-top:6px">${done}/${total} enviados ${current ? `• enviando para <b>${escapeHtml(current)}</b>` : ''}</div>
+      </div>
+      ${disparoState.running ? `<button class="jc-btn ghost jc-btn-sm" id="jc-disp-stop">Parar</button>` : `<button class="jc-btn secondary jc-btn-sm" id="jc-disp-reset">Novo disparo</button>`}
+      <div class="jc-disp-log">
+        ${disparoState.log.slice().reverse().map(e =>
+          `<div class="jc-disp-log-row ${e.status}">
+            <span>${e.status === 'ok' ? '✓' : '✗'}</span>
+            <span>${escapeHtml(e.nome)}</span>
+            ${e.msg ? `<span style="color:var(--jc-red);font-size:10px">${escapeHtml(e.msg)}</span>` : ''}
+          </div>`
+        ).join('')}
+      </div>
+    </div>
+  `
+  if (bodyEl) bodyEl.innerHTML = h
+  document.getElementById('jc-disp-stop')?.addEventListener('click', () => { disparoState.running = false })
+  document.getElementById('jc-disp-reset')?.addEventListener('click', () => {
+    disparoState.step = 1; disparoState.selected = new Set()
+    disparoState.log = []; disparoState.running = false
+    renderDisparoSelect()
   })
 }
 
