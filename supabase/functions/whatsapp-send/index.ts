@@ -53,7 +53,17 @@ serve(async (req) => {
     })
     const result = await res.json()
 
-    const baseRow = {
+    if (!res.ok) {
+      // Não grava em whatsapp_messages: se a Meta rejeitou o envio, a
+      // mensagem não existe de fato e não deve aparecer no histórico da
+      // conversa como se tivesse sido enviada.
+      const apiMsg = result.error?.message || 'Erro ao enviar mensagem'
+      return json({ error: apiMsg }, 502)
+    }
+
+    const wamid = result.messages?.[0]?.id || null
+
+    await db.from('whatsapp_messages').insert({
       session_id,
       direction: 'outbound',
       sent_by: 'human',
@@ -62,18 +72,6 @@ serve(async (req) => {
       message_type: tipo,
       media_url: isMedia ? media_url : null,
       mime_type: isMedia ? mime_type || null : null,
-    }
-
-    if (!res.ok) {
-      const apiMsg = result.error?.message || 'Erro ao enviar mensagem'
-      await db.from('whatsapp_messages').insert({ ...baseRow, whatsapp_status: 'failed' })
-      return json({ error: apiMsg }, 502)
-    }
-
-    const wamid = result.messages?.[0]?.id || null
-
-    await db.from('whatsapp_messages').insert({
-      ...baseRow,
       wamid,
       whatsapp_status: 'sent',
       whatsapp_sent_at: new Date().toISOString(),
