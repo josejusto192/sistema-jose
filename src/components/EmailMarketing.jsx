@@ -240,9 +240,31 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
   const [nome, setNome] = useState('')
   const [assunto, setAssunto] = useState('')
   const [corpoHtml, setCorpoHtml] = useState('')
+  const [responderPara, setResponderPara] = useState('')
+  const [cc, setCc] = useState('')
+  const [cco, setCco] = useState('')
+  const [agendadoPara, setAgendadoPara] = useState('')
+  const [anexos, setAnexos] = useState([])
+  const [mostrarOpcoes, setMostrarOpcoes] = useState(false)
   const [selecionados, setSelecionados] = useState([])
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState(null)
+
+  function emailsDeLista(texto) {
+    return texto.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  function addAnexo() {
+    setAnexos(prev => [...prev, { filename: '', url: '' }])
+  }
+
+  function atualizarAnexo(i, campo, valor) {
+    setAnexos(prev => prev.map((a, idx) => idx === i ? { ...a, [campo]: valor } : a))
+  }
+
+  function removerAnexo(i) {
+    setAnexos(prev => prev.filter((_, idx) => idx !== i))
+  }
 
   const selecionadosLeads = useMemo(() => empresas.filter(e => selecionados.includes(e.id)), [empresas, selecionados])
 
@@ -277,6 +299,11 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
       nome: nome.trim(),
       assunto: assunto.trim(),
       corpo_html: corpoHtml,
+      responder_para: responderPara.trim() || null,
+      cc: emailsDeLista(cc),
+      cco: emailsDeLista(cco),
+      agendado_para: agendadoPara || null,
+      anexos: anexos.filter(a => a.url.trim()),
       lead_ids: selecionados,
     })
     setSaving(false)
@@ -318,6 +345,79 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
                 Variáveis disponíveis: <code>{'{{nome}}'}</code>, <code>{'{{empresa}}'}</code>, <code>{'{{email}}'}</code>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setMostrarOpcoes(s => !s)}
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}
+            >
+              {mostrarOpcoes ? '− Ocultar opções avançadas' : '+ Opções avançadas (responder para, cc/cco, agendamento, anexos)'}
+            </button>
+
+            {mostrarOpcoes && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 14, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg2)' }}>
+                <div>
+                  <label style={labelStyle}>Responder para (reply-to)</label>
+                  <input style={inputStyle} value={responderPara} onChange={e => setResponderPara(e.target.value)} placeholder="ex: vendas@seudominio.com" />
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>Cc (separados por vírgula)</label>
+                    <input style={inputStyle} value={cc} onChange={e => setCc(e.target.value)} placeholder="ex: copia@seudominio.com" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>Cco (separados por vírgula)</label>
+                    <input style={inputStyle} value={cco} onChange={e => setCco(e.target.value)} placeholder="ex: oculto@seudominio.com" />
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Agendar envio (opcional)</label>
+                  <input
+                    type="datetime-local"
+                    style={{ ...inputStyle, width: 'auto' }}
+                    value={agendadoPara}
+                    onChange={e => setAgendadoPara(e.target.value)}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                    Se preenchido, o Resend entrega no horário marcado — você ainda precisa clicar em "Enviar" na lista de campanhas pra disparar a chamada.
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Anexos (link do arquivo)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {anexos.map((a, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          style={{ ...inputStyle, flex: 1 }}
+                          value={a.filename}
+                          onChange={e => atualizarAnexo(i, 'filename', e.target.value)}
+                          placeholder="nome-do-arquivo.pdf"
+                        />
+                        <input
+                          style={{ ...inputStyle, flex: 2 }}
+                          value={a.url}
+                          onChange={e => atualizarAnexo(i, 'url', e.target.value)}
+                          placeholder="https://..."
+                        />
+                        <button type="button" onClick={() => removerAnexo(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px', display: 'flex' }}>
+                          <IconTrash size={14} color="var(--text3)" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addAnexo}
+                      style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+                    >
+                      + Adicionar anexo
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                    Informe o link público do arquivo (ex: já hospedado no seu storage) — não é feito upload aqui.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -344,6 +444,18 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
                 dangerouslySetInnerHTML={{ __html: corpoHtml }}
               />
             </div>
+            {(responderPara || cc || cco || agendadoPara || anexos.some(a => a.url)) && (
+              <div>
+                <label style={labelStyle}>Opções avançadas</label>
+                <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.7 }}>
+                  {responderPara && <div>Responder para: {responderPara}</div>}
+                  {cc && <div>Cc: {cc}</div>}
+                  {cco && <div>Cco: {cco}</div>}
+                  {agendadoPara && <div>Agendado para: {new Date(agendadoPara).toLocaleString('pt-BR')}</div>}
+                  {anexos.filter(a => a.url).length > 0 && <div>Anexos: {anexos.filter(a => a.url).map(a => a.filename || a.url).join(', ')}</div>}
+                </div>
+              </div>
+            )}
             <div>
               <label style={labelStyle}>Destinatários ({selecionadosLeads.length})</label>
               <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', background: 'var(--bg2)' }}>

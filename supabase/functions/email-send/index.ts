@@ -62,19 +62,28 @@ serve(async (req) => {
     let enviados = 0
     let falhas = 0
 
+    const anexos = (campaign.anexos || []).filter((a: any) => a?.url).map((a: any) => ({ filename: a.filename || 'anexo', path: a.url }))
+
     for (const lead of destinatarios) {
       const assunto = personalizar(campaign.assunto, lead)
       const html = personalizar(campaign.corpo_html, lead)
 
+      const payload: Record<string, unknown> = {
+        from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),
+        to: lead.email,
+        subject: assunto,
+        html,
+      }
+      if (campaign.responder_para) payload.reply_to = campaign.responder_para
+      if (campaign.cc?.length) payload.cc = campaign.cc
+      if (campaign.cco?.length) payload.bcc = campaign.cco
+      if (campaign.agendado_para) payload.scheduled_at = campaign.agendado_para
+      if (anexos.length) payload.attachments = anexos
+
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.api_key}` },
-        body: JSON.stringify({
-          from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),
-          to: lead.email,
-          subject: assunto,
-          html,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (res.ok) {
