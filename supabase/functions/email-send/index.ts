@@ -53,7 +53,7 @@ serve(async (req) => {
 
     for (const lead of destinatarios) {
       const assunto = personalizar(campaign.assunto, lead)
-      const unsubLink = linkDescadastro(SUPABASE_URL, campaign_id, lead.id)
+      const unsubLink = linkDescadastro(SUPABASE_URL, { campaignId: campaign_id }, lead.id)
       const html = comRodape(personalizar(campaign.corpo_html, lead), cfg.remetente_nome, unsubLink)
 
       const payload: Record<string, unknown> = {

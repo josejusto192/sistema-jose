@@ -25,12 +25,17 @@ serve(async (req) => {
   const url = new URL(req.url)
   const leadId = url.searchParams.get('lead_id')
   const campaignId = url.searchParams.get('campaign_id')
+  const automationId = url.searchParams.get('automation_id')
   if (!leadId) return html(pagina('Link inválido.'), 400)
 
   try {
     await db.from('leads').update({ email_opt_out: true, email_opt_out_em: new Date().toISOString() }).eq('id', leadId)
     if (campaignId) {
       await db.from('email_campaign_envios').update({ descadastrado_em: new Date().toISOString() }).eq('campaign_id', campaignId).eq('lead_id', leadId)
+    }
+    if (automationId) {
+      await db.from('email_automation_envios').update({ descadastrado_em: new Date().toISOString() }).eq('automation_id', automationId).eq('lead_id', leadId)
+      await db.from('email_automation_enrollments').update({ status: 'cancelado' }).eq('automation_id', automationId).eq('lead_id', leadId)
     }
     return html(pagina('Você foi removido(a) da nossa lista de emails. Você não receberá mais nossas campanhas.'))
   } catch (err) {

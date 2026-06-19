@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../supabase.js'
 import { STATUS_CONFIG, leadName } from '../constants.js'
-import { IconPlus, IconTrash, IconMail, IconTag, IconSearch, IconCheck, IconArrowLeft } from './Icons.jsx'
+import { IconPlus, IconTrash, IconMail, IconTag, IconSearch, IconCheck, IconArrowLeft, IconClock } from './Icons.jsx'
+import EmailAutomacoes from './EmailAutomacoes.jsx'
 
 const STATUS_LABEL = {
   rascunho: { label: 'Rascunho', bg: 'var(--bg3)', color: 'var(--text2)' },
@@ -765,6 +766,7 @@ export default function EmailMarketing({ empresas = [] }) {
   const [enviandoId, setEnviandoId] = useState(null)
   const [erroEnvio, setErroEnvio] = useState(null)
   const [progressoIa, setProgressoIa] = useState(null)
+  const [aba, setAba] = useState('campanhas')
 
   const tagsDisponiveis = useMemo(() => {
     const set = new Set()
@@ -898,14 +900,35 @@ export default function EmailMarketing({ empresas = [] }) {
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 3 }}>Crie e envie campanhas de email personalizadas para seus leads</div>
         </div>
+        {aba === 'campanhas' && (
+          <button
+            onClick={() => setShowNova(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <IconPlus size={14} color="#fff" /> Nova campanha
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
         <button
-          onClick={() => setShowNova(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          onClick={() => setAba('campanhas')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: aba === 'campanhas' ? 'var(--accent)' : 'var(--text3)', borderBottom: aba === 'campanhas' ? '2px solid var(--accent)' : '2px solid transparent' }}
         >
-          <IconPlus size={14} color="#fff" /> Nova campanha
+          <IconMail size={14} color={aba === 'campanhas' ? 'var(--accent)' : 'var(--text3)'} /> Campanhas
+        </button>
+        <button
+          onClick={() => setAba('automacoes')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: aba === 'automacoes' ? 'var(--accent)' : 'var(--text3)', borderBottom: aba === 'automacoes' ? '2px solid var(--accent)' : '2px solid transparent' }}
+        >
+          <IconClock size={14} color={aba === 'automacoes' ? 'var(--accent)' : 'var(--text3)'} /> Automações
         </button>
       </div>
 
+      {aba === 'automacoes' ? (
+        <EmailAutomacoes empresas={empresas} />
+      ) : (
+      <>
       {erroEnvio && (
         <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f8d7da', color: '#c0392b', fontSize: 13, marginBottom: 16 }}>
           {erroEnvio}
@@ -960,6 +983,8 @@ export default function EmailMarketing({ empresas = [] }) {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   )

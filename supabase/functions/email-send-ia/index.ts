@@ -6,7 +6,7 @@
 // Resend, não esperando dentro da função.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders, json, nomeContato, linkDescadastro, comRodape } from '../_shared/email.ts'
+import { corsHeaders, json, linkDescadastro, comRodape, gerarEmailComIA } from '../_shared/email.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -14,47 +14,6 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const BATCH_SIZE = 8
 const PAUSA_ENTRE_GERACOES_MS = 1200 // evita sobrecarregar a API do Gemini
-
-async function gerarEmailComIA(apiKey: string, modelo: string, diretrizes: string | null, objetivo: string, lead: Record<string, unknown>) {
-  const prompt = `Você é um redator especializado em emails de prospecção comercial em português do Brasil. Escreva um email natural, direto e que pareça escrito por uma pessoa real — sem HTML estilizado, frases corridas, sem exagero de emojis ou negrito.
-
-${diretrizes ? `Diretrizes gerais da empresa (sempre seguir):\n${diretrizes}\n\n` : ''}Objetivo desta campanha:
-${objetivo}
-
-Dados disponíveis sobre o lead/empresa (use só o que for relevante e verdadeiro; não invente nada que não esteja aqui):
-${JSON.stringify(lead)}
-
-Nome da pessoa para cumprimentar: ${nomeContato(lead)}
-
-Responda em JSON com exatamente os campos "assunto" (curto, sem clickbait) e "corpo_html" (corpo do email; pode usar <br> para separar parágrafos, nada de markdown ou JSON dentro do texto).`
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' },
-      }),
-    }
-  )
-  if (!res.ok) {
-    const err = await res.text().catch(() => '')
-    throw { mensagem: `Gemini: ${res.status} ${err}`.slice(0, 2000), prompt }
-  }
-  const data = await res.json()
-  const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!texto) throw { mensagem: `Gemini não retornou conteúdo. Resposta completa: ${JSON.stringify(data).slice(0, 1500)}`, prompt }
-  let parsed: any
-  try {
-    parsed = JSON.parse(texto)
-  } catch {
-    throw { mensagem: `Gemini não retornou JSON válido. Texto recebido: ${texto.slice(0, 1500)}`, prompt }
-  }
-  if (!parsed?.assunto || !parsed?.corpo_html) throw { mensagem: `Resposta da IA sem assunto/corpo_html. Recebido: ${texto.slice(0, 1500)}`, prompt }
-  return { assunto: String(parsed.assunto), corpo_html: String(parsed.corpo_html), prompt }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -115,7 +74,7 @@ serve(async (req) => {
         if (i > 0) await new Promise(r => setTimeout(r, PAUSA_ENTRE_GERACOES_MS))
         const gerado = await gerarEmailComIA(cfg.ia_api_key, cfg.ia_modelo || 'gemini-2.0-flash', cfg.ia_diretrizes || null, campaign.ia_objetivo, lead)
 
-        const unsubLink = linkDescadastro(SUPABASE_URL, campaign_id, lead.id)
+        const unsubLink = linkDescadastro(SUPABASE_URL, { campaignId: campaign_id }, lead.id)
         const html = comRodape(gerado.corpo_html, cfg.remetente_nome, unsubLink)
         const globalIndex = jaProcessados + i
         const scheduledAt = new Date(baseTime + globalIndex * intervaloSegundos * 1000).toISOString()
