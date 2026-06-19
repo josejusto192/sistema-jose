@@ -4,7 +4,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN')!
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -54,7 +53,11 @@ serve(async (req) => {
     const mode = url.searchParams.get('hub.mode')
     const token = url.searchParams.get('hub.verify_token')
     const challenge = url.searchParams.get('hub.challenge')
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+
+    const { data: cfg } = await db.from('whatsapp_config').select('verify_token').eq('ativo', true).limit(1).maybeSingle()
+    const verifyToken = cfg?.verify_token
+
+    if (mode === 'subscribe' && verifyToken && token === verifyToken) {
       return new Response(challenge, { status: 200 })
     }
     return new Response('Forbidden', { status: 403 })

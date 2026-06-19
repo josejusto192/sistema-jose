@@ -4,8 +4,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ACCESS_TOKEN  = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!
-const GRAPH_VERSION = Deno.env.get('WHATSAPP_GRAPH_VERSION') || 'v20.0'
+// Token, phone_number_id e versão da Graph API vêm todos da tabela whatsapp_config
+// (editável pela tela de Configurações) — não exige configurar Edge Function Secrets.
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -35,11 +35,13 @@ serve(async (req) => {
 
     const { data: cfg } = await db.from('whatsapp_config').select('*').eq('ativo', true).limit(1).maybeSingle()
     if (!cfg?.phone_number_id) return json({ error: 'WhatsApp não configurado. Defina o phone_number_id em Configurações.' }, 400)
-    if (!ACCESS_TOKEN) return json({ error: 'Token de acesso do WhatsApp não configurado no servidor.' }, 400)
+    const accessToken = cfg.access_token
+    if (!accessToken) return json({ error: 'Token de acesso do WhatsApp não configurado. Defina em Configurações > WhatsApp.' }, 400)
+    const graphVersion = cfg.graph_version || 'v25.0'
 
-    const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${cfg.phone_number_id}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/${graphVersion}/${cfg.phone_number_id}/messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ACCESS_TOKEN}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: session_id,
