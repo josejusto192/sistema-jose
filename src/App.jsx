@@ -596,7 +596,7 @@ export default function App() {
           )}
 
           {view === 'caixa-entrada' && (
-            <CaixaEntrada />
+            <CaixaEntrada empresas={empresas} onOpenLead={openLead} />
           )}
           {view === 'dashboard' && (
             <Dashboard
