@@ -185,9 +185,10 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
       recorder.onstop = () => {
         stream.getTracks().forEach(t => t.stop())
         if (!canceladoRef.current && chunksRef.current.length) {
-          const blob = new Blob(chunksRef.current, { type: mime })
-          const ext = mime.split('/')[1].split(';')[0]
-          setArquivo(new File([blob], `audio-${Date.now()}.${ext}`, { type: mime }))
+          const baseMime = mime.split(';')[0]
+          const blob = new Blob(chunksRef.current, { type: baseMime })
+          const ext = baseMime.split('/')[1]
+          setArquivo(new File([blob], `audio-${Date.now()}.${ext}`, { type: baseMime }))
         }
       }
       recorderRef.current = recorder

@@ -11,9 +11,15 @@ VALUES (
   'whatsapp-media',
   true,
   16777216, -- 16 MB (limite da própria Cloud API pra mídia, exceto vídeo que é maior — suficiente pro nosso uso)
-  ARRAY['image/jpeg','image/png','image/webp','video/mp4','video/3gpp','audio/mpeg','audio/ogg','audio/aac','audio/amr','application/pdf']
+  ARRAY['image/*','video/*','audio/*','application/pdf']
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- Lista mais aberta que a inicial: o áudio gravado pelo navegador (MediaRecorder)
+-- varia o mime conforme o browser (webm, mp4, ogg...), então restringir a
+-- subtipos específicos rejeitava gravações válidas.
+UPDATE storage.buckets SET allowed_mime_types = ARRAY['image/*','video/*','audio/*','application/pdf']
+WHERE id = 'whatsapp-media';
 
 -- Qualquer usuário autenticado pode enviar mídia pela Caixa de Entrada
 -- (a function whatsapp-webhook usa a service role, que já ignora RLS).
