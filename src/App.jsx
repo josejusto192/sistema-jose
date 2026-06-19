@@ -14,6 +14,7 @@ import Agenda from './components/Agenda.jsx'
 import BuscaAvancada from './components/BuscaAvancada.jsx'
 import Formularios from './components/Formularios.jsx'
 import FormPublico from './components/FormPublico.jsx'
+import CaixaEntrada from './components/CaixaEntrada.jsx'
 import Login from './components/Login.jsx'
 import { useIsMobile } from './hooks/useIsMobile.js'
 import { IconMenu } from './components/Icons.jsx'
@@ -594,6 +595,9 @@ export default function App() {
             </div>
           )}
 
+          {view === 'caixa-entrada' && (
+            <CaixaEntrada />
+          )}
           {view === 'dashboard' && (
             <Dashboard
               empresas={empresas}
