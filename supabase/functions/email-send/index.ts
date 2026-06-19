@@ -2,58 +2,12 @@
 // Chamado pelo frontend (Email Marketing) autenticado via supabase.functions.invoke.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders, json, personalizar, linkDescadastro, comRodape } from '../_shared/email.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-}
-
-// Nome de uma pessoa para usar na saudação: para lead do tipo "pessoa" usa o
-// próprio nome; para "empresa" usa o sócio/administrador do quadro
-// societário (não a razão social), já que "{{nome}}" é usado para
-// cumprimentar alguém, não a empresa.
-function nomeContato(lead: Record<string, unknown>) {
-  if (lead.tipo === 'pessoa' && lead.nome) return String(lead.nome)
-  const socios = Array.isArray(lead.quadro_societario) ? lead.quadro_societario : []
-  const nomeSocio = socios.find((s: any) => s?.nome)?.nome
-  if (nomeSocio) return String(nomeSocio).trim().split(/\s+/)[0]
-  return String(lead.nome || lead.nome_fantasia || lead.razao_social || '')
-}
-
-// Troca {{nome}}, {{empresa}}, {{email}} pelos dados do lead — mesma ideia
-// das variáveis [Nome]/[Empresa] já usadas no Disparo de WhatsApp.
-function personalizar(template: string, lead: Record<string, unknown>) {
-  return template
-    .replace(/\{\{\s*nome\s*\}\}/gi, nomeContato(lead))
-    .replace(/\{\{\s*empresa\s*\}\}/gi, String(lead.nome_fantasia || lead.razao_social || ''))
-    .replace(/\{\{\s*email\s*\}\}/gi, String(lead.email || ''))
-}
-
-function linkDescadastro(campaignId: string, leadId: string) {
-  return `${SUPABASE_URL}/functions/v1/email-unsubscribe?campaign_id=${campaignId}&lead_id=${leadId}`
-}
-
-// Rodapé padrão (prevenção de spam): toda campanha sai com um link de
-// descadastro, exigido pelas políticas anti-spam do Resend/CAN-SPAM/LGPD.
-function comRodape(html: string, remetenteNome: string, unsubLink: string) {
-  return `${html}
-<br><br>
-<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;">
-<p style="font-size:12px;color:#9ca3af;line-height:1.5;">
-  Você recebeu este email de ${remetenteNome || 'nossa empresa'}.
-  Não quer mais receber essas mensagens?
-  <a href="${unsubLink}" style="color:#9ca3af;text-decoration:underline;">Cancelar inscrição</a>.
-</p>`
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -70,6 +24,7 @@ serve(async (req) => {
 
     const { data: campaign } = await db.from('email_campaigns').select('*').eq('id', campaign_id).maybeSingle()
     if (!campaign) return json({ error: 'Campanha não encontrada' }, 404)
+    if (campaign.usar_ia) return json({ error: 'Esta campanha usa geração por IA. Use email-send-ia.' }, 400)
     if (campaign.status === 'enviando' || campaign.status === 'enviado') {
       return json({ error: 'Esta campanha já foi enviada ou está em andamento' }, 400)
     }
@@ -98,7 +53,7 @@ serve(async (req) => {
 
     for (const lead of destinatarios) {
       const assunto = personalizar(campaign.assunto, lead)
-      const unsubLink = linkDescadastro(campaign_id, lead.id)
+      const unsubLink = linkDescadastro(SUPABASE_URL, campaign_id, lead.id)
       const html = comRodape(personalizar(campaign.corpo_html, lead), cfg.remetente_nome, unsubLink)
 
       const payload: Record<string, unknown> = {

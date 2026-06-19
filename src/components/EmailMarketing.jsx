@@ -245,6 +245,8 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onS
   const [nome, setNome] = useState('')
   const [assunto, setAssunto] = useState('')
   const [corpoHtml, setCorpoHtml] = useState('')
+  const [usarIa, setUsarIa] = useState(false)
+  const [iaObjetivo, setIaObjetivo] = useState('')
   const [responderPara, setResponderPara] = useState('')
   const [cc, setCc] = useState('')
   const [cco, setCco] = useState('')
@@ -281,8 +283,11 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onS
 
   function avancar() {
     if (step === 1) {
-      if (!nome.trim() || !assunto.trim() || !corpoHtml.trim()) {
-        setErro('Nome, assunto e corpo são obrigatórios')
+      if (!nome.trim()) { setErro('Nome da campanha é obrigatório'); return }
+      if (usarIa) {
+        if (!iaObjetivo.trim()) { setErro('Descreva o objetivo da campanha pra IA'); return }
+      } else if (!assunto.trim() || !corpoHtml.trim()) {
+        setErro('Assunto e corpo são obrigatórios')
         return
       }
     }
@@ -302,8 +307,10 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onS
     setErro(null)
     const { error } = await supabase.from('email_campaigns').insert({
       nome: nome.trim(),
-      assunto: assunto.trim(),
-      corpo_html: corpoHtml,
+      assunto: usarIa ? null : assunto.trim(),
+      corpo_html: usarIa ? null : corpoHtml,
+      usar_ia: usarIa,
+      ia_objetivo: usarIa ? iaObjetivo.trim() : null,
       responder_para: responderPara.trim() || null,
       cc: emailsDeLista(cc),
       cco: emailsDeLista(cco),
@@ -334,22 +341,46 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onS
               <label style={labelStyle}>Nome da campanha</label>
               <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Black Friday 2026" />
             </div>
-            <div>
-              <label style={labelStyle}>Assunto do email</label>
-              <input style={inputStyle} value={assunto} onChange={e => setAssunto(e.target.value)} placeholder="Ex: {{nome}}, uma oferta especial pra você" />
-            </div>
-            <div>
-              <label style={labelStyle}>Corpo do email (HTML)</label>
-              <textarea
-                style={{ ...inputStyle, minHeight: 220, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-                value={corpoHtml}
-                onChange={e => setCorpoHtml(e.target.value)}
-                placeholder={'<p>Olá {{nome}},</p>\n<p>Texto da sua campanha aqui...</p>'}
-              />
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                Variáveis disponíveis: <code>{'{{nome}}'}</code>, <code>{'{{empresa}}'}</code>, <code>{'{{email}}'}</code>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg2)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={usarIa} onChange={e => setUsarIa(e.target.checked)} style={{ marginTop: 2 }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Gerar email com IA (individual por lead)</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                  A IA escreve um assunto e corpo diferentes para cada lead, usando os dados que já temos dele (empresa, sócios, segmento etc). Configure a chave da IA em Configurações &gt; Email.
+                </div>
               </div>
-            </div>
+            </label>
+
+            {usarIa ? (
+              <div>
+                <label style={labelStyle}>Objetivo da campanha (o que a IA deve tentar alcançar)</label>
+                <textarea
+                  style={{ ...inputStyle, minHeight: 140, resize: 'vertical', fontSize: 13 }}
+                  value={iaObjetivo}
+                  onChange={e => setIaObjetivo(e.target.value)}
+                  placeholder="Ex: Prospectar escritórios de advocacia oferecendo nosso serviço de gestão de mídias sociais. Quero um tom consultivo, sem parecer spam, terminando com um convite pra uma call rápida."
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label style={labelStyle}>Assunto do email</label>
+                  <input style={inputStyle} value={assunto} onChange={e => setAssunto(e.target.value)} placeholder="Ex: {{nome}}, uma oferta especial pra você" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Corpo do email (HTML)</label>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: 220, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                    value={corpoHtml}
+                    onChange={e => setCorpoHtml(e.target.value)}
+                    placeholder={'<p>Olá {{nome}},</p>\n<p>Texto da sua campanha aqui...</p>'}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                    Variáveis disponíveis: <code>{'{{nome}}'}</code>, <code>{'{{empresa}}'}</code>, <code>{'{{email}}'}</code>
+                  </div>
+                </div>
+              </>
+            )}
 
             <button
               type="button"
@@ -441,15 +472,28 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onS
             <div>
               <label style={labelStyle}>Campanha</label>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{nome}</div>
-              <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>{assunto}</div>
+              {!usarIa && <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>{assunto}</div>}
+              {usarIa && <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--bg3)', padding: '2px 7px', borderRadius: 20 }}>Gerado por IA</span>}
             </div>
-            <div>
-              <label style={labelStyle}>Prévia do conteúdo</label>
-              <div
-                style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, background: '#fff', maxHeight: 240, overflowY: 'auto' }}
-                dangerouslySetInnerHTML={{ __html: corpoHtml }}
-              />
-            </div>
+            {usarIa ? (
+              <div>
+                <label style={labelStyle}>Objetivo passado pra IA</label>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, background: 'var(--bg2)', fontSize: 13, color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>
+                  {iaObjetivo}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                  O assunto e o corpo de cada email serão gerados na hora do envio, um por lead.
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label style={labelStyle}>Prévia do conteúdo</label>
+                <div
+                  style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, background: '#fff', maxHeight: 240, overflowY: 'auto' }}
+                  dangerouslySetInnerHTML={{ __html: corpoHtml }}
+                />
+              </div>
+            )}
             {(responderPara || cc || cco || agendadoPara || anexos.some(a => a.url)) && (
               <div>
                 <label style={labelStyle}>Opções avançadas</label>
@@ -640,6 +684,7 @@ export default function EmailMarketing({ empresas = [] }) {
   const [campanhaDetalhe, setCampanhaDetalhe] = useState(null)
   const [enviandoId, setEnviandoId] = useState(null)
   const [erroEnvio, setErroEnvio] = useState(null)
+  const [progressoIa, setProgressoIa] = useState(null)
 
   const tagsDisponiveis = useMemo(() => {
     const set = new Set()
@@ -687,15 +732,50 @@ export default function EmailMarketing({ empresas = [] }) {
     fetchCampanhas()
   }
 
+  function extrairErro(data, error) {
+    return data?.error || error?.message || 'Erro ao enviar campanha'
+  }
+
   async function enviar(campanha) {
     const dest = destinatarios(campanha)
-    if (!confirm(`Enviar "${campanha.nome}" para ${dest} destinatário(s)? Essa ação não pode ser desfeita.`)) return
+    const aviso = campanha.usar_ia
+      ? `Enviar "${campanha.nome}" para ${dest} destinatário(s)? Cada email será gerado individualmente por IA. Essa ação não pode ser desfeita.`
+      : `Enviar "${campanha.nome}" para ${dest} destinatário(s)? Essa ação não pode ser desfeita.`
+    if (!confirm(aviso)) return
     setEnviandoId(campanha.id)
     setErroEnvio(null)
+
+    if (campanha.usar_ia) {
+      setProgressoIa({ processado: 0, total: dest })
+      let done = false
+      let safety = 0
+      while (!done && safety < 500) {
+        safety++
+        const { data, error } = await supabase.functions.invoke('email-send-ia', { body: { campaign_id: campanha.id } })
+        if (error || data?.error) {
+          let msg = extrairErro(data, error)
+          if (error?.context) {
+            try { const errBody = await error.context.json(); if (errBody?.error) msg = errBody.error } catch {}
+          }
+          setErroEnvio(msg)
+          break
+        }
+        done = data.done
+        setProgressoIa({ processado: data.totalProcessados, total: data.total })
+        fetchCampanhas()
+        if (!done) await new Promise(r => setTimeout(r, 400))
+      }
+      setProgressoIa(null)
+      setEnviandoId(null)
+      fetchCampanhas()
+      fetchContatados()
+      return
+    }
+
     const { data, error } = await supabase.functions.invoke('email-send', { body: { campaign_id: campanha.id } })
     setEnviandoId(null)
     if (error || data?.error) {
-      let msg = data?.error || error?.message || 'Erro ao enviar campanha'
+      let msg = extrairErro(data, error)
       if (error?.context) {
         try {
           const errBody = await error.context.json()
@@ -771,22 +851,24 @@ export default function EmailMarketing({ empresas = [] }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{c.nome}</span>
                   <StatusBadge status={c.status} />
+                  {c.usar_ia && <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--bg3)', padding: '2px 7px', borderRadius: 20 }}>IA</span>}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>{c.assunto}</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>{c.usar_ia ? c.ia_objetivo : c.assunto}</div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                   {destinatarios(c)} destinatário(s)
-                  {c.status === 'enviado' && ` · ${c.total_enviados} enviado(s), ${c.total_falhas} falha(s)`}
+                  {(c.status === 'enviado' || c.status === 'enviando') && ` · ${c.total_enviados} enviado(s), ${c.total_falhas} falha(s)`}
                   {c.status === 'enviado' && ` · ${aberturas[c.id]?.abertos || 0} aberto(s), ${aberturas[c.id]?.cliques || 0} clique(s)`}
+                  {enviandoId === c.id && progressoIa && ` · gerando e enviando... ${progressoIa.processado}/${progressoIa.total}`}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
-                {c.status === 'rascunho' && (
+                {(c.status === 'rascunho' || (c.status === 'enviando' && c.usar_ia)) && (
                   <button
                     onClick={() => enviar(c)}
                     disabled={enviandoId === c.id}
                     style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: enviandoId === c.id ? 'default' : 'pointer', opacity: enviandoId === c.id ? 0.6 : 1, fontFamily: 'inherit' }}
                   >
-                    {enviandoId === c.id ? 'Enviando...' : 'Enviar'}
+                    {enviandoId === c.id ? 'Enviando...' : c.status === 'enviando' ? 'Continuar envio' : 'Enviar'}
                   </button>
                 )}
                 {c.status !== 'enviando' && (

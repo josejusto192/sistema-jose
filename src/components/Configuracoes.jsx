@@ -1081,6 +1081,7 @@ function EmailTab() {
   const [saving, setSaving] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [showWebhookSecret, setShowWebhookSecret] = useState(false)
+  const [showIaKey, setShowIaKey] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
   const webhookUrl = `${SUPABASE_URL}/functions/v1/email-webhook`
@@ -1090,7 +1091,10 @@ function EmailTab() {
   async function fetchCfg() {
     setLoading(true)
     const { data } = await supabase.from('email_config').select('*').limit(1).maybeSingle()
-    setCfg(data || { provider: 'resend', api_key: '', remetente_nome: '', remetente_email: '', webhook_secret: '', ativo: false })
+    setCfg(data || {
+      provider: 'resend', api_key: '', remetente_nome: '', remetente_email: '', webhook_secret: '', ativo: false,
+      ia_api_key: '', ia_modelo: 'gemini-2.0-flash', ia_diretrizes: '', ia_intervalo_segundos: 60,
+    })
     setLoading(false)
   }
 
@@ -1104,6 +1108,10 @@ function EmailTab() {
       remetente_email: cfg.remetente_email || null,
       webhook_secret: cfg.webhook_secret || null,
       ativo: cfg.ativo,
+      ia_api_key: cfg.ia_api_key || null,
+      ia_modelo: cfg.ia_modelo || 'gemini-2.0-flash',
+      ia_diretrizes: cfg.ia_diretrizes || null,
+      ia_intervalo_segundos: Number(cfg.ia_intervalo_segundos) || 60,
     }
     const { data, error } = cfg.id
       ? await supabase.from('email_config').update(payload).eq('id', cfg.id).select().maybeSingle()
@@ -1183,6 +1191,45 @@ function EmailTab() {
       </div>
 
       <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Geração por IA (emails personalizados por lead)</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Chave da API (Gemini / Google AI Studio)</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={inp({ flex: 1 })}
+                type={showIaKey ? 'text' : 'password'}
+                value={cfg.ia_api_key || ''}
+                onChange={e => setCfg(p => ({ ...p, ia_api_key: e.target.value }))}
+                placeholder="AQ...."
+              />
+              <button type="button" onClick={() => setShowIaKey(s => !s)} style={{ padding: '0 14px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {showIaKey ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Modelo</div>
+            <input style={inp()} value={cfg.ia_modelo || ''} onChange={e => setCfg(p => ({ ...p, ia_modelo: e.target.value }))} placeholder="gemini-2.0-flash" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Intervalo médio entre envios (segundos)</div>
+            <input style={inp({ width: 120 })} type="number" min={5} value={cfg.ia_intervalo_segundos ?? 60} onChange={e => setCfg(p => ({ ...p, ia_intervalo_segundos: e.target.value }))} />
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Os envios são agendados no Resend com esse espaçamento entre cada lead, pra não parecer disparo em massa.</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Diretrizes universais (opcional — aplicadas em toda campanha com IA)</div>
+            <textarea
+              style={{ ...inp(), minHeight: 90, resize: 'vertical', fontFamily: 'inherit' }}
+              value={cfg.ia_diretrizes || ''}
+              onChange={e => setCfg(p => ({ ...p, ia_diretrizes: e.target.value }))}
+              placeholder="ex: nunca prometer prazos, sempre se apresentar como [seu nome] da [empresa], tom informal..."
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Como configurar</div>
         <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>
           1. Crie uma conta no <strong>Resend</strong> (resend.com) e verifique o domínio que você vai usar pra enviar.<br/>
@@ -1193,7 +1240,10 @@ function EmailTab() {
           5. No Resend, vá em Webhooks e crie um apontando para:<br/>
           <code style={{ wordBreak: 'break-all' }}>{webhookUrl}</code><br/>
           6. Selecione os eventos <strong>email.opened</strong> e <strong>email.clicked</strong>.<br/>
-          7. Copie o "Signing Secret" gerado e cole no campo "Webhook secret" acima.
+          7. Copie o "Signing Secret" gerado e cole no campo "Webhook secret" acima.<br/><br/>
+          <strong>Para gerar emails personalizados por IA (opcional):</strong><br/>
+          8. Gere uma API key no <strong>Google AI Studio</strong> e cole no campo "Chave da API (Gemini)" acima.<br/>
+          9. Ao criar uma campanha, marque "Gerar com IA" e descreva o objetivo — a IA escreve um email diferente para cada lead usando os dados que já temos dele.
         </div>
       </div>
     </div>
