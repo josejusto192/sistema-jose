@@ -233,7 +233,17 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
     const { data, error } = await supabase.functions.invoke('whatsapp-send', { body })
     setEnviando(false)
     if (error || data?.error) {
-      setErroEnvio(data?.error || error?.message || 'Erro ao enviar mensagem')
+      // O client do Supabase esconde o corpo real da resposta de erro da
+      // function atrás de uma mensagem genérica ("non-2xx status code");
+      // o JSON de verdade só vem em error.context (a Response original).
+      let msg = data?.error || error?.message || 'Erro ao enviar mensagem'
+      if (error?.context) {
+        try {
+          const errBody = await error.context.json()
+          if (errBody?.error) msg = errBody.error
+        } catch {}
+      }
+      setErroEnvio(msg)
       return
     }
     setTexto('')
