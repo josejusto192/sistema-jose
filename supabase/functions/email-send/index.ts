@@ -17,13 +17,42 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+// Nome de uma pessoa para usar na saudação: para lead do tipo "pessoa" usa o
+// próprio nome; para "empresa" usa o sócio/administrador do quadro
+// societário (não a razão social), já que "{{nome}}" é usado para
+// cumprimentar alguém, não a empresa.
+function nomeContato(lead: Record<string, unknown>) {
+  if (lead.tipo === 'pessoa' && lead.nome) return String(lead.nome)
+  const socios = Array.isArray(lead.quadro_societario) ? lead.quadro_societario : []
+  const nomeSocio = socios.find((s: any) => s?.nome)?.nome
+  if (nomeSocio) return String(nomeSocio).trim().split(/\s+/)[0]
+  return String(lead.nome || lead.nome_fantasia || lead.razao_social || '')
+}
+
 // Troca {{nome}}, {{empresa}}, {{email}} pelos dados do lead — mesma ideia
 // das variáveis [Nome]/[Empresa] já usadas no Disparo de WhatsApp.
 function personalizar(template: string, lead: Record<string, unknown>) {
   return template
-    .replace(/\{\{\s*nome\s*\}\}/gi, String(lead.nome || lead.razao_social || lead.nome_fantasia || ''))
+    .replace(/\{\{\s*nome\s*\}\}/gi, nomeContato(lead))
     .replace(/\{\{\s*empresa\s*\}\}/gi, String(lead.nome_fantasia || lead.razao_social || ''))
     .replace(/\{\{\s*email\s*\}\}/gi, String(lead.email || ''))
+}
+
+function linkDescadastro(campaignId: string, leadId: string) {
+  return `${SUPABASE_URL}/functions/v1/email-unsubscribe?campaign_id=${campaignId}&lead_id=${leadId}`
+}
+
+// Rodapé padrão (prevenção de spam): toda campanha sai com um link de
+// descadastro, exigido pelas políticas anti-spam do Resend/CAN-SPAM/LGPD.
+function comRodape(html: string, remetenteNome: string, unsubLink: string) {
+  return `${html}
+<br><br>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;">
+<p style="font-size:12px;color:#9ca3af;line-height:1.5;">
+  Você recebeu este email de ${remetenteNome || 'nossa empresa'}.
+  Não quer mais receber essas mensagens?
+  <a href="${unsubLink}" style="color:#9ca3af;text-decoration:underline;">Cancelar inscrição</a>.
+</p>`
 }
 
 serve(async (req) => {
@@ -49,7 +78,10 @@ serve(async (req) => {
     if (!cfg?.api_key) return json({ error: 'Email marketing não configurado. Defina a chave da API em Configurações > Email.' }, 400)
     if (!cfg.remetente_email) return json({ error: 'Defina o email do remetente em Configurações > Email.' }, 400)
 
-    let leadsQuery = db.from('leads').select('id, nome, razao_social, nome_fantasia, email, tags').not('email', 'is', null)
+    let leadsQuery = db.from('leads')
+      .select('id, nome, sobrenome, tipo, razao_social, nome_fantasia, email, tags, quadro_societario, email_opt_out')
+      .not('email', 'is', null)
+      .eq('email_opt_out', false)
     if (campaign.lead_ids?.length) leadsQuery = leadsQuery.in('id', campaign.lead_ids)
     else if (campaign.segmento_tags?.length) leadsQuery = leadsQuery.overlaps('tags', campaign.segmento_tags)
     const { data: leads } = await leadsQuery
@@ -66,13 +98,18 @@ serve(async (req) => {
 
     for (const lead of destinatarios) {
       const assunto = personalizar(campaign.assunto, lead)
-      const html = personalizar(campaign.corpo_html, lead)
+      const unsubLink = linkDescadastro(campaign_id, lead.id)
+      const html = comRodape(personalizar(campaign.corpo_html, lead), cfg.remetente_nome, unsubLink)
 
       const payload: Record<string, unknown> = {
         from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),
         to: lead.email,
         subject: assunto,
         html,
+        headers: {
+          'List-Unsubscribe': `<${unsubLink}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
       }
       if (campaign.responder_para) payload.reply_to = campaign.responder_para
       if (campaign.cc?.length) payload.cc = campaign.cc

@@ -85,7 +85,7 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
 
-  const comEmail = useMemo(() => empresas.filter(e => e.email?.includes('@')), [empresas])
+  const comEmail = useMemo(() => empresas.filter(e => e.email?.includes('@') && !e.email_opt_out), [empresas])
 
   const municipiosDisponiveis = useMemo(() => {
     const set = new Set()
@@ -547,12 +547,14 @@ function CampanhaDetalhe({ campanha, empresas, onBack }) {
     falhas: envios.filter(e => e.status === 'falhou').length,
     abertos: envios.filter(e => e.aberto_em).length,
     cliques: envios.filter(e => e.clicado_em).length,
+    descadastros: envios.filter(e => e.descadastrado_em).length,
   }), [envios])
 
   const filtrados = useMemo(() => {
     if (filtro === 'aberto') return envios.filter(e => e.aberto_em)
     if (filtro === 'clicado') return envios.filter(e => e.clicado_em)
     if (filtro === 'falhou') return envios.filter(e => e.status === 'falhou')
+    if (filtro === 'descadastrou') return envios.filter(e => e.descadastrado_em)
     return envios
   }, [envios, filtro])
 
@@ -591,6 +593,7 @@ function CampanhaDetalhe({ campanha, empresas, onBack }) {
         {cardFiltro('falhou', 'Falhas', totals.falhas, '#c0392b')}
         {cardFiltro('aberto', 'Aberturas', totals.abertos, '#92740c')}
         {cardFiltro('clicado', 'Cliques', totals.cliques, 'var(--accent)')}
+        {cardFiltro('descadastrou', 'Descadastros', totals.descadastros, '#9ca3af')}
       </div>
 
       {loading ? (
@@ -616,7 +619,9 @@ function CampanhaDetalhe({ campanha, empresas, onBack }) {
                 </div>
                 <div style={{ color: e.aberto_em ? '#1e7e34' : 'var(--text3)' }}>{e.aberto_em ? 'Sim' : '—'}</div>
                 <div style={{ color: e.clicado_em ? 'var(--accent)' : 'var(--text3)' }}>{e.clicado_em ? 'Sim' : '—'}</div>
-                <div style={{ color: '#c0392b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.erro || ''}</div>
+                <div style={{ color: e.erro ? '#c0392b' : '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {e.erro || (e.descadastrado_em ? 'Descadastrou' : '')}
+                </div>
               </div>
             )
           })}
