@@ -956,6 +956,123 @@ function ExtensaoTab() {
   )
 }
 
+/* ─── Aba WhatsApp ────────────────────────────────────────────────────────── */
+
+function WhatsAppTab() {
+  const [cfg, setCfg] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [showToken, setShowToken] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+
+  useEffect(() => { fetchCfg() }, [])
+
+  async function fetchCfg() {
+    setLoading(true)
+    const { data } = await supabase.from('whatsapp_config').select('*').limit(1).maybeSingle()
+    setCfg(data || { phone_number_id: '', business_account_id: '', display_phone_number: '', access_token: '', verify_token: '', graph_version: 'v25.0', ativo: true })
+    setLoading(false)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setFeedback(null)
+    const payload = {
+      phone_number_id: cfg.phone_number_id || null,
+      business_account_id: cfg.business_account_id || null,
+      display_phone_number: cfg.display_phone_number || null,
+      access_token: cfg.access_token || null,
+      verify_token: cfg.verify_token || null,
+      graph_version: cfg.graph_version || 'v25.0',
+      ativo: cfg.ativo,
+    }
+    const { data, error } = cfg.id
+      ? await supabase.from('whatsapp_config').update(payload).eq('id', cfg.id).select().maybeSingle()
+      : await supabase.from('whatsapp_config').insert(payload).select().maybeSingle()
+    setSaving(false)
+    if (error) { setFeedback({ ok: false, msg: error.message }); return }
+    setCfg(data)
+    setFeedback({ ok: true, msg: 'Configuração salva.' })
+  }
+
+  if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>WhatsApp Cloud API (Meta)</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!cfg.ativo} onChange={e => setCfg(p => ({ ...p, ativo: e.target.checked }))} />
+            Ativo
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Phone Number ID</div>
+            <input style={inp()} value={cfg.phone_number_id || ''} onChange={e => setCfg(p => ({ ...p, phone_number_id: e.target.value }))} placeholder="ex: 1196393716892084" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Business Account ID</div>
+            <input style={inp()} value={cfg.business_account_id || ''} onChange={e => setCfg(p => ({ ...p, business_account_id: e.target.value }))} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Número exibido</div>
+            <input style={inp()} value={cfg.display_phone_number || ''} onChange={e => setCfg(p => ({ ...p, display_phone_number: e.target.value }))} placeholder="ex: +55 11 99999-9999" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Versão da Graph API</div>
+            <input style={inp()} value={cfg.graph_version || ''} onChange={e => setCfg(p => ({ ...p, graph_version: e.target.value }))} placeholder="v25.0" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Token de acesso (access token)</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={inp({ flex: 1 })}
+                type={showToken ? 'text' : 'password'}
+                value={cfg.access_token || ''}
+                onChange={e => setCfg(p => ({ ...p, access_token: e.target.value }))}
+                placeholder="EAAG..."
+              />
+              <button type="button" onClick={() => setShowToken(s => !s)} style={{ padding: '0 14px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {showToken ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Verify token (handshake do webhook)</div>
+            <input style={inp()} value={cfg.verify_token || ''} onChange={e => setCfg(p => ({ ...p, verify_token: e.target.value }))} placeholder="defina uma string qualquer" />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding: '8px 20px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+          {feedback && (
+            <span style={{ fontSize: 12, color: feedback.ok ? 'var(--green)' : 'var(--red)' }}>{feedback.msg}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Como configurar na Meta</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>
+          1. Em Meta for Developers, no seu app do WhatsApp, copie o <strong>Phone Number ID</strong> e gere um <strong>token de acesso</strong> permanente.<br/>
+          2. Cole o token e o Phone Number ID aqui e clique em Salvar.<br/>
+          3. No painel de Webhooks do app, aponte a URL para a Edge Function <code>whatsapp-webhook</code> e use o mesmo <strong>verify token</strong> definido aqui.<br/>
+          4. Não é necessário configurar nada em "Edge Function Secrets" — tudo é lido direto desta tela.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
 export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
@@ -1018,6 +1135,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
         <button style={tabStyle('servicos')} onClick={() => setActiveTab('servicos')}>Serviços</button>
         <button style={tabStyle('scripts')} onClick={() => setActiveTab('scripts')}>Scripts</button>
         <button style={tabStyle('extensao')} onClick={() => setActiveTab('extensao')}>Extensão</button>
+        <button style={tabStyle('whatsapp')} onClick={() => setActiveTab('whatsapp')}>WhatsApp</button>
       </div>
 
       {/* ── Usuários ── */}
@@ -1113,6 +1231,9 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
 
       {/* ── Extensão ── */}
       {activeTab === 'extensao' && <ExtensaoTab />}
+
+      {/* ── WhatsApp ── */}
+      {activeTab === 'whatsapp' && <WhatsAppTab />}
 
       {/* Modal edição */}
       {selectedUser && (
