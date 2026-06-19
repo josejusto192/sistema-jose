@@ -1,7 +1,7 @@
 import React from 'react'
 import { isToday, parseISO } from 'date-fns'
 import { STATUS_CONFIG } from '../constants.js'
-import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar, IconSearch, IconLink, IconInbox } from './Icons.jsx'
+import { IconGrid, IconList, IconContract, IconClock, IconMoon, IconSun, IconFileText, IconLogOut, IconSettings, IconBarChart, IconUser, IconCalendar, IconSearch, IconLink, IconInbox, IconMail } from './Icons.jsx'
 
 function Avatar({ profile, size = 32 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
@@ -71,6 +71,7 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
   const navAdmin = [
     { id: 'dashboard',       label: 'Dashboard',      icon: IconGrid },
     { id: 'caixa-entrada',   label: 'Caixa de Entrada', icon: IconInbox },
+    { id: 'email-marketing', label: 'Email Marketing', icon: IconMail },
     { id: 'leads',           label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
     { id: 'busca-avancada',  label: 'Busca Avançada',  icon: IconSearch },
     { id: 'contratos',       label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },

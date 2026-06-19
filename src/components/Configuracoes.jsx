@@ -1073,6 +1073,109 @@ function WhatsAppTab() {
   )
 }
 
+/* ─── Aba Email ───────────────────────────────────────────────────────────── */
+
+function EmailTab() {
+  const [cfg, setCfg] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+
+  useEffect(() => { fetchCfg() }, [])
+
+  async function fetchCfg() {
+    setLoading(true)
+    const { data } = await supabase.from('email_config').select('*').limit(1).maybeSingle()
+    setCfg(data || { provider: 'resend', api_key: '', remetente_nome: '', remetente_email: '', ativo: false })
+    setLoading(false)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setFeedback(null)
+    const payload = {
+      provider: cfg.provider || 'resend',
+      api_key: cfg.api_key || null,
+      remetente_nome: cfg.remetente_nome || null,
+      remetente_email: cfg.remetente_email || null,
+      ativo: cfg.ativo,
+    }
+    const { data, error } = cfg.id
+      ? await supabase.from('email_config').update(payload).eq('id', cfg.id).select().maybeSingle()
+      : await supabase.from('email_config').insert(payload).select().maybeSingle()
+    setSaving(false)
+    if (error) { setFeedback({ ok: false, msg: error.message }); return }
+    setCfg(data)
+    setFeedback({ ok: true, msg: 'Configuração salva.' })
+  }
+
+  if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Email Marketing (Resend)</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!cfg.ativo} onChange={e => setCfg(p => ({ ...p, ativo: e.target.checked }))} />
+            Ativo
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Chave da API (Resend)</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={inp({ flex: 1 })}
+                type={showKey ? 'text' : 'password'}
+                value={cfg.api_key || ''}
+                onChange={e => setCfg(p => ({ ...p, api_key: e.target.value }))}
+                placeholder="re_..."
+              />
+              <button type="button" onClick={() => setShowKey(s => !s)} style={{ padding: '0 14px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {showKey ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Nome do remetente</div>
+            <input style={inp()} value={cfg.remetente_nome || ''} onChange={e => setCfg(p => ({ ...p, remetente_nome: e.target.value }))} placeholder="ex: Justo Mídias" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Email do remetente (precisa ser de um domínio verificado no Resend)</div>
+            <input style={inp()} value={cfg.remetente_email || ''} onChange={e => setCfg(p => ({ ...p, remetente_email: e.target.value }))} placeholder="ex: contato@seudominio.com" />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding: '8px 20px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+          {feedback && (
+            <span style={{ fontSize: 12, color: feedback.ok ? 'var(--green)' : 'var(--red)' }}>{feedback.msg}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Como configurar</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>
+          1. Crie uma conta no <strong>Resend</strong> (resend.com) e verifique o domínio que você vai usar pra enviar.<br/>
+          2. Gere uma <strong>API key</strong> e cole aqui.<br/>
+          3. Informe um email do domínio verificado como remetente e marque como Ativo.<br/>
+          4. Crie campanhas em "Email Marketing" na barra lateral.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Principal ───────────────────────────────────────────────────────────── */
 
 export default function Configuracoes({ session, profile, isSuperAdmin, logAction }) {
@@ -1136,6 +1239,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
         <button style={tabStyle('scripts')} onClick={() => setActiveTab('scripts')}>Scripts</button>
         <button style={tabStyle('extensao')} onClick={() => setActiveTab('extensao')}>Extensão</button>
         <button style={tabStyle('whatsapp')} onClick={() => setActiveTab('whatsapp')}>WhatsApp</button>
+        <button style={tabStyle('email')} onClick={() => setActiveTab('email')}>Email</button>
       </div>
 
       {/* ── Usuários ── */}
@@ -1234,6 +1338,9 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
 
       {/* ── WhatsApp ── */}
       {activeTab === 'whatsapp' && <WhatsAppTab />}
+
+      {/* ── Email ── */}
+      {activeTab === 'email' && <EmailTab />}
 
       {/* Modal edição */}
       {selectedUser && (
