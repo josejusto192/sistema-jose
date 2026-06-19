@@ -97,6 +97,23 @@ export function IconPaperclip({ size = 16, color = 'currentColor' }) {
   )
 }
 
+export function IconMic({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" stroke={color} strokeWidth="1.4" />
+      <path d="M3 8a5 5 0 0 0 10 0M8 13v2M5.5 15h5" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function IconSquare({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill={color} aria-hidden="true">
+      <rect x="3" y="3" width="10" height="10" rx="2" />
+    </svg>
+  )
+}
+
 export function IconInbox({ size = 32, color = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">

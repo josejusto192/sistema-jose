@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../supabase.js'
-import { IconInbox, IconWhatsApp, IconSearch, IconCheck, IconPaperclip, IconX } from './Icons.jsx'
+import { IconInbox, IconWhatsApp, IconSearch, IconCheck, IconPaperclip, IconX, IconMic, IconSquare, IconTrash } from './Icons.jsx'
+
+// Ordem de preferência de formato pro MediaRecorder — só entra na lista o
+// que o navegador realmente sabe gravar (varia entre Chrome/Firefox/Safari).
+const AUDIO_MIME_PREF = ['audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm']
+
+function pickAudioMime() {
+  if (typeof MediaRecorder === 'undefined') return null
+  return AUDIO_MIME_PREF.find(m => MediaRecorder.isTypeSupported(m)) || null
+}
 
 // Canais suportados. Por enquanto só o WhatsApp está ativo — Instagram e os
 // próximos entram aqui conforme as integrações forem ficando prontas.
@@ -93,8 +102,15 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   const [enviando, setEnviando] = useState(false)
   const [erroEnvio, setErroEnvio] = useState(null)
   const [arquivo, setArquivo] = useState(null)
+  const [gravando, setGravando] = useState(false)
+  const [tempoGravacao, setTempoGravacao] = useState(0)
   const scrollRef = useRef(null)
   const fileInputRef = useRef(null)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const streamRef = useRef(null)
+  const timerRef = useRef(null)
+  const canceladoRef = useRef(false)
 
   const loadConversas = useCallback(async () => {
     setLoadingConversas(true)
@@ -147,6 +163,49 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [mensagens])
+
+  // Para a stream do microfone sempre que o componente desmontar com uma
+  // gravação em andamento (ex: troca de conversa ou de tela).
+  useEffect(() => () => streamRef.current?.getTracks().forEach(t => t.stop()), [])
+
+  async function iniciarGravacao() {
+    setErroEnvio(null)
+    const mime = pickAudioMime()
+    if (!mime) {
+      setErroEnvio('Seu navegador não suporta gravação de áudio.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      chunksRef.current = []
+      canceladoRef.current = false
+      const recorder = new MediaRecorder(stream, { mimeType: mime })
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop())
+        if (!canceladoRef.current && chunksRef.current.length) {
+          const blob = new Blob(chunksRef.current, { type: mime })
+          const ext = mime.split('/')[1].split(';')[0]
+          setArquivo(new File([blob], `audio-${Date.now()}.${ext}`, { type: mime }))
+        }
+      }
+      recorderRef.current = recorder
+      recorder.start()
+      setGravando(true)
+      setTempoGravacao(0)
+      timerRef.current = setInterval(() => setTempoGravacao(t => t + 1), 1000)
+    } catch {
+      setErroEnvio('Não foi possível acessar o microfone. Verifique a permissão do navegador.')
+    }
+  }
+
+  function pararGravacao(cancelar) {
+    canceladoRef.current = !!cancelar
+    recorderRef.current?.stop()
+    clearInterval(timerRef.current)
+    setGravando(false)
+  }
 
   async function enviar() {
     const txt = texto.trim()
@@ -380,50 +439,76 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
                 </button>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*,audio/*,application/pdf"
-                style={{ display: 'none' }}
-                onChange={e => setArquivo(e.target.files?.[0] || null)}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                title="Anexar arquivo"
-                style={{
-                  width: 38, flexShrink: 0, borderRadius: 10, border: '1px solid var(--border)',
-                  background: 'var(--bg3)', color: 'var(--text2)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                <IconPaperclip size={15} />
-              </button>
-              <textarea
-                value={texto}
-                onChange={e => setTexto(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-                placeholder={arquivo ? 'Adicionar legenda (opcional)...' : 'Digite uma mensagem...'}
-                rows={1}
-                style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
-                  background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none',
-                  resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', maxHeight: 120,
-                }}
-              />
-              <button
-                onClick={enviar}
-                disabled={(!texto.trim() && !arquivo) || enviando}
-                style={{
-                  padding: '0 18px', borderRadius: 10, border: 'none',
-                  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-                  cursor: (!texto.trim() && !arquivo) || enviando ? 'default' : 'pointer',
-                  opacity: (!texto.trim() && !arquivo) || enviando ? 0.6 : 1,
-                }}
-              >
-                {enviando ? 'Enviando...' : 'Enviar'}
-              </button>
-            </div>
+            {gravando ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--bg3)' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#DC2626', flexShrink: 0, animation: 'pulse 1.1s infinite' }} />
+                <span style={{ fontSize: 13, color: 'var(--text2)', flex: 1 }}>
+                  Gravando... {String(Math.floor(tempoGravacao / 60)).padStart(2, '0')}:{String(tempoGravacao % 60).padStart(2, '0')}
+                </span>
+                <button onClick={() => pararGravacao(true)} title="Cancelar" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconTrash size={14} />
+                </button>
+                <button onClick={() => pararGravacao(false)} title="Concluir gravação" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconSquare size={13} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*,audio/*,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={e => setArquivo(e.target.files?.[0] || null)}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Anexar arquivo"
+                  style={{
+                    width: 38, flexShrink: 0, borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--bg3)', color: 'var(--text2)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <IconPaperclip size={15} />
+                </button>
+                <button
+                  onClick={iniciarGravacao}
+                  title="Gravar áudio"
+                  style={{
+                    width: 38, flexShrink: 0, borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--bg3)', color: 'var(--text2)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <IconMic size={15} />
+                </button>
+                <textarea
+                  value={texto}
+                  onChange={e => setTexto(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
+                  placeholder={arquivo ? 'Adicionar legenda (opcional)...' : 'Digite uma mensagem...'}
+                  rows={1}
+                  style={{
+                    flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none',
+                    resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', maxHeight: 120,
+                  }}
+                />
+                <button
+                  onClick={enviar}
+                  disabled={(!texto.trim() && !arquivo) || enviando}
+                  style={{
+                    padding: '0 18px', borderRadius: 10, border: 'none',
+                    background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
+                    cursor: (!texto.trim() && !arquivo) || enviando ? 'default' : 'pointer',
+                    opacity: (!texto.trim() && !arquivo) || enviando ? 0.6 : 1,
+                  }}
+                >
+                  {enviando ? 'Enviando...' : 'Enviar'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
