@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../supabase.js'
 import { STATUS_CONFIG, leadName } from '../constants.js'
-import { IconPlus, IconTrash, IconX, IconMail, IconTag, IconSearch, IconCheck } from './Icons.jsx'
+import { IconPlus, IconTrash, IconMail, IconTag, IconSearch, IconCheck, IconArrowLeft } from './Icons.jsx'
 
 const STATUS_LABEL = {
   rascunho: { label: 'Rascunho', bg: 'var(--bg3)', color: 'var(--text2)' },
@@ -9,6 +9,15 @@ const STATUS_LABEL = {
   enviado:  { label: 'Enviado', bg: '#d4edda', color: '#1e7e34' },
   erro:     { label: 'Erro', bg: '#f8d7da', color: '#c0392b' },
 }
+
+const ORIGENS = [
+  { value: 'manual',         label: 'Manual (app)' },
+  { value: 'n8n',            label: 'Automação n8n' },
+  { value: 'site',           label: 'Site / formulário' },
+  { value: 'indicacao',      label: 'Indicação' },
+  { value: 'casa_dos_dados', label: 'Casa dos Dados' },
+  { value: 'outro',          label: 'Outro' },
+]
 
 const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 5 }
 const inputStyle = {
@@ -25,6 +34,43 @@ function StatusBadge({ status }) {
   )
 }
 
+const STEPS = [
+  { id: 1, label: 'Conteúdo' },
+  { id: 2, label: 'Destinatários' },
+  { id: 3, label: 'Revisar e enviar' },
+]
+
+function StepIndicator({ step, maxStepAtingido, onJump }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 28 }}>
+      {STEPS.map((s, i) => {
+        const ativo = s.id === step
+        const concluido = s.id < step
+        const alcancavel = s.id <= maxStepAtingido
+        return (
+          <React.Fragment key={s.id}>
+            <div
+              onClick={() => alcancavel && onJump(s.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: alcancavel ? 'pointer' : 'default' }}
+            >
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
+                background: ativo || concluido ? 'var(--accent)' : 'var(--bg3)',
+                color: ativo || concluido ? '#fff' : 'var(--text3)',
+              }}>
+                {concluido ? <IconCheck size={12} color="#fff" /> : s.id}
+              </div>
+              <span style={{ fontSize: 13, fontWeight: ativo ? 700 : 500, color: ativo ? 'var(--text)' : 'var(--text3)' }}>{s.label}</span>
+            </div>
+            {i < STEPS.length - 1 && <div style={{ width: 40, height: 1, background: 'var(--border)', margin: '0 12px' }} />}
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ─── Seletor de destinatários ────────────────────────────────────────────── */
 // Em vez de só filtrar por tag (a maioria dos leads não tem tag cadastrada,
 // então isso quase sempre dava 0 resultados), aqui o usuário busca/filtra
@@ -34,18 +80,32 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('')
   const [tagsFiltro, setTagsFiltro] = useState([])
+  const [origemFiltro, setOrigemFiltro] = useState('')
+  const [municipioFiltro, setMunicipioFiltro] = useState('')
+  const [dataInicio, setDataInicio] = useState('')
+  const [dataFim, setDataFim] = useState('')
 
   const comEmail = useMemo(() => empresas.filter(e => e.email?.includes('@')), [empresas])
+
+  const municipiosDisponiveis = useMemo(() => {
+    const set = new Set()
+    comEmail.forEach(e => { if (e.municipio) set.add(e.municipio) })
+    return Array.from(set).sort()
+  }, [comEmail])
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return comEmail.filter(e => {
       if (statusFiltro && e.status_prospeccao !== statusFiltro) return false
       if (tagsFiltro.length && !(e.tags || []).some(t => tagsFiltro.includes(t))) return false
+      if (origemFiltro && e.origem !== origemFiltro) return false
+      if (municipioFiltro && e.municipio !== municipioFiltro) return false
+      if (dataInicio && (!e.criado_em || new Date(e.criado_em) < new Date(dataInicio))) return false
+      if (dataFim && (!e.criado_em || new Date(e.criado_em) > new Date(`${dataFim}T23:59:59`))) return false
       if (q && !(leadName(e).toLowerCase().includes(q) || e.email.toLowerCase().includes(q))) return false
       return true
     })
-  }, [comEmail, busca, statusFiltro, tagsFiltro])
+  }, [comEmail, busca, statusFiltro, tagsFiltro, origemFiltro, municipioFiltro, dataInicio, dataFim])
 
   function toggleTagFiltro(tag) {
     setTagsFiltro(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
@@ -84,6 +144,26 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
           <option value="">Todos os status</option>
           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
         </select>
+        <select value={origemFiltro} onChange={e => setOrigemFiltro(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '7px 10px', fontSize: 12 }}>
+          <option value="">Todas as origens</option>
+          {ORIGENS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select value={municipioFiltro} onChange={e => setMunicipioFiltro(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '7px 10px', fontSize: 12 }}>
+          <option value="">Todos os municípios</option>
+          {municipiosDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: 'var(--text3)' }}>Criado entre</span>
+        <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '6px 9px', fontSize: 12 }} />
+        <span style={{ fontSize: 11, color: 'var(--text3)' }}>e</span>
+        <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '6px 9px', fontSize: 12 }} />
+        {(dataInicio || dataFim) && (
+          <button onClick={() => { setDataInicio(''); setDataFim('') }} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+            Limpar datas
+          </button>
+        )}
       </div>
 
       {tagsDisponiveis.length > 0 && (
@@ -119,7 +199,7 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
         </div>
       </div>
 
-      <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 220, overflowY: 'auto', background: 'var(--bg2)' }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 320, overflowY: 'auto', background: 'var(--bg2)' }}>
         {filtrados.length === 0 ? (
           <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>
             Nenhum lead com email encontrado para esse filtro.
@@ -153,7 +233,10 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
   )
 }
 
-function NovaCampanhaModal({ empresas, tagsDisponiveis, onClose, onSaved }) {
+/* ─── Página de nova campanha (etapas) ────────────────────────────────────── */
+function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
+  const [step, setStep] = useState(1)
+  const [maxStepAtingido, setMaxStepAtingido] = useState(1)
   const [nome, setNome] = useState('')
   const [assunto, setAssunto] = useState('')
   const [corpoHtml, setCorpoHtml] = useState('')
@@ -161,11 +244,29 @@ function NovaCampanhaModal({ empresas, tagsDisponiveis, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState(null)
 
-  async function salvar() {
-    if (!nome.trim() || !assunto.trim() || !corpoHtml.trim()) {
-      setErro('Nome, assunto e corpo são obrigatórios')
+  const selecionadosLeads = useMemo(() => empresas.filter(e => selecionados.includes(e.id)), [empresas, selecionados])
+
+  function irParaStep(s) {
+    setErro(null)
+    setStep(s)
+    setMaxStepAtingido(prev => Math.max(prev, s))
+  }
+
+  function avancar() {
+    if (step === 1) {
+      if (!nome.trim() || !assunto.trim() || !corpoHtml.trim()) {
+        setErro('Nome, assunto e corpo são obrigatórios')
+        return
+      }
+    }
+    if (step === 2 && selecionados.length === 0) {
+      setErro('Selecione ao menos um destinatário')
       return
     }
+    irParaStep(step + 1)
+  }
+
+  async function salvar() {
     if (selecionados.length === 0) {
       setErro('Selecione ao menos um destinatário')
       return
@@ -184,50 +285,99 @@ function NovaCampanhaModal({ empresas, tagsDisponiveis, onClose, onSaved }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
-      <div style={{ background: 'var(--bg1)', borderRadius: 12, padding: 24, width: 680, maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Nova campanha</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
-            <IconX size={18} color="var(--text3)" />
-          </button>
-        </div>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <button onClick={onCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
+          <IconArrowLeft size={18} color="var(--text3)" />
+        </button>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Nova campanha</h1>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={labelStyle}>Nome da campanha</label>
-            <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Black Friday 2026" />
-          </div>
-          <div>
-            <label style={labelStyle}>Assunto do email</label>
-            <input style={inputStyle} value={assunto} onChange={e => setAssunto(e.target.value)} placeholder="Ex: {{nome}}, uma oferta especial pra você" />
-          </div>
-          <div>
-            <label style={labelStyle}>Corpo do email (HTML)</label>
-            <textarea
-              style={{ ...inputStyle, minHeight: 160, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-              value={corpoHtml}
-              onChange={e => setCorpoHtml(e.target.value)}
-              placeholder={'<p>Olá {{nome}},</p>\n<p>Texto da sua campanha aqui...</p>'}
-            />
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-              Variáveis disponíveis: <code>{'{{nome}}'}</code>, <code>{'{{empresa}}'}</code>, <code>{'{{email}}'}</code>
+      <StepIndicator step={step} maxStepAtingido={maxStepAtingido} onJump={irParaStep} />
+
+      <div className="card" style={{ padding: 24, maxWidth: 760 }}>
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Nome da campanha</label>
+              <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Black Friday 2026" />
+            </div>
+            <div>
+              <label style={labelStyle}>Assunto do email</label>
+              <input style={inputStyle} value={assunto} onChange={e => setAssunto(e.target.value)} placeholder="Ex: {{nome}}, uma oferta especial pra você" />
+            </div>
+            <div>
+              <label style={labelStyle}>Corpo do email (HTML)</label>
+              <textarea
+                style={{ ...inputStyle, minHeight: 220, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                value={corpoHtml}
+                onChange={e => setCorpoHtml(e.target.value)}
+                placeholder={'<p>Olá {{nome}},</p>\n<p>Texto da sua campanha aqui...</p>'}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                Variáveis disponíveis: <code>{'{{nome}}'}</code>, <code>{'{{empresa}}'}</code>, <code>{'{{email}}'}</code>
+              </div>
             </div>
           </div>
+        )}
 
+        {step === 2 && (
           <SeletorDestinatarios
             empresas={empresas}
             tagsDisponiveis={tagsDisponiveis}
             selecionados={selecionados}
             setSelecionados={setSelecionados}
           />
+        )}
 
-          {erro && <div style={{ fontSize: 12, color: '#c0392b' }}>{erro}</div>}
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Campanha</label>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{nome}</div>
+              <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>{assunto}</div>
+            </div>
+            <div>
+              <label style={labelStyle}>Prévia do conteúdo</label>
+              <div
+                style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, background: '#fff', maxHeight: 240, overflowY: 'auto' }}
+                dangerouslySetInnerHTML={{ __html: corpoHtml }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Destinatários ({selecionadosLeads.length})</label>
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', background: 'var(--bg2)' }}>
+                {selecionadosLeads.map(e => (
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{leadName(e)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{e.email}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+              A campanha será salva como rascunho. O envio é feito depois, na lista de campanhas.
+            </div>
+          </div>
+        )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-            <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Cancelar
+        {erro && <div style={{ fontSize: 12, color: '#c0392b', marginTop: 14 }}>{erro}</div>}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 22 }}>
+          <button
+            onClick={() => step === 1 ? onCancel() : irParaStep(step - 1)}
+            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            {step === 1 ? 'Cancelar' : 'Voltar'}
+          </button>
+          {step < 3 ? (
+            <button
+              onClick={avancar}
+              style={{ padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Continuar
             </button>
+          ) : (
             <button
               onClick={salvar}
               disabled={saving}
@@ -235,7 +385,7 @@ function NovaCampanhaModal({ empresas, tagsDisponiveis, onClose, onSaved }) {
             >
               {saving ? 'Salvando...' : 'Salvar como rascunho'}
             </button>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -294,6 +444,19 @@ export default function EmailMarketing({ empresas = [] }) {
       setErroEnvio(msg)
     }
     fetchCampanhas()
+  }
+
+  if (showNova) {
+    return (
+      <div style={{ padding: '28px 32px' }}>
+        <NovaCampanhaPage
+          empresas={empresas}
+          tagsDisponiveis={tagsDisponiveis}
+          onCancel={() => setShowNova(false)}
+          onSaved={() => { setShowNova(false); fetchCampanhas() }}
+        />
+      </div>
+    )
   }
 
   return (
@@ -359,15 +522,6 @@ export default function EmailMarketing({ empresas = [] }) {
             </div>
           ))}
         </div>
-      )}
-
-      {showNova && (
-        <NovaCampanhaModal
-          empresas={empresas}
-          tagsDisponiveis={tagsDisponiveis}
-          onClose={() => setShowNova(false)}
-          onSaved={() => { setShowNova(false); fetchCampanhas() }}
-        />
       )}
     </div>
   )
