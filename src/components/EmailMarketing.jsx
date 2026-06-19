@@ -76,7 +76,7 @@ function StepIndicator({ step, maxStepAtingido, onJump }) {
 // então isso quase sempre dava 0 resultados), aqui o usuário busca/filtra
 // como na tela de Leads e vê exatamente quem vai entrar na campanha antes
 // de salvar — a campanha guarda os lead_ids escolhidos, não um filtro solto.
-function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSelecionados }) {
+function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSelecionados, contatados }) {
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('')
   const [tagsFiltro, setTagsFiltro] = useState([])
@@ -222,6 +222,11 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadName(e)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.email}</div>
               </div>
+              {contatados?.has(e.id) && (
+                <span style={{ fontSize: 10, color: '#92740c', background: '#fff3cd', padding: '2px 7px', borderRadius: 20, flexShrink: 0 }}>
+                  Já contatado
+                </span>
+              )}
               <span style={{ fontSize: 10, color: STATUS_CONFIG[e.status_prospeccao]?.color || 'var(--text3)', background: STATUS_CONFIG[e.status_prospeccao]?.bg || 'var(--bg3)', padding: '2px 7px', borderRadius: 20, flexShrink: 0 }}>
                 {STATUS_CONFIG[e.status_prospeccao]?.label || e.status_prospeccao}
               </span>
@@ -234,7 +239,7 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
 }
 
 /* ─── Página de nova campanha (etapas) ────────────────────────────────────── */
-function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
+function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onSaved }) {
   const [step, setStep] = useState(1)
   const [maxStepAtingido, setMaxStepAtingido] = useState(1)
   const [nome, setNome] = useState('')
@@ -427,6 +432,7 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
             tagsDisponiveis={tagsDisponiveis}
             selecionados={selecionados}
             setSelecionados={setSelecionados}
+            contatados={contatados}
           />
         )}
 
@@ -458,10 +464,15 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
             )}
             <div>
               <label style={labelStyle}>Destinatários ({selecionadosLeads.length})</label>
+              {selecionadosLeads.some(e => contatados?.has(e.id)) && (
+                <div style={{ fontSize: 11, color: '#92740c', marginBottom: 6 }}>
+                  Alguns leads selecionados já receberam email de outra campanha antes.
+                </div>
+              )}
               <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', background: 'var(--bg2)' }}>
                 {selecionadosLeads.map(e => (
                   <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{leadName(e)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{leadName(e)}{contatados?.has(e.id) ? ' ⚠' : ''}</span>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>{e.email}</span>
                   </div>
                 ))}
@@ -504,11 +515,124 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
   )
 }
 
+const ENVIO_STATUS_LABEL = {
+  pendente: { label: 'Pendente', bg: 'var(--bg3)', color: 'var(--text2)' },
+  enviado:  { label: 'Enviado', bg: '#d4edda', color: '#1e7e34' },
+  falhou:   { label: 'Falhou', bg: '#f8d7da', color: '#c0392b' },
+}
+
+/* ─── Detalhe da campanha (lista de envios) ───────────────────────────────── */
+function CampanhaDetalhe({ campanha, empresas, onBack }) {
+  const [envios, setEnvios] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState('')
+
+  useEffect(() => {
+    let ativo = true
+    setLoading(true)
+    supabase.from('email_campaign_envios').select('*').eq('campaign_id', campanha.id).order('created_at', { ascending: true })
+      .then(({ data }) => { if (ativo) { setEnvios(data || []); setLoading(false) } })
+    return () => { ativo = false }
+  }, [campanha.id])
+
+  const leadById = useMemo(() => {
+    const m = {}
+    empresas.forEach(e => { m[e.id] = e })
+    return m
+  }, [empresas])
+
+  const totals = useMemo(() => ({
+    total: envios.length,
+    enviados: envios.filter(e => e.status === 'enviado').length,
+    falhas: envios.filter(e => e.status === 'falhou').length,
+    abertos: envios.filter(e => e.aberto_em).length,
+    cliques: envios.filter(e => e.clicado_em).length,
+  }), [envios])
+
+  const filtrados = useMemo(() => {
+    if (filtro === 'aberto') return envios.filter(e => e.aberto_em)
+    if (filtro === 'clicado') return envios.filter(e => e.clicado_em)
+    if (filtro === 'falhou') return envios.filter(e => e.status === 'falhou')
+    return envios
+  }, [envios, filtro])
+
+  function cardFiltro(key, label, valor, cor) {
+    const ativo = filtro === key
+    return (
+      <button
+        onClick={() => setFiltro(ativo ? '' : key)}
+        className="card"
+        style={{ padding: '12px 18px', textAlign: 'left', cursor: 'pointer', border: ativo ? `1px solid ${cor || 'var(--accent)'}` : undefined, background: ativo ? 'var(--bg2)' : undefined }}
+      >
+        <div style={{ fontSize: 20, fontWeight: 700, color: cor || 'var(--text)' }}>{valor}</div>
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{label}</div>
+      </button>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
+          <IconArrowLeft size={18} color="var(--text3)" />
+        </button>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{campanha.nome}</h1>
+            <StatusBadge status={campanha.status} />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{campanha.assunto}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        {cardFiltro('', 'Destinatários', totals.total)}
+        {cardFiltro('', 'Enviados', totals.enviados, '#1e7e34')}
+        {cardFiltro('falhou', 'Falhas', totals.falhas, '#c0392b')}
+        {cardFiltro('aberto', 'Aberturas', totals.abertos, '#92740c')}
+        {cardFiltro('clicado', 'Cliques', totals.cliques, 'var(--accent)')}
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+      ) : filtrados.length === 0 ? (
+        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+          Nenhum envio encontrado para esse filtro.
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 0.8fr 0.8fr 0.8fr 1.4fr', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase' }}>
+            <div>Nome</div><div>Email</div><div>Status</div><div>Aberto</div><div>Clicado</div><div>Detalhe</div>
+          </div>
+          {filtrados.map(e => {
+            const lead = leadById[e.lead_id]
+            const s = ENVIO_STATUS_LABEL[e.status] || ENVIO_STATUS_LABEL.pendente
+            return (
+              <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 0.8fr 0.8fr 0.8fr 1.4fr', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, alignItems: 'center' }}>
+                <div style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead ? leadName(lead) : '—'}</div>
+                <div style={{ color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.email}</div>
+                <div>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: s.bg, color: s.color }}>{s.label}</span>
+                </div>
+                <div style={{ color: e.aberto_em ? '#1e7e34' : 'var(--text3)' }}>{e.aberto_em ? 'Sim' : '—'}</div>
+                <div style={{ color: e.clicado_em ? 'var(--accent)' : 'var(--text3)' }}>{e.clicado_em ? 'Sim' : '—'}</div>
+                <div style={{ color: '#c0392b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.erro || ''}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function EmailMarketing({ empresas = [] }) {
   const [campanhas, setCampanhas] = useState([])
   const [aberturas, setAberturas] = useState({})
+  const [contatados, setContatados] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [showNova, setShowNova] = useState(false)
+  const [campanhaDetalhe, setCampanhaDetalhe] = useState(null)
   const [enviandoId, setEnviandoId] = useState(null)
   const [erroEnvio, setErroEnvio] = useState(null)
 
@@ -539,7 +663,12 @@ export default function EmailMarketing({ empresas = [] }) {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchCampanhas() }, [fetchCampanhas])
+  const fetchContatados = useCallback(async () => {
+    const { data } = await supabase.from('email_campaign_envios').select('lead_id').eq('status', 'enviado').not('lead_id', 'is', null)
+    setContatados(new Set((data || []).map(e => e.lead_id)))
+  }, [])
+
+  useEffect(() => { fetchCampanhas(); fetchContatados() }, [fetchCampanhas, fetchContatados])
 
   function destinatarios(campanha) {
     if (campanha.lead_ids?.length) return campanha.lead_ids.length
@@ -579,9 +708,18 @@ export default function EmailMarketing({ empresas = [] }) {
         <NovaCampanhaPage
           empresas={empresas}
           tagsDisponiveis={tagsDisponiveis}
+          contatados={contatados}
           onCancel={() => setShowNova(false)}
-          onSaved={() => { setShowNova(false); fetchCampanhas() }}
+          onSaved={() => { setShowNova(false); fetchCampanhas(); fetchContatados() }}
         />
+      </div>
+    )
+  }
+
+  if (campanhaDetalhe) {
+    return (
+      <div style={{ padding: '28px 32px' }}>
+        <CampanhaDetalhe campanha={campanhaDetalhe} empresas={empresas} onBack={() => setCampanhaDetalhe(null)} />
       </div>
     )
   }
@@ -618,7 +756,12 @@ export default function EmailMarketing({ empresas = [] }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {campanhas.map(c => (
-            <div key={c.id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div
+              key={c.id}
+              className="card"
+              onClick={() => setCampanhaDetalhe(c)}
+              style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
+            >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{c.nome}</span>
@@ -631,7 +774,7 @@ export default function EmailMarketing({ empresas = [] }) {
                   {c.status === 'enviado' && ` · ${aberturas[c.id]?.abertos || 0} aberto(s), ${aberturas[c.id]?.cliques || 0} clique(s)`}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
                 {c.status === 'rascunho' && (
                   <button
                     onClick={() => enviar(c)}
