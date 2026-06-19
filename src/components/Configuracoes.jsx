@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../supabase.js'
+import { supabase, SUPABASE_URL } from '../supabase.js'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -1080,14 +1080,17 @@ function EmailTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showKey, setShowKey] = useState(false)
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false)
   const [feedback, setFeedback] = useState(null)
+
+  const webhookUrl = `${SUPABASE_URL}/functions/v1/email-webhook`
 
   useEffect(() => { fetchCfg() }, [])
 
   async function fetchCfg() {
     setLoading(true)
     const { data } = await supabase.from('email_config').select('*').limit(1).maybeSingle()
-    setCfg(data || { provider: 'resend', api_key: '', remetente_nome: '', remetente_email: '', ativo: false })
+    setCfg(data || { provider: 'resend', api_key: '', remetente_nome: '', remetente_email: '', webhook_secret: '', ativo: false })
     setLoading(false)
   }
 
@@ -1099,6 +1102,7 @@ function EmailTab() {
       api_key: cfg.api_key || null,
       remetente_nome: cfg.remetente_nome || null,
       remetente_email: cfg.remetente_email || null,
+      webhook_secret: cfg.webhook_secret || null,
       ativo: cfg.ativo,
     }
     const { data, error } = cfg.id
@@ -1147,6 +1151,21 @@ function EmailTab() {
             <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Email do remetente (precisa ser de um domínio verificado no Resend)</div>
             <input style={inp()} value={cfg.remetente_email || ''} onChange={e => setCfg(p => ({ ...p, remetente_email: e.target.value }))} placeholder="ex: contato@seudominio.com" />
           </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Webhook secret (pra rastrear abertura/clique — opcional)</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={inp({ flex: 1 })}
+                type={showWebhookSecret ? 'text' : 'password'}
+                value={cfg.webhook_secret || ''}
+                onChange={e => setCfg(p => ({ ...p, webhook_secret: e.target.value }))}
+                placeholder="whsec_..."
+              />
+              <button type="button" onClick={() => setShowWebhookSecret(s => !s)} style={{ padding: '0 14px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {showWebhookSecret ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
@@ -1169,7 +1188,12 @@ function EmailTab() {
           1. Crie uma conta no <strong>Resend</strong> (resend.com) e verifique o domínio que você vai usar pra enviar.<br/>
           2. Gere uma <strong>API key</strong> e cole aqui.<br/>
           3. Informe um email do domínio verificado como remetente e marque como Ativo.<br/>
-          4. Crie campanhas em "Email Marketing" na barra lateral.
+          4. Crie campanhas em "Email Marketing" na barra lateral.<br/><br/>
+          <strong>Para ver quem abriu/clicou no email (opcional):</strong><br/>
+          5. No Resend, vá em Webhooks e crie um apontando para:<br/>
+          <code style={{ wordBreak: 'break-all' }}>{webhookUrl}</code><br/>
+          6. Selecione os eventos <strong>email.opened</strong> e <strong>email.clicked</strong>.<br/>
+          7. Copie o "Signing Secret" gerado e cole no campo "Webhook secret" acima.
         </div>
       </div>
     </div>

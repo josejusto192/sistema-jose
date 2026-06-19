@@ -79,8 +79,9 @@ serve(async (req) => {
 
       if (res.ok) {
         enviados++
+        const result = await res.json().catch(() => ({}))
         await db.from('email_campaign_envios').insert({
-          campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(),
+          campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(), resend_id: result.id || null,
         })
       } else {
         falhas++

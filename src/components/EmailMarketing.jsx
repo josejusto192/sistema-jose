@@ -394,6 +394,7 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, onCancel, onSaved }) {
 
 export default function EmailMarketing({ empresas = [] }) {
   const [campanhas, setCampanhas] = useState([])
+  const [aberturas, setAberturas] = useState({})
   const [loading, setLoading] = useState(true)
   const [showNova, setShowNova] = useState(false)
   const [enviandoId, setEnviandoId] = useState(null)
@@ -408,6 +409,20 @@ export default function EmailMarketing({ empresas = [] }) {
   const fetchCampanhas = useCallback(async () => {
     setLoading(true)
     const { data, error } = await supabase.from('email_campaigns').select('*').order('created_at', { ascending: false })
+    const enviadas = (data || []).filter(c => c.status === 'enviado')
+    if (enviadas.length > 0) {
+      const { data: envios } = await supabase
+        .from('email_campaign_envios')
+        .select('campaign_id, aberto_em, clicado_em')
+        .in('campaign_id', enviadas.map(c => c.id))
+      const stats = {}
+      ;(envios || []).forEach(e => {
+        const s = stats[e.campaign_id] || (stats[e.campaign_id] = { abertos: 0, cliques: 0 })
+        if (e.aberto_em) s.abertos++
+        if (e.clicado_em) s.cliques++
+      })
+      setAberturas(stats)
+    }
     if (!error) setCampanhas(data || [])
     setLoading(false)
   }, [])
@@ -501,6 +516,7 @@ export default function EmailMarketing({ empresas = [] }) {
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                   {destinatarios(c)} destinatário(s)
                   {c.status === 'enviado' && ` · ${c.total_enviados} enviado(s), ${c.total_falhas} falha(s)`}
+                  {c.status === 'enviado' && ` · ${aberturas[c.id]?.abertos || 0} aberto(s), ${aberturas[c.id]?.cliques || 0} clique(s)`}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
