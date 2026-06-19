@@ -189,6 +189,15 @@ export function IconArrowLeft({ size = 16, color = 'currentColor' }) {
   )
 }
 
+export function IconDownload({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 2v8m0 0L5 7m3 3l3-3" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 12.5v1A1.5 1.5 0 0 0 4.5 15h7A1.5 1.5 0 0 0 13 13.5v-1" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconPlus({ size = 16, color = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">

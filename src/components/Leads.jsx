@@ -3,7 +3,8 @@ import { STATUS_CONFIG, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
 import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, parseISO } from 'date-fns'
-import { IconSearch, IconClock, IconMail, IconPhone, IconInbox, IconList, IconKanban, IconX } from './Icons.jsx'
+import { IconSearch, IconClock, IconMail, IconPhone, IconInbox, IconList, IconKanban, IconX, IconDownload } from './Icons.jsx'
+import { exportLeads } from '../lib/exportLeads.js'
 
 const PER_PAGE = 20
 
@@ -742,6 +743,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const [viewMode, setViewMode] = useState('list')
   const [selectedIds, setSelectedIds] = useState([])
   const [newLeadOpen, setNewLeadOpen] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   // Local search state: update input immediately, debounce the parent state
   const [localSearch, setLocalSearch] = useState(searchQuery)
   const searchDebounceRef = useRef(null)
@@ -895,6 +897,12 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
     if (ok) setSelectedIds([])
   }
 
+  function handleExport(format) {
+    const lista = selectedIds.length > 0 ? sorted.filter(e => selectedIds.includes(e.id)) : sorted
+    exportLeads(lista, format)
+    setShowExportMenu(false)
+  }
+
   const statusTabs = ['todos', ...Object.keys(STATUS_CONFIG)]
 
   return (
@@ -912,11 +920,44 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             </span>
           )}
 
+          {/* Exportar */}
+          <div style={{ position: 'relative', marginLeft: 'auto' }}>
+            <button
+              onClick={() => setShowExportMenu(s => !s)}
+              title={selectedIds.length > 0 ? `Exportar ${selectedIds.length} selecionado(s)` : 'Exportar leads filtrados'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                background: 'var(--bg3)', color: 'var(--text2)',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <IconDownload size={14} color="var(--text2)" /> Exportar
+            </button>
+            {showExportMenu && (
+              <>
+                <div onClick={() => setShowExportMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 19 }} />
+                <div style={{
+                  position: 'absolute', top: '110%', right: 0, zIndex: 20,
+                  background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 160, overflow: 'hidden',
+                }}>
+                  <button onClick={() => handleExport('xlsx')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', border: 'none', background: 'none', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Excel (.xlsx)
+                  </button>
+                  <button onClick={() => handleExport('csv')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', border: 'none', background: 'none', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    CSV
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Novo Lead */}
           <button
             onClick={() => setNewLeadOpen(true)}
             style={{
-              marginLeft: 'auto',
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '6px 14px', borderRadius: 8, border: 'none',
               background: 'var(--accent)', color: '#fff',
