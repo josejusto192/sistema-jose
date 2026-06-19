@@ -565,11 +565,81 @@ const ENVIO_STATUS_LABEL = {
   falhou:   { label: 'Falhou', bg: '#f8d7da', color: '#c0392b' },
 }
 
+/* ─── Detalhe de um envio individual (modal) ──────────────────────────────── */
+function EnvioDetalheModal({ envio, lead, onClose }) {
+  const s = ENVIO_STATUS_LABEL[envio.status] || ENVIO_STATUS_LABEL.pendente
+  function fmt(d) { return d ? new Date(d).toLocaleString('pt-BR') : '—' }
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className="card"
+        style={{ width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', padding: 24 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{lead ? leadName(lead) : envio.email}</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{envio.email}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text3)', padding: 4 }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: s.bg, color: s.color }}>{s.label}</span>
+          {envio.aberto_em && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: '#fff3cd', color: '#92740c' }}>Aberto</span>}
+          {envio.clicado_em && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'var(--bg3)', color: 'var(--accent)' }}>Clicado</span>}
+          {envio.descadastrado_em && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'var(--bg3)', color: '#9ca3af' }}>Descadastrou</span>}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12, marginBottom: 16 }}>
+          <div><div style={{ color: 'var(--text3)' }}>Criado em</div><div style={{ color: 'var(--text2)' }}>{fmt(envio.created_at)}</div></div>
+          <div><div style={{ color: 'var(--text3)' }}>Enviado em</div><div style={{ color: 'var(--text2)' }}>{fmt(envio.enviado_em)}</div></div>
+          <div><div style={{ color: 'var(--text3)' }}>Aberto em</div><div style={{ color: 'var(--text2)' }}>{fmt(envio.aberto_em)}</div></div>
+          <div><div style={{ color: 'var(--text3)' }}>Clicado em</div><div style={{ color: 'var(--text2)' }}>{fmt(envio.clicado_em)}</div></div>
+          <div><div style={{ color: 'var(--text3)' }}>Resend ID</div><div style={{ color: 'var(--text2)', fontFamily: 'monospace', fontSize: 11 }}>{envio.resend_id || '—'}</div></div>
+        </div>
+
+        {envio.erro && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#c0392b', marginBottom: 4, textTransform: 'uppercase' }}>Erro completo</div>
+            <pre style={{ fontSize: 11, color: '#c0392b', background: '#fdf0f0', padding: 10, borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{envio.erro}</pre>
+          </div>
+        )}
+
+        {envio.assunto_gerado && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase' }}>Assunto gerado pela IA</div>
+            <div style={{ fontSize: 13, color: 'var(--text)' }}>{envio.assunto_gerado}</div>
+          </div>
+        )}
+
+        {envio.corpo_gerado && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase' }}>Corpo gerado pela IA</div>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: '#fff', fontSize: 13, maxHeight: 200, overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: envio.corpo_gerado }} />
+          </div>
+        )}
+
+        {envio.prompt_ia && (
+          <details>
+            <summary style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textTransform: 'uppercase' }}>Ver prompt enviado pra IA</summary>
+            <pre style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--bg2)', padding: 10, borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 8 }}>{envio.prompt_ia}</pre>
+          </details>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Detalhe da campanha (lista de envios) ───────────────────────────────── */
 function CampanhaDetalhe({ campanha, empresas, onBack }) {
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('')
+  const [envioDetalhe, setEnvioDetalhe] = useState(null)
 
   useEffect(() => {
     let ativo = true
@@ -655,7 +725,13 @@ function CampanhaDetalhe({ campanha, empresas, onBack }) {
             const lead = leadById[e.lead_id]
             const s = ENVIO_STATUS_LABEL[e.status] || ENVIO_STATUS_LABEL.pendente
             return (
-              <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 0.8fr 0.8fr 0.8fr 1.4fr', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, alignItems: 'center' }}>
+              <div
+                key={e.id}
+                onClick={() => setEnvioDetalhe(e)}
+                style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 0.8fr 0.8fr 0.8fr 1.4fr', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, alignItems: 'center', cursor: 'pointer' }}
+                onMouseEnter={ev => ev.currentTarget.style.background = 'var(--bg2)'}
+                onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+              >
                 <div style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead ? leadName(lead) : '—'}</div>
                 <div style={{ color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.email}</div>
                 <div>
@@ -670,6 +746,10 @@ function CampanhaDetalhe({ campanha, empresas, onBack }) {
             )
           })}
         </div>
+      )}
+
+      {envioDetalhe && (
+        <EnvioDetalheModal envio={envioDetalhe} lead={leadById[envioDetalhe.lead_id]} onClose={() => setEnvioDetalhe(null)} />
       )}
     </div>
   )

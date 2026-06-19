@@ -41,14 +41,19 @@ Responda em JSON com exatamente os campos "assunto" (curto, sem clickbait) e "co
   )
   if (!res.ok) {
     const err = await res.text().catch(() => '')
-    throw new Error(`Gemini: ${res.status} ${err}`.slice(0, 300))
+    throw { mensagem: `Gemini: ${res.status} ${err}`.slice(0, 2000), prompt }
   }
   const data = await res.json()
   const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!texto) throw new Error('Gemini não retornou conteúdo')
-  const parsed = JSON.parse(texto)
-  if (!parsed?.assunto || !parsed?.corpo_html) throw new Error('Resposta da IA sem assunto/corpo_html')
-  return { assunto: String(parsed.assunto), corpo_html: String(parsed.corpo_html) }
+  if (!texto) throw { mensagem: `Gemini não retornou conteúdo. Resposta completa: ${JSON.stringify(data).slice(0, 1500)}`, prompt }
+  let parsed: any
+  try {
+    parsed = JSON.parse(texto)
+  } catch {
+    throw { mensagem: `Gemini não retornou JSON válido. Texto recebido: ${texto.slice(0, 1500)}`, prompt }
+  }
+  if (!parsed?.assunto || !parsed?.corpo_html) throw { mensagem: `Resposta da IA sem assunto/corpo_html. Recebido: ${texto.slice(0, 1500)}`, prompt }
+  return { assunto: String(parsed.assunto), corpo_html: String(parsed.corpo_html), prompt }
 }
 
 serve(async (req) => {
@@ -142,20 +147,22 @@ serve(async (req) => {
           const result = await res.json().catch(() => ({}))
           await db.from('email_campaign_envios').insert({
             campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(),
-            resend_id: result.id || null, assunto_gerado: gerado.assunto, corpo_gerado: gerado.corpo_html,
+            resend_id: result.id || null, assunto_gerado: gerado.assunto, corpo_gerado: gerado.corpo_html, prompt_ia: gerado.prompt,
           })
         } else {
           falhasLote++
           const result = await res.json().catch(() => ({}))
           await db.from('email_campaign_envios').insert({
-            campaign_id, lead_id: lead.id, email: lead.email, status: 'falhou', erro: result.message || 'Erro ao enviar',
-            assunto_gerado: gerado.assunto, corpo_gerado: gerado.corpo_html,
+            campaign_id, lead_id: lead.id, email: lead.email, status: 'falhou',
+            erro: `Resend: ${res.status} ${result.message || JSON.stringify(result)}`.slice(0, 2000),
+            assunto_gerado: gerado.assunto, corpo_gerado: gerado.corpo_html, prompt_ia: gerado.prompt,
           })
         }
-      } catch (err) {
+      } catch (err: any) {
         falhasLote++
+        const mensagem = err?.mensagem ? String(err.mensagem) : String(err?.message || err).slice(0, 2000)
         await db.from('email_campaign_envios').insert({
-          campaign_id, lead_id: lead.id, email: lead.email, status: 'falhou', erro: String(err).slice(0, 300),
+          campaign_id, lead_id: lead.id, email: lead.email, status: 'falhou', erro: mensagem, prompt_ia: err?.prompt || null,
         })
       }
     }
