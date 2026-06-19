@@ -50,7 +50,8 @@ serve(async (req) => {
     if (!cfg.remetente_email) return json({ error: 'Defina o email do remetente em Configurações > Email.' }, 400)
 
     let leadsQuery = db.from('leads').select('id, nome, razao_social, nome_fantasia, email, tags').not('email', 'is', null)
-    if (campaign.segmento_tags?.length) leadsQuery = leadsQuery.overlaps('tags', campaign.segmento_tags)
+    if (campaign.lead_ids?.length) leadsQuery = leadsQuery.in('id', campaign.lead_ids)
+    else if (campaign.segmento_tags?.length) leadsQuery = leadsQuery.overlaps('tags', campaign.segmento_tags)
     const { data: leads } = await leadsQuery
     const destinatarios = (leads || []).filter(l => l.email?.includes('@'))
 
