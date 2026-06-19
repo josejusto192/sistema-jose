@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../supabase.js'
-import { IconInbox, IconWhatsApp, IconSearch, IconCheck } from './Icons.jsx'
+import { IconInbox, IconWhatsApp, IconSearch, IconCheck, IconPaperclip, IconX } from './Icons.jsx'
 
 // Canais suportados. Por enquanto só o WhatsApp está ativo — Instagram e os
 // próximos entram aqui conforme as integrações forem ficando prontas.
@@ -34,6 +34,53 @@ function formatDay(iso) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+// Tipo aceito pela Cloud API a partir do mime do arquivo escolhido.
+function mediaTypeFromMime(mime) {
+  if (mime.startsWith('image/')) return 'image'
+  if (mime.startsWith('video/')) return 'video'
+  if (mime.startsWith('audio/')) return 'audio'
+  return 'document'
+}
+
+const MEDIA_PREVIEW_LABEL = {
+  image: '📷 Foto', sticker: '📷 Figurinha', video: '🎥 Vídeo', audio: '🎤 Áudio', document: '📎 Documento',
+}
+
+function previewMensagem(c) {
+  if (c.ultima_mensagem) return c.ultima_mensagem
+  return MEDIA_PREVIEW_LABEL[c.ultimo_tipo] || ''
+}
+
+function MediaBubbleContent({ m }) {
+  if (!m.media_url) return m.content
+  if (m.message_type === 'image' || m.message_type === 'sticker') {
+    return (
+      <>
+        <a href={m.media_url} target="_blank" rel="noopener noreferrer">
+          <img src={m.media_url} alt="" style={{ maxWidth: 240, borderRadius: 8, display: 'block' }} />
+        </a>
+        {m.content && <div style={{ marginTop: 6 }}>{m.content}</div>}
+      </>
+    )
+  }
+  if (m.message_type === 'video') {
+    return (
+      <>
+        <video src={m.media_url} controls style={{ maxWidth: 240, borderRadius: 8, display: 'block' }} />
+        {m.content && <div style={{ marginTop: 6 }}>{m.content}</div>}
+      </>
+    )
+  }
+  if (m.message_type === 'audio') {
+    return <audio src={m.media_url} controls style={{ width: 220 }} />
+  }
+  return (
+    <a href={m.media_url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 12 }}>
+      📎 {m.content || 'Documento'}
+    </a>
+  )
+}
+
 export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   const [canal, setCanal] = useState('whatsapp')
   const [busca, setBusca] = useState('')
@@ -45,7 +92,9 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erroEnvio, setErroEnvio] = useState(null)
+  const [arquivo, setArquivo] = useState(null)
   const scrollRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const loadConversas = useCallback(async () => {
     setLoadingConversas(true)
@@ -101,18 +150,34 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
 
   async function enviar() {
     const txt = texto.trim()
-    if (!txt || !sessionId || enviando) return
+    if ((!txt && !arquivo) || !sessionId || enviando) return
     setEnviando(true)
     setErroEnvio(null)
-    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
-      body: { session_id: sessionId, texto: txt },
-    })
+
+    let body = { session_id: sessionId, texto: txt }
+
+    if (arquivo) {
+      const mediaType = mediaTypeFromMime(arquivo.type)
+      const ext = arquivo.name.split('.').pop() || 'bin'
+      const path = `${sessionId}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('whatsapp-media').upload(path, arquivo, { contentType: arquivo.type })
+      if (upErr) {
+        setEnviando(false)
+        setErroEnvio('Erro ao subir o arquivo: ' + upErr.message)
+        return
+      }
+      const { data: pub } = supabase.storage.from('whatsapp-media').getPublicUrl(path)
+      body = { ...body, media_url: pub.publicUrl, media_type: mediaType, mime_type: arquivo.type }
+    }
+
+    const { data, error } = await supabase.functions.invoke('whatsapp-send', { body })
     setEnviando(false)
     if (error || data?.error) {
       setErroEnvio(data?.error || error?.message || 'Erro ao enviar mensagem')
       return
     }
     setTexto('')
+    setArquivo(null)
     await loadMensagens(sessionId)
     loadConversas()
   }
@@ -227,7 +292,7 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 2 }}>
                     <span style={{ fontSize: 12, color: c.nao_lidas > 0 ? 'var(--text2)' : 'var(--text3)', fontWeight: c.nao_lidas > 0 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.ultima_direcao === 'outbound' ? 'Você: ' : ''}{c.ultima_mensagem}
+                      {c.ultima_direcao === 'outbound' ? 'Você: ' : ''}{previewMensagem(c)}
                     </span>
                     {c.nao_lidas > 0 && (
                       <span style={{ flexShrink: 0, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>
@@ -290,7 +355,7 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
                     color: out ? '#fff' : 'var(--text)',
                     fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                   }}>
-                    {m.content}
+                    <MediaBubbleContent m={m} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, opacity: 0.7, justifyContent: 'flex-end' }}>
                       {formatTime(m.created_at)}
                       {out && m.whatsapp_status === 'read' && <IconCheck size={10} color={out ? '#fff' : 'var(--text3)'} />}
@@ -306,12 +371,39 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
             {erroEnvio && (
               <div style={{ marginBottom: 8, fontSize: 12, color: '#DC2626' }}>{erroEnvio}</div>
             )}
+            {arquivo && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '6px 10px', borderRadius: 8, background: 'var(--bg3)', fontSize: 12, color: 'var(--text2)', width: 'fit-content' }}>
+                <IconPaperclip size={12} color="var(--text3)" />
+                {arquivo.name}
+                <button onClick={() => { setArquivo(null); if (fileInputRef.current) fileInputRef.current.value = '' }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 }}>
+                  <IconX size={12} color="var(--text3)" />
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,audio/*,application/pdf"
+                style={{ display: 'none' }}
+                onChange={e => setArquivo(e.target.files?.[0] || null)}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                title="Anexar arquivo"
+                style={{
+                  width: 38, flexShrink: 0, borderRadius: 10, border: '1px solid var(--border)',
+                  background: 'var(--bg3)', color: 'var(--text2)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <IconPaperclip size={15} />
+              </button>
               <textarea
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-                placeholder="Digite uma mensagem..."
+                placeholder={arquivo ? 'Adicionar legenda (opcional)...' : 'Digite uma mensagem...'}
                 rows={1}
                 style={{
                   flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
@@ -321,12 +413,12 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
               />
               <button
                 onClick={enviar}
-                disabled={!texto.trim() || enviando}
+                disabled={(!texto.trim() && !arquivo) || enviando}
                 style={{
                   padding: '0 18px', borderRadius: 10, border: 'none',
                   background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-                  cursor: !texto.trim() || enviando ? 'default' : 'pointer',
-                  opacity: !texto.trim() || enviando ? 0.6 : 1,
+                  cursor: (!texto.trim() && !arquivo) || enviando ? 'default' : 'pointer',
+                  opacity: (!texto.trim() && !arquivo) || enviando ? 0.6 : 1,
                 }}
               >
                 {enviando ? 'Enviando...' : 'Enviar'}

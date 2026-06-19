@@ -15,15 +15,57 @@ const STATUS_FIELD: Record<string, string> = {
   read: 'whatsapp_read_at',
 }
 
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+  'video/mp4': 'mp4', 'video/3gpp': '3gp',
+  'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/aac': 'aac', 'audio/amr': 'amr',
+  'application/pdf': 'pdf',
+}
+
+// Mídia da Cloud API não vem no payload do webhook — só um media id. É
+// preciso buscar a URL temporária (com o token de acesso) e baixar o
+// binário antes que ela expire, daí subir pro nosso bucket público.
+async function downloadMedia(mediaId: string, accessToken: string, graphVersion: string) {
+  const metaRes = await fetch(`https://graph.facebook.com/${graphVersion}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  const meta = await metaRes.json()
+  if (!meta?.url) return null
+
+  const fileRes = await fetch(meta.url, { headers: { Authorization: `Bearer ${accessToken}` } })
+  const bytes = await fileRes.arrayBuffer()
+  return { bytes, mimeType: meta.mime_type as string }
+}
+
 async function handleIncomingMessage(value: any) {
   const msg = value.messages?.[0]
   if (!msg) return
 
+  const mediaField = msg.image || msg.audio || msg.video || msg.document || msg.sticker
+
+  let mediaUrl: string | null = null
+  let mimeType: string | null = null
+
+  if (mediaField?.id) {
+    const { data: cfg } = await db.from('whatsapp_config').select('access_token, graph_version').eq('ativo', true).limit(1).maybeSingle()
+    if (cfg?.access_token) {
+      const media = await downloadMedia(mediaField.id, cfg.access_token, cfg.graph_version || 'v25.0')
+      if (media) {
+        mimeType = media.mimeType
+        const ext = MIME_EXT[mimeType] || mimeType.split('/')[1] || 'bin'
+        const path = `${msg.from}/${msg.id}.${ext}`
+        const { error: upErr } = await db.storage.from('whatsapp-media').upload(path, media.bytes, { contentType: mimeType, upsert: true })
+        if (!upErr) mediaUrl = db.storage.from('whatsapp-media').getPublicUrl(path).data.publicUrl
+      }
+    }
+  }
+
   const texto = msg.text?.body
+    || mediaField?.caption
     || msg.button?.text
     || msg.interactive?.button_reply?.title
     || msg.interactive?.list_reply?.title
-    || `[${msg.type}]`
+    || (mediaUrl ? null : `[${msg.type}]`)
 
   // upsert ignorando conflito de wamid: a Meta reenvia o mesmo evento em
   // caso de timeout, então isso evita duplicar a mensagem na conversa.
@@ -34,6 +76,8 @@ async function handleIncomingMessage(value: any) {
     wamid: msg.id,
     content: texto,
     message_type: msg.type || 'text',
+    media_url: mediaUrl,
+    mime_type: mimeType,
   }, { onConflict: 'wamid', ignoreDuplicates: true })
 }
 

@@ -30,8 +30,9 @@ serve(async (req) => {
     const { data: userData } = await db.auth.getUser(authHeader.replace('Bearer ', ''))
     if (!userData?.user) return json({ error: 'not_authenticated' }, 401)
 
-    const { session_id, texto } = await req.json()
-    if (!session_id || !texto?.trim()) return json({ error: 'session_id e texto são obrigatórios' }, 400)
+    const { session_id, texto, media_url, media_type, mime_type } = await req.json()
+    const isMedia = !!media_url
+    if (!session_id || (!isMedia && !texto?.trim())) return json({ error: 'session_id e texto (ou media_url) são obrigatórios' }, 400)
 
     const { data: cfg } = await db.from('whatsapp_config').select('*').eq('ativo', true).limit(1).maybeSingle()
     if (!cfg?.phone_number_id) return json({ error: 'WhatsApp não configurado. Defina o phone_number_id em Configurações.' }, 400)
@@ -39,42 +40,41 @@ serve(async (req) => {
     if (!accessToken) return json({ error: 'Token de acesso do WhatsApp não configurado. Defina em Configurações > WhatsApp.' }, 400)
     const graphVersion = cfg.graph_version || 'v25.0'
 
+    const tipo = isMedia ? (media_type || 'document') : 'text'
+    const caption = texto?.trim() || undefined
+    const payload: Record<string, unknown> = isMedia
+      ? { messaging_product: 'whatsapp', to: session_id, type: tipo, [tipo]: tipo === 'audio' ? { link: media_url } : { link: media_url, caption } }
+      : { messaging_product: 'whatsapp', to: session_id, type: 'text', text: { body: texto.trim() } }
+
     const res = await fetch(`https://graph.facebook.com/${graphVersion}/${cfg.phone_number_id}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: session_id,
-        type: 'text',
-        text: { body: texto.trim() },
-      }),
+      body: JSON.stringify(payload),
     })
     const result = await res.json()
 
+    const baseRow = {
+      session_id,
+      direction: 'outbound',
+      sent_by: 'human',
+      sent_by_user_id: userData.user.id,
+      content: caption || null,
+      message_type: tipo,
+      media_url: isMedia ? media_url : null,
+      mime_type: isMedia ? mime_type || null : null,
+    }
+
     if (!res.ok) {
       const apiMsg = result.error?.message || 'Erro ao enviar mensagem'
-      await db.from('whatsapp_messages').insert({
-        session_id,
-        direction: 'outbound',
-        sent_by: 'human',
-        sent_by_user_id: userData.user.id,
-        content: texto.trim(),
-        message_type: 'text',
-        whatsapp_status: 'failed',
-      })
+      await db.from('whatsapp_messages').insert({ ...baseRow, whatsapp_status: 'failed' })
       return json({ error: apiMsg }, 502)
     }
 
     const wamid = result.messages?.[0]?.id || null
 
     await db.from('whatsapp_messages').insert({
-      session_id,
-      direction: 'outbound',
-      sent_by: 'human',
-      sent_by_user_id: userData.user.id,
+      ...baseRow,
       wamid,
-      content: texto.trim(),
-      message_type: 'text',
       whatsapp_status: 'sent',
       whatsapp_sent_at: new Date().toISOString(),
     })

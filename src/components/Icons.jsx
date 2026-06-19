@@ -89,6 +89,14 @@ export function IconCamera({ size = 16, color = 'currentColor' }) {
   )
 }
 
+export function IconPaperclip({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M11 4.5 5.5 10a2 2 0 1 0 2.83 2.83L13.5 7.7a3.5 3.5 0 0 0-4.95-4.95L3.4 7.9a4.5 4.5 0 0 0 6.36 6.36" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function IconInbox({ size = 32, color = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
