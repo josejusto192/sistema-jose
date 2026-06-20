@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase.js'
-import { leadName } from '../constants.js'
+import { leadName, STATUS_CONFIG } from '../constants.js'
 import { IconPlus, IconTrash, IconArrowLeft, IconCheck } from './Icons.jsx'
 import CnaeFilter from './CnaeFilter.jsx'
 
@@ -12,6 +12,21 @@ const ORIGENS = [
   { value: 'casa_dos_dados', label: 'Casa dos Dados' },
   { value: 'outro',          label: 'Outro' },
 ]
+
+const TIPOS_GATILHO = [
+  { value: 'lead_criado',    label: 'Lead novo for criado' },
+  { value: 'status_mudou',   label: 'Status do lead mudar para...' },
+  { value: 'tag_adicionada', label: 'Uma tag for adicionada ao lead' },
+  { value: 'tag_removida',   label: 'Uma tag for removida do lead' },
+]
+
+function gatilhoLabel(t) {
+  if (t.tipo === 'lead_criado') return 'Lead novo for criado'
+  if (t.tipo === 'status_mudou') return `status mudar para "${STATUS_CONFIG[t.valor]?.label || t.valor}"`
+  if (t.tipo === 'tag_adicionada') return `tag "${t.valor}" for adicionada`
+  if (t.tipo === 'tag_removida') return `tag "${t.valor}" for removida`
+  return t.tipo
+}
 
 const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 5 }
 const inputStyle = {
@@ -27,6 +42,10 @@ function novoStep() {
   return { ordem: 0, atraso_dias: 0, usar_ia: false, assunto: '', corpo_html: '', ia_objetivo: '' }
 }
 
+function novoGatilho() {
+  return { tipo: 'lead_criado', valor: null }
+}
+
 /* ─── Form de criação/edição ──────────────────────────────────────────────── */
 function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel, onSaved }) {
   const [nome, setNome] = useState(automacao?.nome || '')
@@ -35,6 +54,8 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
   const [segmentoTags, setSegmentoTags] = useState(automacao?.segmento_tags || [])
   const [cnaeFiltro, setCnaeFiltro] = useState(automacao?.cnae_filtro || [])
   const [steps, setSteps] = useState(automacao?.steps?.length ? automacao.steps : [novoStep()])
+  const [triggers, setTriggers] = useState(automacao?.triggers?.length ? automacao.triggers : [novoGatilho()])
+  const [pararSePerdido, setPararSePerdido] = useState(automacao?.parar_se_perdido ?? true)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState(null)
 
@@ -53,6 +74,15 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
   function removeStep(i) {
     setSteps(prev => prev.filter((_, idx) => idx !== i))
   }
+  function updateTrigger(i, patch) {
+    setTriggers(prev => prev.map((t, idx) => idx === i ? { ...t, ...patch } : t))
+  }
+  function addTrigger() {
+    setTriggers(prev => [...prev, novoGatilho()])
+  }
+  function removeTrigger(i) {
+    setTriggers(prev => prev.filter((_, idx) => idx !== i))
+  }
 
   async function salvar() {
     if (!nome.trim()) { setErro('Dê um nome para a automação'); return }
@@ -61,12 +91,16 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       if (s.usar_ia && !s.ia_objetivo?.trim()) { setErro('Defina o objetivo de IA em todos os passos com IA'); return }
       if (!s.usar_ia && (!s.assunto?.trim() || !s.corpo_html?.trim())) { setErro('Defina assunto e corpo em todos os passos sem IA'); return }
     }
+    if (triggers.length === 0) { setErro('Adicione pelo menos um gatilho'); return }
+    for (const t of triggers) {
+      if (t.tipo !== 'lead_criado' && !t.valor?.trim()) { setErro('Defina o valor de todos os gatilhos (status ou tag)'); return }
+    }
     setSalvando(true)
     setErro(null)
     try {
       let automationId = automacao?.id
       const payload = {
-        nome: nome.trim(), ativo,
+        nome: nome.trim(), ativo, parar_se_perdido: pararSePerdido,
         origem_filtro: origemFiltro.length ? origemFiltro : null,
         segmento_tags: segmentoTags.length ? segmentoTags : null,
         cnae_filtro: cnaeFiltro.length ? cnaeFiltro : null,
@@ -75,6 +109,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
         const { error } = await supabase.from('email_automations').update(payload).eq('id', automationId)
         if (error) throw error
         await supabase.from('email_automation_steps').delete().eq('automation_id', automationId)
+        await supabase.from('email_automation_triggers').delete().eq('automation_id', automationId)
       } else {
         const { data, error } = await supabase.from('email_automations').insert(payload).select('id').single()
         if (error) throw error
@@ -87,6 +122,11 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       }))
       const { error: stepsError } = await supabase.from('email_automation_steps').insert(stepsPayload)
       if (stepsError) throw stepsError
+      const triggersPayload = triggers.map(t => ({
+        automation_id: automationId, tipo: t.tipo, valor: t.tipo === 'lead_criado' ? null : t.valor.trim(),
+      }))
+      const { error: triggersError } = await supabase.from('email_automation_triggers').insert(triggersPayload)
+      if (triggersError) throw triggersError
       onSaved()
     } catch (e) {
       setErro(e.message || 'Erro ao salvar automação')
@@ -111,10 +151,44 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
         </div>
         <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} id="ativo-automacao" />
-          <label htmlFor="ativo-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Automação ativa (matricula leads novos automaticamente)</label>
+          <label htmlFor="ativo-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Automação ativa (matricula leads automaticamente)</label>
+        </div>
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={pararSePerdido} onChange={e => setPararSePerdido(e.target.checked)} id="parar-perdido-automacao" />
+          <label htmlFor="parar-perdido-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Cancelar envios pendentes automaticamente se o lead virar "Perdido"</label>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Disparar para leads com origem (vazio = qualquer origem)</label>
+          <label style={labelStyle}>Matricular o lead quando (qualquer um dos gatilhos abaixo dispara)</label>
+          {triggers.map((t, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <select style={{ ...inputStyle, width: 'auto', flex: '0 0 260px' }} value={t.tipo} onChange={e => updateTrigger(i, { tipo: e.target.value, valor: null })}>
+                {TIPOS_GATILHO.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+              </select>
+              {t.tipo === 'status_mudou' && (
+                <select style={{ ...inputStyle, width: 'auto', flex: '0 0 200px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })}>
+                  <option value="">Selecione o status...</option>
+                  {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              )}
+              {(t.tipo === 'tag_adicionada' || t.tipo === 'tag_removida') && (
+                <input style={{ ...inputStyle, width: 'auto', flex: '0 0 200px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })} placeholder="Nome da tag" list="tags-disponiveis-automacao" />
+              )}
+              {triggers.length > 1 && (
+                <button onClick={() => removeTrigger(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                  <IconTrash size={14} color="var(--text3)" />
+                </button>
+              )}
+            </div>
+          ))}
+          <datalist id="tags-disponiveis-automacao">
+            {tagsDisponiveis.map(t => <option key={t} value={t} />)}
+          </datalist>
+          <button onClick={addTrigger} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, border: '1px dashed var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <IconPlus size={12} color="var(--text2)" /> Adicionar gatilho
+          </button>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>E que tenham origem (vazio = qualquer origem)</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {ORIGENS.map(o => (
               <span key={o.value} onClick={() => toggleOrigem(o.value)} style={chipStyle(origemFiltro.includes(o.value))}>{o.label}</span>
@@ -269,16 +343,19 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
     setLoading(true)
     const { data: autos } = await supabase.from('email_automations').select('*').order('created_at', { ascending: false })
     const { data: steps } = await supabase.from('email_automation_steps').select('*').order('ordem', { ascending: true })
+    const { data: triggers } = await supabase.from('email_automation_triggers').select('*')
     const { data: enrollCounts } = await supabase.from('email_automation_enrollments').select('automation_id, status')
     const stepsByAuto = {}
     ;(steps || []).forEach(s => { (stepsByAuto[s.automation_id] = stepsByAuto[s.automation_id] || []).push(s) })
+    const triggersByAuto = {}
+    ;(triggers || []).forEach(t => { (triggersByAuto[t.automation_id] = triggersByAuto[t.automation_id] || []).push(t) })
     const countsByAuto = {}
     ;(enrollCounts || []).forEach(e => {
       const c = countsByAuto[e.automation_id] || (countsByAuto[e.automation_id] = { total: 0, ativos: 0 })
       c.total++
       if (e.status === 'ativo') c.ativos++
     })
-    setAutomacoes((autos || []).map(a => ({ ...a, steps: stepsByAuto[a.id] || [], counts: countsByAuto[a.id] || { total: 0, ativos: 0 } })))
+    setAutomacoes((autos || []).map(a => ({ ...a, steps: stepsByAuto[a.id] || [], triggers: triggersByAuto[a.id] || [], counts: countsByAuto[a.id] || { total: 0, ativos: 0 } })))
     setLoading(false)
   }, [])
 
@@ -337,6 +414,9 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: a.ativo ? '#d4edda' : 'var(--bg3)', color: a.ativo ? '#1e7e34' : 'var(--text3)' }}>
                     {a.ativo ? 'Ativa' : 'Pausada'}
                   </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
+                  Quando: {a.triggers.length ? a.triggers.map(gatilhoLabel).join(' OU ') : '—'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                   {a.steps.length} email(s) na sequência
