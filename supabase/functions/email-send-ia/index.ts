@@ -77,7 +77,11 @@ serve(async (req) => {
         const unsubLink = linkDescadastro(SUPABASE_URL, { campaignId: campaign_id }, lead.id)
         const html = comRodape(gerado.corpo_html, cfg.remetente_nome, unsubLink)
         const globalIndex = jaProcessados + i
-        const scheduledAt = new Date(baseTime + globalIndex * intervaloSegundos * 1000).toISOString()
+        // baseTime é fixado no início da campanha; como a geração por IA leva
+        // alguns segundos, o horário calculado pra esse índice pode já ter
+        // passado quando a chamada chega no Resend (que exige scheduled_at no
+        // futuro) — por isso sempre garantimos uma margem mínima a partir de agora.
+        const scheduledAt = new Date(Math.max(baseTime + globalIndex * intervaloSegundos * 1000, Date.now() + 10_000)).toISOString()
 
         const payload: Record<string, unknown> = {
           from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),

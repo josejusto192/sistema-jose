@@ -77,7 +77,9 @@ serve(async (req) => {
 
         const unsubLink = linkDescadastro(SUPABASE_URL, { automationId: envio.automation_id }, lead.id)
         const html = comRodape(corpoHtml, cfg.remetente_nome, unsubLink)
-        const scheduledAt = new Date(Date.now() + i * intervaloSegundos * 1000).toISOString()
+        // Margem mínima a partir de agora (não de quando o índice i foi calculado),
+        // já que a geração por IA leva alguns segundos e o Resend exige scheduled_at futuro.
+        const scheduledAt = new Date(Date.now() + i * intervaloSegundos * 1000 + 10_000).toISOString()
 
         const payload: Record<string, unknown> = {
           from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),
