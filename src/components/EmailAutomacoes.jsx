@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabase.js'
 import { leadName, STATUS_CONFIG } from '../constants.js'
 import { IconPlus, IconTrash, IconArrowLeft, IconCheck, IconZap, IconFilter, IconFlag, IconMail, IconClock, IconX } from './Icons.jsx'
 import CnaeFilter from './CnaeFilter.jsx'
+import SeletorDestinatarios from './SeletorDestinatarios.jsx'
 
 const ORIGENS = [
   { value: 'manual',         label: 'Manual (app)' },
@@ -86,9 +87,11 @@ function FlowCard({ color, children }) {
 }
 
 /* ─── Form de criação/edição ──────────────────────────────────────────────── */
-function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel, onSaved }) {
+function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis, onCancel, onSaved }) {
   const [nome, setNome] = useState(automacao?.nome || '')
   const [ativo, setAtivo] = useState(automacao?.ativo ?? true)
+  const [publicoModo, setPublicoModo] = useState(automacao?.leads_manual?.length ? 'manual' : 'segmento')
+  const [leadsManual, setLeadsManual] = useState(automacao?.leads_manual || [])
   const [origemFiltro, setOrigemFiltro] = useState(automacao?.origem_filtro || [])
   const [segmentoTags, setSegmentoTags] = useState(automacao?.segmento_tags || [])
   const [cnaeFiltro, setCnaeFiltro] = useState(automacao?.cnae_filtro || [])
@@ -138,7 +141,8 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
   }
 
   async function salvar() {
-    if (!nome.trim()) { setErro('Dê um nome para a automação'); return }
+    if (!nome.trim()) { setErro('Dê um nome para a campanha'); return }
+    if (publicoModo === 'manual' && leadsManual.length === 0) { setErro('Selecione pelo menos um lead'); return }
     if (steps.length === 0) { setErro('Adicione pelo menos um passo/email'); return }
     for (const s of steps) {
       if (s.usar_ia && !s.ia_objetivo?.trim()) { setErro('Defina o objetivo de IA em todos os passos com IA'); return }
@@ -153,9 +157,10 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       let automationId = automacao?.id
       const payload = {
         nome: nome.trim(), ativo, parar_se_perdido: pararSePerdido,
-        origem_filtro: origemFiltro.length ? origemFiltro : null,
-        segmento_tags: segmentoTags.length ? segmentoTags : null,
-        cnae_filtro: cnaeFiltro.length ? cnaeFiltro : null,
+        leads_manual: publicoModo === 'manual' ? leadsManual : null,
+        origem_filtro: publicoModo === 'manual' || !origemFiltro.length ? null : origemFiltro,
+        segmento_tags: publicoModo === 'manual' || !segmentoTags.length ? null : segmentoTags,
+        cnae_filtro: publicoModo === 'manual' || !cnaeFiltro.length ? null : cnaeFiltro,
       }
       if (automationId) {
         const { error } = await supabase.from('email_automations').update(payload).eq('id', automationId)
@@ -193,7 +198,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       }
       onSaved(matriculados)
     } catch (e) {
-      setErro(e.message || 'Erro ao salvar automação')
+      setErro(e.message || 'Erro ao salvar campanha')
     } finally {
       setSalvando(false)
     }
@@ -204,19 +209,19 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       <button onClick={onCancel} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit' }}>
         <IconArrowLeft size={14} color="var(--text2)" /> Voltar
       </button>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 16px' }}>{automacao ? 'Editar automação' : 'Nova automação'}</h2>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 16px' }}>{automacao ? 'Editar campanha' : 'Nova campanha'}</h2>
 
       {erro && <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f8d7da', color: '#c0392b', fontSize: 13, marginBottom: 16 }}>{erro}</div>}
 
       <div className="card" style={{ padding: 18, marginBottom: 24 }}>
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Nome da automação</label>
+          <label style={labelStyle}>Nome da campanha</label>
           <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Boas-vindas leads Casa dos Dados" />
         </div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} id="ativo-automacao" />
-            <label htmlFor="ativo-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Automação ativa</label>
+            <label htmlFor="ativo-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Campanha ativa</label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="checkbox" checked={pararSePerdido} onChange={e => setPararSePerdido(e.target.checked)} id="parar-perdido-automacao" />
@@ -250,7 +255,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
             ))}
             {triggers.length === 0 && (
               <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
-                Sem gatilho: a automação não matricula ninguém sozinha. Use "Iniciar agora" abaixo pra mandar pros leads que já existem, ou adicione um gatilho pra também pegar leads novos automaticamente.
+                Sem gatilho: a campanha não matricula ninguém sozinha. Use "Iniciar agora" abaixo pra mandar pros leads que já existem, ou adicione um gatilho pra também pegar leads novos automaticamente.
               </div>
             )}
             <datalist id="tags-disponiveis-automacao">
@@ -263,35 +268,53 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
         </FlowNode>
 
         <FlowNode icon={<IconFilter size={14} color="#fff" />} color="#8B5CF6">
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>E que também batam com (opcional)</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Para quem</div>
           <FlowCard color="#8B5CF6">
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Origem (vazio = qualquer origem)</label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {ORIGENS.map(o => (
-                  <span key={o.value} onClick={() => toggleOrigem(o.value)} style={chipStyle(origemFiltro.includes(o.value))}>{o.label}</span>
-                ))}
-              </div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              <span onClick={() => setPublicoModo('segmento')} style={chipStyle(publicoModo === 'segmento')}>Segmento (filtros)</span>
+              <span onClick={() => setPublicoModo('manual')} style={chipStyle(publicoModo === 'manual')}>Leads específicos</span>
             </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Tag(s) (vazio = qualquer tag)</label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {tagsDisponiveis.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma tag cadastrada ainda</span>}
-                {tagsDisponiveis.map(t => (
-                  <span key={t} onClick={() => toggleTag(t)} style={chipStyle(segmentoTags.includes(t))}>{t}</span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label style={labelStyle}>Segmento/CNAE (vazio = qualquer segmento)</label>
-              <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
-            </div>
+
+            {publicoModo === 'segmento' ? (
+              <>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>Origem (vazio = qualquer origem)</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {ORIGENS.map(o => (
+                      <span key={o.value} onClick={() => toggleOrigem(o.value)} style={chipStyle(origemFiltro.includes(o.value))}>{o.label}</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>Tag(s) (vazio = qualquer tag)</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {tagsDisponiveis.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma tag cadastrada ainda</span>}
+                    {tagsDisponiveis.map(t => (
+                      <span key={t} onClick={() => toggleTag(t)} style={chipStyle(segmentoTags.includes(t))}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Segmento/CNAE (vazio = qualquer segmento)</label>
+                  <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
+                </div>
+              </>
+            ) : (
+              <SeletorDestinatarios
+                empresas={empresas}
+                tagsDisponiveis={tagsDisponiveis}
+                cnaesDisponiveis={cnaesDisponiveis}
+                selecionados={leadsManual}
+                setSelecionados={setLeadsManual}
+              />
+            )}
+
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <input type="checkbox" checked={iniciarAgora} onChange={e => setIniciarAgora(e.target.checked)} id="iniciar-agora-automacao" style={{ marginTop: 2 }} />
               <label htmlFor="iniciar-agora-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
                 Ao salvar, matricular imediatamente os leads que já existem e batem com esse filtro
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontWeight: 400 }}>
-                  Igual disparar uma campanha pra esses leads agora, mas continua valendo a sequência de dias acima. Não duplica quem já estiver matriculado.
+                  Igual disparar pra esses leads agora, mas continua valendo a sequência de dias acima. Não duplica quem já estiver matriculado.
                 </div>
               </label>
             </div>
@@ -397,7 +420,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
 
       <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
         <button onClick={salvar} disabled={salvando} style={{ padding: '10px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1, fontFamily: 'inherit' }}>
-          {salvando ? 'Salvando...' : 'Salvar automação'}
+          {salvando ? 'Salvando...' : 'Salvar campanha'}
         </button>
         <button onClick={onCancel} style={{ padding: '10px 18px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
       </div>
@@ -520,18 +543,24 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
 }
 
 /* ─── Lista ────────────────────────────────────────────────────────────────── */
-export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }) {
+export default function EmailAutomacoes({ empresas = [] }) {
   const [automacoes, setAutomacoes] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState(null)
   const [detalhe, setDetalhe] = useState(null)
 
-  const tagsDisponiveis = useState(() => {
+  const tagsDisponiveis = useMemo(() => {
     const set = new Set()
     empresas.forEach(e => (e.tags || []).forEach(t => set.add(t)))
     return Array.from(set).sort()
-  })[0]
+  }, [empresas])
+
+  const cnaesDisponiveis = useMemo(() => {
+    const set = new Set()
+    empresas.forEach(e => { if (e.cnae_principal_descricao) set.add(e.cnae_principal_descricao) })
+    return Array.from(set).sort()
+  }, [empresas])
 
   const fetchAutomacoes = useCallback(async () => {
     setLoading(true)
@@ -572,7 +601,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
   const [matriculando, setMatriculando] = useState(null) // id da automação rodando "iniciar agora"
 
   async function iniciarAgora(a) {
-    if (!confirm(`Matricular agora os leads que já existem e batem com o filtro de "${a.nome}"? Quem já estiver matriculado não é duplicado.`)) return
+    if (!confirm(`Matricular agora os leads que já existem e batem com o público de "${a.nome}"? Quem já estiver matriculado não é duplicado.`)) return
     setMatriculando(a.id)
     try {
       const { data: count, error } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: a.id })
@@ -587,7 +616,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
   }
 
   async function excluir(id) {
-    if (!confirm('Excluir esta automação? Leads já matriculados deixarão de receber os próximos emails da sequência.')) return
+    if (!confirm('Excluir esta campanha? Leads já matriculados deixarão de receber os próximos emails da sequência.')) return
     await supabase.from('email_automations').delete().eq('id', id)
     fetchAutomacoes()
   }
@@ -601,6 +630,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
     return (
       <AutomacaoForm
         automacao={editando}
+        empresas={empresas}
         tagsDisponiveis={tagsDisponiveis}
         cnaesDisponiveis={cnaesDisponiveis}
         onCancel={() => { setShowForm(false); setEditando(null) }}
@@ -617,21 +647,25 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sequências de email — dispare agora pros leads que já existem e/ou deixe rodando automaticamente pra leads novos.</div>
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <IconMail size={20} color="var(--text)" />
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Campanhas</h1>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, marginTop: 12 }}>
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Dispare agora pros leads que já existem e/ou deixe rodando automaticamente pra leads novos.</div>
         <button
           onClick={() => { setEditando(null); setShowForm(true) }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
         >
-          <IconPlus size={14} color="#fff" /> Nova automação
+          <IconPlus size={14} color="#fff" /> Nova campanha
         </button>
       </div>
 
       {loading ? (
         <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
       ) : automacoes.length === 0 ? (
-        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text3)' }}>Nenhuma automação criada ainda.</div>
+        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text3)' }}>Nenhuma campanha criada ainda.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {automacoes.map(a => (
@@ -648,6 +682,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                   {a.steps.length} email(s) na sequência
+                  {a.leads_manual?.length ? ` · ${a.leads_manual.length} lead(s) específico(s)` : ''}
                   {a.origem_filtro?.length ? ` · origem: ${a.origem_filtro.join(', ')}` : ''}
                   {a.segmento_tags?.length ? ` · tags: ${a.segmento_tags.join(', ')}` : ''}
                   {a.cnae_filtro?.length ? ` · segmento: ${a.cnae_filtro.join(', ')}` : ''}

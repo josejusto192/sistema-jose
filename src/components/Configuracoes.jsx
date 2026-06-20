@@ -1235,7 +1235,7 @@ function EmailTab() {
           1. Crie uma conta no <strong>Resend</strong> (resend.com) e verifique o domínio que você vai usar pra enviar.<br/>
           2. Gere uma <strong>API key</strong> e cole aqui.<br/>
           3. Informe um email do domínio verificado como remetente e marque como Ativo.<br/>
-          4. Crie campanhas em "Email Marketing" na barra lateral.<br/><br/>
+          4. Crie campanhas em "Campanhas" na barra lateral.<br/><br/>
           <strong>Para ver quem abriu/clicou no email (opcional):</strong><br/>
           5. No Resend, vá em Webhooks e crie um apontando para:<br/>
           <code style={{ wordBreak: 'break-all' }}>{webhookUrl}</code><br/>
