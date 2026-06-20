@@ -464,8 +464,11 @@ export default function App() {
       e.nome?.toLowerCase().includes(q) ||
       e.sobrenome?.toLowerCase().includes(q) ||
       e.cnpj?.includes(searchQuery) ||
+      e.email?.toLowerCase().includes(q) ||
+      e.telefone?.includes(searchQuery) ||
       e.municipio?.toLowerCase().includes(q) ||
-      e.cnae_principal_descricao?.toLowerCase().includes(q)
+      e.cnae_principal_descricao?.toLowerCase().includes(q) ||
+      (e.tags || []).some(t => t.toLowerCase().includes(q))
 
     const matchTag  = !tagFilter || (e.tags || []).includes(tagFilter)
     const matchCnae = cnaeFilter.length === 0 || cnaeFilter.includes(e.cnae_principal_descricao)
