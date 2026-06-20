@@ -92,6 +92,11 @@ serve(async (req) => {
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
           },
         }
+        if (step.responder_para) payload.reply_to = step.responder_para
+        if (step.cc?.length) payload.cc = step.cc
+        if (step.cco?.length) payload.bcc = step.cco
+        const anexos = (step.anexos || []).filter((a: any) => a?.url).map((a: any) => ({ filename: a.filename || 'anexo', path: a.url }))
+        if (anexos.length) payload.attachments = anexos
 
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',

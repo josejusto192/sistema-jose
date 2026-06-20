@@ -39,7 +39,16 @@ const chipStyle = (ativo) => ({
 })
 
 function novoStep() {
-  return { ordem: 0, atraso_dias: 0, usar_ia: false, assunto: '', corpo_html: '', ia_objetivo: '' }
+  return { ordem: 0, atraso_dias: 0, usar_ia: false, assunto: '', corpo_html: '', ia_objetivo: '', responder_para: '', cc: '', cco: '', anexos: [] }
+}
+
+function emailsDeLista(texto) {
+  return texto.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+// Normaliza um step vindo do banco (cc/cco como array) pro formato editável (string separada por vírgula).
+function stepParaEdicao(s) {
+  return { ...s, cc: (s.cc || []).join(', '), cco: (s.cco || []).join(', '), anexos: s.anexos || [] }
 }
 
 function novoGatilho() {
@@ -53,7 +62,8 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
   const [origemFiltro, setOrigemFiltro] = useState(automacao?.origem_filtro || [])
   const [segmentoTags, setSegmentoTags] = useState(automacao?.segmento_tags || [])
   const [cnaeFiltro, setCnaeFiltro] = useState(automacao?.cnae_filtro || [])
-  const [steps, setSteps] = useState(automacao?.steps?.length ? automacao.steps : [novoStep()])
+  const [steps, setSteps] = useState(automacao?.steps?.length ? automacao.steps.map(stepParaEdicao) : [novoStep()])
+  const [opcoesAvancadasStep, setOpcoesAvancadasStep] = useState({})
   const [triggers, setTriggers] = useState(automacao?.triggers?.length ? automacao.triggers : [novoGatilho()])
   const [pararSePerdido, setPararSePerdido] = useState(automacao?.parar_se_perdido ?? true)
   const [salvando, setSalvando] = useState(false)
@@ -73,6 +83,18 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
   }
   function removeStep(i) {
     setSteps(prev => prev.filter((_, idx) => idx !== i))
+  }
+  function toggleOpcoesAvancadasStep(i) {
+    setOpcoesAvancadasStep(prev => ({ ...prev, [i]: !prev[i] }))
+  }
+  function addAnexoStep(i) {
+    updateStep(i, { anexos: [...(steps[i].anexos || []), { filename: '', url: '' }] })
+  }
+  function atualizarAnexoStep(i, j, campo, valor) {
+    updateStep(i, { anexos: steps[i].anexos.map((a, idx) => idx === j ? { ...a, [campo]: valor } : a) })
+  }
+  function removerAnexoStep(i, j) {
+    updateStep(i, { anexos: steps[i].anexos.filter((_, idx) => idx !== j) })
   }
   function updateTrigger(i, patch) {
     setTriggers(prev => prev.map((t, idx) => idx === i ? { ...t, ...patch } : t))
@@ -119,6 +141,10 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
         automation_id: automationId, ordem: i + 1, atraso_dias: Number(s.atraso_dias) || 0,
         usar_ia: s.usar_ia, assunto: s.usar_ia ? null : s.assunto.trim(), corpo_html: s.usar_ia ? null : s.corpo_html,
         ia_objetivo: s.usar_ia ? s.ia_objetivo.trim() : null,
+        responder_para: s.responder_para?.trim() || null,
+        cc: emailsDeLista(s.cc || ''),
+        cco: emailsDeLista(s.cco || ''),
+        anexos: (s.anexos || []).filter(a => a.url?.trim()),
       }))
       const { error: stepsError } = await supabase.from('email_automation_steps').insert(stepsPayload)
       if (stepsError) throw stepsError
@@ -245,6 +271,53 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
                 <textarea style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }} value={s.corpo_html} onChange={e => updateStep(i, { corpo_html: e.target.value })} />
               </div>
             </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => toggleOpcoesAvancadasStep(i)}
+            style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginTop: 12, textAlign: 'left' }}
+          >
+            {opcoesAvancadasStep[i] ? '− Ocultar opções avançadas' : '+ Opções avançadas (responder para, cc/cco, anexos)'}
+          </button>
+
+          {opcoesAvancadasStep[i] && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg2)' }}>
+              <div>
+                <label style={labelStyle}>Responder para (reply-to)</label>
+                <input style={inputStyle} value={s.responder_para} onChange={e => updateStep(i, { responder_para: e.target.value })} placeholder="ex: vendas@seudominio.com" />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Cc (separados por vírgula)</label>
+                  <input style={inputStyle} value={s.cc} onChange={e => updateStep(i, { cc: e.target.value })} placeholder="ex: copia@seudominio.com" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Cco (separados por vírgula)</label>
+                  <input style={inputStyle} value={s.cco} onChange={e => updateStep(i, { cco: e.target.value })} placeholder="ex: oculto@seudominio.com" />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Anexos (link do arquivo)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(s.anexos || []).map((a, j) => (
+                    <div key={j} style={{ display: 'flex', gap: 8 }}>
+                      <input style={{ ...inputStyle, flex: 1 }} value={a.filename} onChange={e => atualizarAnexoStep(i, j, 'filename', e.target.value)} placeholder="nome-do-arquivo.pdf" />
+                      <input style={{ ...inputStyle, flex: 2 }} value={a.url} onChange={e => atualizarAnexoStep(i, j, 'url', e.target.value)} placeholder="https://..." />
+                      <button type="button" onClick={() => removerAnexoStep(i, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px', display: 'flex' }}>
+                        <IconTrash size={14} color="var(--text3)" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addAnexoStep(i)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                    + Adicionar anexo
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                  Informe o link público do arquivo (ex: já hospedado no seu storage) — não é feito upload aqui.
+                </div>
+              </div>
+            </div>
           )}
         </div>
       ))}
