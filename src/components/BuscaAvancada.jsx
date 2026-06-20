@@ -281,6 +281,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   const [saved, setSaved]         = useState({})
   const [saving, setSaving]       = useState({})
   const [savingAll, setSavingAll] = useState(false)
+  const [saveAllProgress, setSaveAllProgress] = useState(null) // { done, total }
   const [assignTo, setAssignTo]   = useState('')
 
   const SAVED_SEARCHES_KEY = 'tilim_saved_searches_v1'
@@ -297,23 +298,28 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
     return existingCnpjs.includes(raw)
   }, [existingCnpjs])
 
+  async function fetchResultsPage(p) {
+    const res = await fetch(`${API_BUSCA_URL}?tipo_resultado=completo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
+      body: JSON.stringify(buildBody(form, p)),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      console.error('Casa dos Dados API error', res.status, body)
+      throw new Error(`API erro ${res.status}: ${body.slice(0, 400)}`)
+    }
+    const json = await res.json()
+    return { cnpjs: json?.cnpjs || [], total: json?.total || 0 }
+  }
+
   async function search(p = 1) {
     if (!API_KEY) { setError('Variável VITE_CASA_DADOS_KEY não configurada.'); return }
     setLoading(true); setError(''); setPage(p)
     try {
-      const res = await fetch(`${API_BUSCA_URL}?tipo_resultado=completo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
-        body: JSON.stringify(buildBody(form, p)),
-      })
-      if (!res.ok) {
-        const body = await res.text()
-        console.error('Casa dos Dados API error', res.status, body)
-        throw new Error(`API erro ${res.status}: ${body.slice(0, 400)}`)
-      }
-      const json = await res.json()
-      setResults(json?.cnpjs || [])
-      setTotal(json?.total || 0)
+      const { cnpjs, total: t } = await fetchResultsPage(p)
+      setResults(cnpjs)
+      setTotal(t)
     } catch (e) {
       setError(e.message || 'Erro ao consultar a API')
       setResults([]); setTotal(0)
@@ -361,20 +367,32 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   }
 
   async function saveAll() {
-    const toSave = results.filter(item => !inDb(item.cnpj) && !saved[item.cnpj])
-    if (!toSave.length) return
+    if (!total) return
+    if (totalPages > 1 && !confirm(`Isso vai importar até ${total.toLocaleString('pt-BR')} empresas, percorrendo todas as ${totalPages} páginas do resultado. Pode demorar um pouco. Continuar?`)) return
     setSavingAll(true)
-    for (const item of toSave) {
-      const key = item.cnpj
-      setSaving(prev => ({ ...prev, [key]: true }))
-      try { await onCreateLead(buildLeadPayload(item)); setSaved(prev => ({ ...prev, [key]: true })) } catch {}
-      setSaving(prev => ({ ...prev, [key]: false }))
+    setSaveAllProgress({ done: 0, total })
+    try {
+      for (let p = 1; p <= totalPages; p++) {
+        const pageItems = p === page ? results : (await fetchResultsPage(p)).cnpjs
+        for (const item of pageItems) {
+          if (inDb(item.cnpj) || saved[item.cnpj]) {
+            setSaveAllProgress(prev => ({ ...prev, done: prev.done + 1 }))
+            continue
+          }
+          const key = item.cnpj
+          setSaving(prev => ({ ...prev, [key]: true }))
+          try { await onCreateLead(buildLeadPayload(item)); setSaved(prev => ({ ...prev, [key]: true })) } catch {}
+          setSaving(prev => ({ ...prev, [key]: false }))
+          setSaveAllProgress(prev => ({ ...prev, done: prev.done + 1 }))
+        }
+      }
+    } finally {
+      setSavingAll(false)
+      setSaveAllProgress(null)
     }
-    setSavingAll(false)
   }
 
   const totalPages = Math.ceil(total / 20) || 0
-  const newCount   = results.filter(r => !inDb(r.cnpj) && !saved[r.cnpj]).length
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -587,10 +605,10 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
             <div style={{ fontSize: 13, color: 'var(--text2)' }}>
               <span style={{ fontWeight: 700, color: 'var(--text)' }}>{total.toLocaleString('pt-BR')}</span> resultado{total !== 1 ? 's' : ''} · página {page} / {totalPages}
             </div>
-            {newCount > 0 && (
+            {total > 0 && (
               <button onClick={saveAll} disabled={savingAll} type="button" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, border: 'none', background: '#0ea5e9', color: '#fff', fontSize: 12, fontWeight: 600, cursor: savingAll ? 'not-allowed' : 'pointer', opacity: savingAll ? 0.7 : 1 }}>
                 <IconPlus size={13} color="#fff" />
-                {savingAll ? 'Salvando...' : `Salvar todos (${newCount})`}
+                {savingAll ? `Salvando... (${saveAllProgress?.done ?? 0}/${saveAllProgress?.total ?? total})` : `Salvar todos os resultados (${total.toLocaleString('pt-BR')})`}
               </button>
             )}
           </div>
