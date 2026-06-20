@@ -205,7 +205,7 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
   }
 
   return (
-    <div>
+    <div style={{ padding: '28px 32px' }}>
       <button onClick={onCancel} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit' }}>
         <IconArrowLeft size={14} color="var(--text2)" /> Voltar
       </button>
@@ -510,7 +510,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
   if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
 
   return (
-    <div>
+    <div style={{ padding: '28px 32px' }}>
       <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit' }}>
         <IconArrowLeft size={14} color="var(--text2)" /> Voltar
       </button>
