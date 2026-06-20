@@ -8,7 +8,7 @@ export { API_KEY, API_BUSCA_URL, API_CONSULTA_URL, consultarCnpj, mapCnpjToLead 
 
 const UF_LIST  = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']
 const SITUACOES = ['ATIVA','INAPTA','BAIXADA','SUSPENSA','NULA']
-const PORTES   = [{ value: '01', label: 'ME / MEI' }, { value: '03', label: 'EPP' }, { value: '05', label: 'Demais' }]
+const PORTES   = [{ value: '01', label: 'Micro Empresa (ME)' }, { value: '03', label: 'Empresa de Pequeno Porte (EPP)' }, { value: '05', label: 'Demais' }]
 
 function stripCnae(codigo) { return (codigo || '').replace(/[-/]/g, '') }
 
