@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase.js'
 import { leadName } from '../constants.js'
 import { IconPlus, IconTrash, IconArrowLeft, IconCheck } from './Icons.jsx'
+import CnaeFilter from './CnaeFilter.jsx'
 
 const ORIGENS = [
   { value: 'manual',         label: 'Manual (app)' },
@@ -27,11 +28,12 @@ function novoStep() {
 }
 
 /* ─── Form de criação/edição ──────────────────────────────────────────────── */
-function AutomacaoForm({ automacao, tagsDisponiveis, onCancel, onSaved }) {
+function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel, onSaved }) {
   const [nome, setNome] = useState(automacao?.nome || '')
   const [ativo, setAtivo] = useState(automacao?.ativo ?? true)
   const [origemFiltro, setOrigemFiltro] = useState(automacao?.origem_filtro || [])
   const [segmentoTags, setSegmentoTags] = useState(automacao?.segmento_tags || [])
+  const [cnaeFiltro, setCnaeFiltro] = useState(automacao?.cnae_filtro || [])
   const [steps, setSteps] = useState(automacao?.steps?.length ? automacao.steps : [novoStep()])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState(null)
@@ -67,6 +69,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, onCancel, onSaved }) {
         nome: nome.trim(), ativo,
         origem_filtro: origemFiltro.length ? origemFiltro : null,
         segmento_tags: segmentoTags.length ? segmentoTags : null,
+        cnae_filtro: cnaeFiltro.length ? cnaeFiltro : null,
       }
       if (automationId) {
         const { error } = await supabase.from('email_automations').update(payload).eq('id', automationId)
@@ -118,7 +121,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, onCancel, onSaved }) {
             ))}
           </div>
         </div>
-        <div>
+        <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>E que tenham a(s) tag(s) (vazio = qualquer tag)</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {tagsDisponiveis.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma tag cadastrada ainda</span>}
@@ -126,6 +129,10 @@ function AutomacaoForm({ automacao, tagsDisponiveis, onCancel, onSaved }) {
               <span key={t} onClick={() => toggleTag(t)} style={chipStyle(segmentoTags.includes(t))}>{t}</span>
             ))}
           </div>
+        </div>
+        <div>
+          <label style={labelStyle}>E que sejam do(s) segmento(s)/CNAE (vazio = qualquer segmento)</label>
+          <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
         </div>
       </div>
 
@@ -245,7 +252,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
 }
 
 /* ─── Lista ────────────────────────────────────────────────────────────────── */
-export default function EmailAutomacoes({ empresas = [] }) {
+export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }) {
   const [automacoes, setAutomacoes] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -293,6 +300,7 @@ export default function EmailAutomacoes({ empresas = [] }) {
       <AutomacaoForm
         automacao={editando}
         tagsDisponiveis={tagsDisponiveis}
+        cnaesDisponiveis={cnaesDisponiveis}
         onCancel={() => { setShowForm(false); setEditando(null) }}
         onSaved={() => { setShowForm(false); setEditando(null); fetchAutomacoes() }}
       />
@@ -334,6 +342,7 @@ export default function EmailAutomacoes({ empresas = [] }) {
                   {a.steps.length} email(s) na sequência
                   {a.origem_filtro?.length ? ` · origem: ${a.origem_filtro.join(', ')}` : ''}
                   {a.segmento_tags?.length ? ` · tags: ${a.segmento_tags.join(', ')}` : ''}
+                  {a.cnae_filtro?.length ? ` · segmento: ${a.cnae_filtro.join(', ')}` : ''}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                   {a.counts.total} matriculado(s) · {a.counts.ativos} em andamento

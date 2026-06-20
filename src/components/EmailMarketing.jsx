@@ -3,6 +3,7 @@ import { supabase } from '../supabase.js'
 import { STATUS_CONFIG, leadName } from '../constants.js'
 import { IconPlus, IconTrash, IconMail, IconTag, IconSearch, IconCheck, IconArrowLeft, IconClock } from './Icons.jsx'
 import EmailAutomacoes from './EmailAutomacoes.jsx'
+import CnaeFilter from './CnaeFilter.jsx'
 
 const STATUS_LABEL = {
   rascunho: { label: 'Rascunho', bg: 'var(--bg3)', color: 'var(--text2)' },
@@ -77,12 +78,13 @@ function StepIndicator({ step, maxStepAtingido, onJump }) {
 // então isso quase sempre dava 0 resultados), aqui o usuário busca/filtra
 // como na tela de Leads e vê exatamente quem vai entrar na campanha antes
 // de salvar — a campanha guarda os lead_ids escolhidos, não um filtro solto.
-function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSelecionados, contatados }) {
+function SeletorDestinatarios({ empresas, tagsDisponiveis, cnaesDisponiveis, selecionados, setSelecionados, contatados }) {
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('')
   const [tagsFiltro, setTagsFiltro] = useState([])
   const [origemFiltro, setOrigemFiltro] = useState('')
   const [municipioFiltro, setMunicipioFiltro] = useState('')
+  const [cnaeFiltro, setCnaeFiltro] = useState([])
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
 
@@ -101,12 +103,13 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
       if (tagsFiltro.length && !(e.tags || []).some(t => tagsFiltro.includes(t))) return false
       if (origemFiltro && e.origem !== origemFiltro) return false
       if (municipioFiltro && e.municipio !== municipioFiltro) return false
+      if (cnaeFiltro.length && !cnaeFiltro.includes(e.cnae_principal_descricao)) return false
       if (dataInicio && (!e.criado_em || new Date(e.criado_em) < new Date(dataInicio))) return false
       if (dataFim && (!e.criado_em || new Date(e.criado_em) > new Date(`${dataFim}T23:59:59`))) return false
       if (q && !(leadName(e).toLowerCase().includes(q) || e.email.toLowerCase().includes(q))) return false
       return true
     })
-  }, [comEmail, busca, statusFiltro, tagsFiltro, origemFiltro, municipioFiltro, dataInicio, dataFim])
+  }, [comEmail, busca, statusFiltro, tagsFiltro, origemFiltro, municipioFiltro, cnaeFiltro, dataInicio, dataFim])
 
   function toggleTagFiltro(tag) {
     setTagsFiltro(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
@@ -153,6 +156,7 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
           <option value="">Todos os municípios</option>
           {municipiosDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
+        <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -240,7 +244,7 @@ function SeletorDestinatarios({ empresas, tagsDisponiveis, selecionados, setSele
 }
 
 /* ─── Página de nova campanha (etapas) ────────────────────────────────────── */
-function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onSaved }) {
+function NovaCampanhaPage({ empresas, tagsDisponiveis, cnaesDisponiveis, contatados, onCancel, onSaved }) {
   const [step, setStep] = useState(1)
   const [maxStepAtingido, setMaxStepAtingido] = useState(1)
   const [nome, setNome] = useState('')
@@ -462,6 +466,7 @@ function NovaCampanhaPage({ empresas, tagsDisponiveis, contatados, onCancel, onS
           <SeletorDestinatarios
             empresas={empresas}
             tagsDisponiveis={tagsDisponiveis}
+            cnaesDisponiveis={cnaesDisponiveis}
             selecionados={selecionados}
             setSelecionados={setSelecionados}
             contatados={contatados}
@@ -774,6 +779,12 @@ export default function EmailMarketing({ empresas = [] }) {
     return Array.from(set).sort()
   }, [empresas])
 
+  const cnaesDisponiveis = useMemo(() => {
+    const set = new Set()
+    empresas.forEach(e => { if (e.cnae_principal_descricao) set.add(e.cnae_principal_descricao) })
+    return Array.from(set).sort()
+  }, [empresas])
+
   const fetchCampanhas = useCallback(async () => {
     setLoading(true)
     const { data, error } = await supabase.from('email_campaigns').select('*').order('created_at', { ascending: false })
@@ -875,6 +886,7 @@ export default function EmailMarketing({ empresas = [] }) {
         <NovaCampanhaPage
           empresas={empresas}
           tagsDisponiveis={tagsDisponiveis}
+          cnaesDisponiveis={cnaesDisponiveis}
           contatados={contatados}
           onCancel={() => setShowNova(false)}
           onSaved={() => { setShowNova(false); fetchCampanhas(); fetchContatados() }}
@@ -926,7 +938,7 @@ export default function EmailMarketing({ empresas = [] }) {
       </div>
 
       {aba === 'automacoes' ? (
-        <EmailAutomacoes empresas={empresas} />
+        <EmailAutomacoes empresas={empresas} cnaesDisponiveis={cnaesDisponiveis} />
       ) : (
       <>
       {erroEnvio && (
