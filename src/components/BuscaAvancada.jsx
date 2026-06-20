@@ -283,6 +283,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   const [savingAll, setSavingAll] = useState(false)
   const [saveAllProgress, setSaveAllProgress] = useState(null) // { done, total }
   const [assignTo, setAssignTo]   = useState('')
+  const cancelSaveAllRef = useRef(false)
 
   const SAVED_SEARCHES_KEY = 'tilim_saved_searches_v1'
   const [savedSearches, setSavedSearches] = useState(() => {
@@ -298,11 +299,11 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
     return existingCnpjs.includes(raw)
   }, [existingCnpjs])
 
-  async function fetchResultsPage(p) {
+  async function fetchResultsPage(p, formArg = form) {
     const res = await fetch(`${API_BUSCA_URL}?tipo_resultado=completo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
-      body: JSON.stringify(buildBody(form, p)),
+      body: JSON.stringify(buildBody(formArg, p)),
     })
     if (!res.ok) {
       const body = await res.text()
@@ -313,8 +314,13 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
     return { cnpjs: json?.cnpjs || [], total: json?.total || 0 }
   }
 
+  function cancelSaveAll() {
+    cancelSaveAllRef.current = true
+  }
+
   async function search(p = 1) {
     if (!API_KEY) { setError('Variável VITE_CASA_DADOS_KEY não configurada.'); return }
+    if (savingAll) cancelSaveAll() // uma nova busca invalida a importação em massa que estava rodando pra busca anterior
     setLoading(true); setError(''); setPage(p)
     try {
       const { cnpjs, total: t } = await fetchResultsPage(p)
@@ -369,12 +375,19 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   async function saveAll() {
     if (!total) return
     if (totalPages > 1 && !confirm(`Isso vai importar até ${total.toLocaleString('pt-BR')} empresas, percorrendo todas as ${totalPages} páginas do resultado. Pode demorar um pouco. Continuar?`)) return
+    const formSnapshot    = form
+    const pageSnapshot    = page
+    const resultsSnapshot = results
+    const totalPagesSnapshot = totalPages
+    cancelSaveAllRef.current = false
     setSavingAll(true)
     setSaveAllProgress({ done: 0, total })
     try {
-      for (let p = 1; p <= totalPages; p++) {
-        const pageItems = p === page ? results : (await fetchResultsPage(p)).cnpjs
+      for (let p = 1; p <= totalPagesSnapshot; p++) {
+        if (cancelSaveAllRef.current) break
+        const pageItems = p === pageSnapshot ? resultsSnapshot : (await fetchResultsPage(p, formSnapshot)).cnpjs
         for (const item of pageItems) {
+          if (cancelSaveAllRef.current) break
           if (inDb(item.cnpj) || saved[item.cnpj]) {
             setSaveAllProgress(prev => ({ ...prev, done: prev.done + 1 }))
             continue
@@ -387,6 +400,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
         }
       }
     } finally {
+      cancelSaveAllRef.current = false
       setSavingAll(false)
       setSaveAllProgress(null)
     }
@@ -606,10 +620,17 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
               <span style={{ fontWeight: 700, color: 'var(--text)' }}>{total.toLocaleString('pt-BR')}</span> resultado{total !== 1 ? 's' : ''} · página {page} / {totalPages}
             </div>
             {total > 0 && (
-              <button onClick={saveAll} disabled={savingAll} type="button" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, border: 'none', background: '#0ea5e9', color: '#fff', fontSize: 12, fontWeight: 600, cursor: savingAll ? 'not-allowed' : 'pointer', opacity: savingAll ? 0.7 : 1 }}>
-                <IconPlus size={13} color="#fff" />
-                {savingAll ? `Salvando... (${saveAllProgress?.done ?? 0}/${saveAllProgress?.total ?? total})` : `Salvar todos os resultados (${total.toLocaleString('pt-BR')})`}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={saveAll} disabled={savingAll} type="button" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, border: 'none', background: '#0ea5e9', color: '#fff', fontSize: 12, fontWeight: 600, cursor: savingAll ? 'not-allowed' : 'pointer', opacity: savingAll ? 0.7 : 1 }}>
+                  <IconPlus size={13} color="#fff" />
+                  {savingAll ? `Salvando... (${saveAllProgress?.done ?? 0}/${saveAllProgress?.total ?? total})` : `Salvar todos os resultados (${total.toLocaleString('pt-BR')})`}
+                </button>
+                {savingAll && (
+                  <button onClick={cancelSaveAll} type="button" style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
