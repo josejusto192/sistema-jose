@@ -96,6 +96,7 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
   const [opcoesAvancadasStep, setOpcoesAvancadasStep] = useState({})
   const [triggers, setTriggers] = useState(automacao?.triggers?.length ? automacao.triggers : [novoGatilho()])
   const [pararSePerdido, setPararSePerdido] = useState(automacao?.parar_se_perdido ?? true)
+  const [iniciarAgora, setIniciarAgora] = useState(!automacao)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState(null)
 
@@ -143,7 +144,6 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       if (s.usar_ia && !s.ia_objetivo?.trim()) { setErro('Defina o objetivo de IA em todos os passos com IA'); return }
       if (!s.usar_ia && (!s.assunto?.trim() || !s.corpo_html?.trim())) { setErro('Defina assunto e corpo em todos os passos sem IA'); return }
     }
-    if (triggers.length === 0) { setErro('Adicione pelo menos um gatilho'); return }
     for (const t of triggers) {
       if (t.tipo !== 'lead_criado' && !t.valor?.trim()) { setErro('Defina o valor de todos os gatilhos (status ou tag)'); return }
     }
@@ -178,12 +178,20 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
       }))
       const { error: stepsError } = await supabase.from('email_automation_steps').insert(stepsPayload)
       if (stepsError) throw stepsError
-      const triggersPayload = triggers.map(t => ({
-        automation_id: automationId, tipo: t.tipo, valor: t.tipo === 'lead_criado' ? null : t.valor.trim(),
-      }))
-      const { error: triggersError } = await supabase.from('email_automation_triggers').insert(triggersPayload)
-      if (triggersError) throw triggersError
-      onSaved()
+      if (triggers.length) {
+        const triggersPayload = triggers.map(t => ({
+          automation_id: automationId, tipo: t.tipo, valor: t.tipo === 'lead_criado' ? null : t.valor.trim(),
+        }))
+        const { error: triggersError } = await supabase.from('email_automation_triggers').insert(triggersPayload)
+        if (triggersError) throw triggersError
+      }
+      let matriculados = null
+      if (iniciarAgora) {
+        const { data: count, error: rpcError } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: automationId })
+        if (rpcError) throw rpcError
+        matriculados = count
+      }
+      onSaved(matriculados)
     } catch (e) {
       setErro(e.message || 'Erro ao salvar automação')
     } finally {
@@ -235,13 +243,16 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
                 {(t.tipo === 'tag_adicionada' || t.tipo === 'tag_removida') && (
                   <input style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })} placeholder="Nome da tag" list="tags-disponiveis-automacao" />
                 )}
-                {triggers.length > 1 && (
-                  <button onClick={() => removeTrigger(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
-                    <IconTrash size={14} color="var(--text3)" />
-                  </button>
-                )}
+                <button onClick={() => removeTrigger(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                  <IconTrash size={14} color="var(--text3)" />
+                </button>
               </div>
             ))}
+            {triggers.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
+                Sem gatilho: a automação não matricula ninguém sozinha. Use "Iniciar agora" abaixo pra mandar pros leads que já existem, ou adicione um gatilho pra também pegar leads novos automaticamente.
+              </div>
+            )}
             <datalist id="tags-disponiveis-automacao">
               {tagsDisponiveis.map(t => <option key={t} value={t} />)}
             </datalist>
@@ -274,6 +285,15 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
             <div>
               <label style={labelStyle}>Segmento/CNAE (vazio = qualquer segmento)</label>
               <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <input type="checkbox" checked={iniciarAgora} onChange={e => setIniciarAgora(e.target.checked)} id="iniciar-agora-automacao" style={{ marginTop: 2 }} />
+              <label htmlFor="iniciar-agora-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
+                Ao salvar, matricular imediatamente os leads que já existem e batem com esse filtro
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, fontWeight: 400 }}>
+                  Igual disparar uma campanha pra esses leads agora, mas continua valendo a sequência de dias acima. Não duplica quem já estiver matriculado.
+                </div>
+              </label>
             </div>
           </FlowCard>
         </FlowNode>
@@ -549,6 +569,23 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
 
   useEffect(() => { fetchAutomacoes() }, [fetchAutomacoes])
 
+  const [matriculando, setMatriculando] = useState(null) // id da automação rodando "iniciar agora"
+
+  async function iniciarAgora(a) {
+    if (!confirm(`Matricular agora os leads que já existem e batem com o filtro de "${a.nome}"? Quem já estiver matriculado não é duplicado.`)) return
+    setMatriculando(a.id)
+    try {
+      const { data: count, error } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: a.id })
+      if (error) throw error
+      alert(`${count} lead(s) existente(s) matriculado(s) na sequência.`)
+      fetchAutomacoes()
+    } catch (e) {
+      alert('Erro ao matricular leads: ' + (e.message || e))
+    } finally {
+      setMatriculando(null)
+    }
+  }
+
   async function excluir(id) {
     if (!confirm('Excluir esta automação? Leads já matriculados deixarão de receber os próximos emails da sequência.')) return
     await supabase.from('email_automations').delete().eq('id', id)
@@ -567,7 +604,10 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
         tagsDisponiveis={tagsDisponiveis}
         cnaesDisponiveis={cnaesDisponiveis}
         onCancel={() => { setShowForm(false); setEditando(null) }}
-        onSaved={() => { setShowForm(false); setEditando(null); fetchAutomacoes() }}
+        onSaved={(matriculados) => {
+          setShowForm(false); setEditando(null); fetchAutomacoes()
+          if (matriculados !== null) alert(`${matriculados} lead(s) existente(s) matriculado(s) na sequência.`)
+        }}
       />
     )
   }
@@ -579,7 +619,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sequências automáticas disparadas quando um lead novo bate com o filtro definido.</div>
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sequências de email — dispare agora pros leads que já existem e/ou deixe rodando automaticamente pra leads novos.</div>
         <button
           onClick={() => { setEditando(null); setShowForm(true) }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -604,7 +644,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                  Quando: {a.triggers.length ? a.triggers.map(gatilhoLabel).join(' OU ') : '—'}
+                  Quando: {a.triggers.length ? a.triggers.map(gatilhoLabel).join(' OU ') : 'Sem gatilho automático (só via "Iniciar agora")'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
                   {a.steps.length} email(s) na sequência
@@ -632,6 +672,14 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => iniciarAgora(a)}
+                  disabled={matriculando === a.id}
+                  title="Matricular agora os leads existentes que batem com o filtro"
+                  style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--accent)', background: 'none', color: 'var(--accent)', fontSize: 12, cursor: matriculando === a.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: matriculando === a.id ? 0.6 : 1 }}
+                >
+                  {matriculando === a.id ? 'Matriculando...' : 'Iniciar agora'}
+                </button>
                 <button onClick={() => toggleAtivo(a)} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {a.ativo ? 'Pausar' : 'Ativar'}
                 </button>
