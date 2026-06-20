@@ -184,19 +184,21 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
     })
   }
 
-  function addTag() {
+  async function addTag() {
     const t = tagInput.trim()
     if (!t || tags.includes(t)) { setTagInput(''); return }
     const updated = [...tags, t]
     setTags(updated)
     setTagInput('')
-    onUpdate(lead.id, { tags: updated })
+    const ok = await onUpdate(lead.id, { tags: updated })
+    if (!ok) { setTags(tags); alert('Não foi possível salvar a tag. Tente novamente.') }
   }
 
-  function removeTag(tag) {
+  async function removeTag(tag) {
     const updated = tags.filter(t => t !== tag)
     setTags(updated)
-    onUpdate(lead.id, { tags: updated })
+    const ok = await onUpdate(lead.id, { tags: updated })
+    if (!ok) { setTags(tags); alert('Não foi possível remover a tag. Tente novamente.') }
   }
 
   const cnpjFormatado = lead.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')

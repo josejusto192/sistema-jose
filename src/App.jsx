@@ -75,6 +75,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const initialLoaded = useRef(false)
+  const leadsRequestId = useRef(0)
   const isMobile = useIsMobile()
 
   // Theme effect
@@ -144,9 +145,14 @@ export default function App() {
 
     async function loadLeads() {
       if (!initialLoaded.current) setLoading(true)
+      const requestId = ++leadsRequestId.current
       let q = supabase.from('leads').select('*').order('criado_em', { ascending: false })
       if (!isAdmin) q = q.eq('vendedor_id', userId)
       const { data } = await q
+      // Descarta respostas que chegaram fora de ordem (ex: um fetch antigo que
+      // resolve depois de um mais novo) — senão um refetch desatualizado pode
+      // sobrescrever uma alteração local mais recente (otimista ou não).
+      if (requestId !== leadsRequestId.current) return
       if (data) setEmpresas(data)
       setLoading(false)
       initialLoaded.current = true
@@ -283,9 +289,12 @@ export default function App() {
 
   async function updateEmpresa(id, updates) {
     const empresa = empresas.find(e => e.id === id)
-    const { error } = await supabase.from('leads').update(updates).eq('id', id)
-    if (!error) {
-      setEmpresas(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e))
+    // .select().single() confirma que a linha foi de fato alterada (sem isso,
+    // um UPDATE bloqueado silenciosamente por RLS retorna error: null mesmo
+    // sem mudar nada no banco, e a UI ficaria achando que salvou).
+    const { data: updated, error } = await supabase.from('leads').update(updates).eq('id', id).select().single()
+    if (!error && updated) {
+      setEmpresas(prev => prev.map(e => e.id === id ? updated : e))
       logAction('atualizar', 'leads', id, updates)
       if (updates.status_prospeccao && empresa && updates.status_prospeccao !== empresa.status_prospeccao) {
         insertStatusHistory(id, empresa.status_prospeccao, updates.status_prospeccao)
@@ -301,7 +310,7 @@ export default function App() {
         }
       }
     }
-    return !error
+    return !error && !!updated
   }
 
   async function createEmpresa(data) {
