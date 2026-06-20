@@ -346,6 +346,31 @@ export function IconCalendar({ size = 16, color = 'currentColor' }) {
   )
 }
 
+export function IconZap({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M9 1 3 9h4l-1 6 6-8H8l1-6z" fill={color} stroke={color} strokeWidth="0.8" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function IconFilter({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 2.5h12L9.5 8v5L6.5 11.5V8L2 2.5z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function IconFlag({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M3 1.5v13" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M3 2.5h9l-2.2 3 2.2 3H3z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function IconKanban({ size = 16, color = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

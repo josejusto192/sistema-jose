@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase.js'
 import { leadName, STATUS_CONFIG } from '../constants.js'
-import { IconPlus, IconTrash, IconArrowLeft, IconCheck } from './Icons.jsx'
+import { IconPlus, IconTrash, IconArrowLeft, IconCheck, IconZap, IconFilter, IconFlag, IconMail, IconClock, IconX } from './Icons.jsx'
 import CnaeFilter from './CnaeFilter.jsx'
 
 const ORIGENS = [
@@ -53,6 +53,36 @@ function stepParaEdicao(s) {
 
 function novoGatilho() {
   return { tipo: 'lead_criado', valor: null }
+}
+
+const pillNumberStyle = {
+  width: 42, padding: '2px 4px', border: 'none', borderRadius: 4, background: 'var(--bg3)',
+  color: 'var(--text)', fontSize: 12, fontWeight: 700, textAlign: 'center', fontFamily: 'inherit',
+}
+
+// Um "nó" do fluxo: bolinha colorida com ícone + linha vertical conectando ao próximo nó.
+function FlowNode({ icon, color, isLast, children }) {
+  return (
+    <div style={{ display: 'flex', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+          {icon}
+        </div>
+        {!isLast && <div style={{ flex: 1, width: 2, background: 'var(--border)', minHeight: 18 }} />}
+      </div>
+      <div style={{ flex: 1, paddingBottom: 18, minWidth: 0 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function FlowCard({ color, children }) {
+  return (
+    <div className="card" style={{ padding: 16, borderLeft: `3px solid ${color}` }}>
+      {children}
+    </div>
+  )
 }
 
 /* ─── Form de criação/edição ──────────────────────────────────────────────── */
@@ -170,167 +200,218 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
 
       {erro && <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f8d7da', color: '#c0392b', fontSize: 13, marginBottom: 16 }}>{erro}</div>}
 
-      <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+      <div className="card" style={{ padding: 18, marginBottom: 24 }}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Nome da automação</label>
           <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Boas-vindas leads Casa dos Dados" />
         </div>
-        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} id="ativo-automacao" />
-          <label htmlFor="ativo-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Automação ativa (matricula leads automaticamente)</label>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} id="ativo-automacao" />
+            <label htmlFor="ativo-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Automação ativa</label>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={pararSePerdido} onChange={e => setPararSePerdido(e.target.checked)} id="parar-perdido-automacao" />
+            <label htmlFor="parar-perdido-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Cancelar pendentes se o lead virar "Perdido"</label>
+          </div>
         </div>
-        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="checkbox" checked={pararSePerdido} onChange={e => setPararSePerdido(e.target.checked)} id="parar-perdido-automacao" />
-          <label htmlFor="parar-perdido-automacao" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Cancelar envios pendentes automaticamente se o lead virar "Perdido"</label>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Matricular o lead quando (qualquer um dos gatilhos abaixo dispara)</label>
-          {triggers.map((t, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <select style={{ ...inputStyle, width: 'auto', flex: '0 0 260px' }} value={t.tipo} onChange={e => updateTrigger(i, { tipo: e.target.value, valor: null })}>
-                {TIPOS_GATILHO.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-              </select>
-              {t.tipo === 'status_mudou' && (
-                <select style={{ ...inputStyle, width: 'auto', flex: '0 0 200px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })}>
-                  <option value="">Selecione o status...</option>
-                  {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+      </div>
+
+      <div>
+        <FlowNode icon={<IconZap size={15} color="#fff" />} color="#F59E0B">
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Quando (qualquer um dos gatilhos abaixo dispara)</div>
+          <FlowCard color="#F59E0B">
+            {triggers.map((t, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: i === triggers.length - 1 ? 0 : 8 }}>
+                <select style={{ ...inputStyle, width: 'auto', flex: '0 0 240px' }} value={t.tipo} onChange={e => updateTrigger(i, { tipo: e.target.value, valor: null })}>
+                  {TIPOS_GATILHO.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
                 </select>
-              )}
-              {(t.tipo === 'tag_adicionada' || t.tipo === 'tag_removida') && (
-                <input style={{ ...inputStyle, width: 'auto', flex: '0 0 200px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })} placeholder="Nome da tag" list="tags-disponiveis-automacao" />
-              )}
-              {triggers.length > 1 && (
-                <button onClick={() => removeTrigger(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                {t.tipo === 'status_mudou' && (
+                  <select style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })}>
+                    <option value="">Selecione o status...</option>
+                    {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                )}
+                {(t.tipo === 'tag_adicionada' || t.tipo === 'tag_removida') && (
+                  <input style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })} placeholder="Nome da tag" list="tags-disponiveis-automacao" />
+                )}
+                {triggers.length > 1 && (
+                  <button onClick={() => removeTrigger(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                    <IconTrash size={14} color="var(--text3)" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <datalist id="tags-disponiveis-automacao">
+              {tagsDisponiveis.map(t => <option key={t} value={t} />)}
+            </datalist>
+            <button onClick={addTrigger} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', marginTop: 10, borderRadius: 6, border: '1px dashed var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <IconPlus size={12} color="var(--text2)" /> Adicionar gatilho
+            </button>
+          </FlowCard>
+        </FlowNode>
+
+        <FlowNode icon={<IconFilter size={14} color="#fff" />} color="#8B5CF6">
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>E que também batam com (opcional)</div>
+          <FlowCard color="#8B5CF6">
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Origem (vazio = qualquer origem)</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {ORIGENS.map(o => (
+                  <span key={o.value} onClick={() => toggleOrigem(o.value)} style={chipStyle(origemFiltro.includes(o.value))}>{o.label}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Tag(s) (vazio = qualquer tag)</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {tagsDisponiveis.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma tag cadastrada ainda</span>}
+                {tagsDisponiveis.map(t => (
+                  <span key={t} onClick={() => toggleTag(t)} style={chipStyle(segmentoTags.includes(t))}>{t}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Segmento/CNAE (vazio = qualquer segmento)</label>
+              <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
+            </div>
+          </FlowCard>
+        </FlowNode>
+
+        {steps.map((s, i) => (
+          <FlowNode key={i} icon={<IconMail size={14} color="#fff" />} color="#2563EB">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 6px 3px 10px' }}>
+                {i === 0 ? 'Enviar após' : 'Esperar'}
+                <input type="number" min={0} style={pillNumberStyle} value={s.atraso_dias} onChange={e => updateStep(i, { atraso_dias: e.target.value })} />
+                {i === 0 ? 'dia(s) da matrícula' : 'dia(s) do anterior'}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Email {i + 1}</span>
+              {s.usar_ia && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: 20 }}>IA</span>}
+              {steps.length > 1 && (
+                <button onClick={() => removeStep(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', marginLeft: 'auto' }}>
                   <IconTrash size={14} color="var(--text3)" />
                 </button>
               )}
             </div>
-          ))}
-          <datalist id="tags-disponiveis-automacao">
-            {tagsDisponiveis.map(t => <option key={t} value={t} />)}
-          </datalist>
-          <button onClick={addTrigger} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, border: '1px dashed var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <IconPlus size={12} color="var(--text2)" /> Adicionar gatilho
-          </button>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>E que tenham origem (vazio = qualquer origem)</label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {ORIGENS.map(o => (
-              <span key={o.value} onClick={() => toggleOrigem(o.value)} style={chipStyle(origemFiltro.includes(o.value))}>{o.label}</span>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>E que tenham a(s) tag(s) (vazio = qualquer tag)</label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {tagsDisponiveis.length === 0 && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Nenhuma tag cadastrada ainda</span>}
-            {tagsDisponiveis.map(t => (
-              <span key={t} onClick={() => toggleTag(t)} style={chipStyle(segmentoTags.includes(t))}>{t}</span>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label style={labelStyle}>E que sejam do(s) segmento(s)/CNAE (vazio = qualquer segmento)</label>
-          <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
-        </div>
-      </div>
+            <FlowCard color="#2563EB">
+              <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={s.usar_ia} onChange={e => updateStep(i, { usar_ia: e.target.checked })} id={`ia-step-${i}`} />
+                <label htmlFor={`ia-step-${i}`} style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Gerar este email com IA (individual por lead)</label>
+              </div>
+              {s.usar_ia ? (
+                <div>
+                  <label style={labelStyle}>Objetivo deste email (a IA recebe isso + os dados do lead)</label>
+                  <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} value={s.ia_objetivo} onChange={e => updateStep(i, { ia_objetivo: e.target.value })} placeholder="Ex: Se apresentar e oferecer uma consultoria jurídica gratuita..." />
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>Assunto (use {'{{nome}}'}, {'{{empresa}}'})</label>
+                    <input style={inputStyle} value={s.assunto} onChange={e => updateStep(i, { assunto: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Corpo do email (HTML)</label>
+                    <textarea style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }} value={s.corpo_html} onChange={e => updateStep(i, { corpo_html: e.target.value })} />
+                  </div>
+                </>
+              )}
 
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '20px 0 10px' }}>Sequência de emails</div>
-      {steps.map((s, i) => (
-        <div key={i} className="card" style={{ padding: 18, marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Email {i + 1}</span>
-            {steps.length > 1 && (
-              <button onClick={() => removeStep(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
-                <IconTrash size={14} color="var(--text3)" />
+              <button
+                type="button"
+                onClick={() => toggleOpcoesAvancadasStep(i)}
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginTop: 12, textAlign: 'left' }}
+              >
+                {opcoesAvancadasStep[i] ? '− Ocultar opções avançadas' : '+ Opções avançadas (responder para, cc/cco, anexos)'}
               </button>
-            )}
-          </div>
-          <div style={{ marginBottom: 12, maxWidth: 260 }}>
-            <label style={labelStyle}>{i === 0 ? 'Enviar quantos dias após a matrícula' : 'Esperar quantos dias após o email anterior'}</label>
-            <input type="number" min={0} style={inputStyle} value={s.atraso_dias} onChange={e => updateStep(i, { atraso_dias: e.target.value })} />
-          </div>
-          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={s.usar_ia} onChange={e => updateStep(i, { usar_ia: e.target.checked })} id={`ia-step-${i}`} />
-            <label htmlFor={`ia-step-${i}`} style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Gerar este email com IA (individual por lead)</label>
-          </div>
-          {s.usar_ia ? (
-            <div>
-              <label style={labelStyle}>Objetivo deste email (a IA recebe isso + os dados do lead)</label>
-              <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} value={s.ia_objetivo} onChange={e => updateStep(i, { ia_objetivo: e.target.value })} placeholder="Ex: Se apresentar e oferecer uma consultoria jurídica gratuita..." />
-            </div>
-          ) : (
-            <>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Assunto (use {'{{nome}}'}, {'{{empresa}}'})</label>
-                <input style={inputStyle} value={s.assunto} onChange={e => updateStep(i, { assunto: e.target.value })} />
-              </div>
-              <div>
-                <label style={labelStyle}>Corpo do email (HTML)</label>
-                <textarea style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }} value={s.corpo_html} onChange={e => updateStep(i, { corpo_html: e.target.value })} />
-              </div>
-            </>
-          )}
 
-          <button
-            type="button"
-            onClick={() => toggleOpcoesAvancadasStep(i)}
-            style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginTop: 12, textAlign: 'left' }}
-          >
-            {opcoesAvancadasStep[i] ? '− Ocultar opções avançadas' : '+ Opções avançadas (responder para, cc/cco, anexos)'}
-          </button>
-
-          {opcoesAvancadasStep[i] && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg2)' }}>
-              <div>
-                <label style={labelStyle}>Responder para (reply-to)</label>
-                <input style={inputStyle} value={s.responder_para} onChange={e => updateStep(i, { responder_para: e.target.value })} placeholder="ex: vendas@seudominio.com" />
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Cc (separados por vírgula)</label>
-                  <input style={inputStyle} value={s.cc} onChange={e => updateStep(i, { cc: e.target.value })} placeholder="ex: copia@seudominio.com" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Cco (separados por vírgula)</label>
-                  <input style={inputStyle} value={s.cco} onChange={e => updateStep(i, { cco: e.target.value })} placeholder="ex: oculto@seudominio.com" />
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Anexos (link do arquivo)</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(s.anexos || []).map((a, j) => (
-                    <div key={j} style={{ display: 'flex', gap: 8 }}>
-                      <input style={{ ...inputStyle, flex: 1 }} value={a.filename} onChange={e => atualizarAnexoStep(i, j, 'filename', e.target.value)} placeholder="nome-do-arquivo.pdf" />
-                      <input style={{ ...inputStyle, flex: 2 }} value={a.url} onChange={e => atualizarAnexoStep(i, j, 'url', e.target.value)} placeholder="https://..." />
-                      <button type="button" onClick={() => removerAnexoStep(i, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px', display: 'flex' }}>
-                        <IconTrash size={14} color="var(--text3)" />
+              {opcoesAvancadasStep[i] && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg2)' }}>
+                  <div>
+                    <label style={labelStyle}>Responder para (reply-to)</label>
+                    <input style={inputStyle} value={s.responder_para} onChange={e => updateStep(i, { responder_para: e.target.value })} placeholder="ex: vendas@seudominio.com" />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={labelStyle}>Cc (separados por vírgula)</label>
+                      <input style={inputStyle} value={s.cc} onChange={e => updateStep(i, { cc: e.target.value })} placeholder="ex: copia@seudominio.com" />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={labelStyle}>Cco (separados por vírgula)</label>
+                      <input style={inputStyle} value={s.cco} onChange={e => updateStep(i, { cco: e.target.value })} placeholder="ex: oculto@seudominio.com" />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Anexos (link do arquivo)</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {(s.anexos || []).map((a, j) => (
+                        <div key={j} style={{ display: 'flex', gap: 8 }}>
+                          <input style={{ ...inputStyle, flex: 1 }} value={a.filename} onChange={e => atualizarAnexoStep(i, j, 'filename', e.target.value)} placeholder="nome-do-arquivo.pdf" />
+                          <input style={{ ...inputStyle, flex: 2 }} value={a.url} onChange={e => atualizarAnexoStep(i, j, 'url', e.target.value)} placeholder="https://..." />
+                          <button type="button" onClick={() => removerAnexoStep(i, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px', display: 'flex' }}>
+                            <IconTrash size={14} color="var(--text3)" />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addAnexoStep(i)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                        + Adicionar anexo
                       </button>
                     </div>
-                  ))}
-                  <button type="button" onClick={() => addAnexoStep(i)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                    + Adicionar anexo
-                  </button>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                      Informe o link público do arquivo (ex: já hospedado no seu storage) — não é feito upload aqui.
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                  Informe o link público do arquivo (ex: já hospedado no seu storage) — não é feito upload aqui.
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
-      <button onClick={addStep} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 6, border: '1px dashed var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 20 }}>
-        <IconPlus size={12} color="var(--text2)" /> Adicionar próximo email
-      </button>
+              )}
+            </FlowCard>
+          </FlowNode>
+        ))}
 
-      <div style={{ display: 'flex', gap: 10 }}>
+        <FlowNode icon={<IconFlag size={14} color="#fff" />} color="#10B981" isLast>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Fim da sequência</div>
+          <button onClick={addStep} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 6, border: '1px dashed var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <IconPlus size={12} color="var(--text2)" /> Adicionar próximo email
+          </button>
+        </FlowNode>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
         <button onClick={salvar} disabled={salvando} style={{ padding: '10px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1, fontFamily: 'inherit' }}>
           {salvando ? 'Salvando...' : 'Salvar automação'}
         </button>
         <button onClick={onCancel} style={{ padding: '10px 18px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
       </div>
+    </div>
+  )
+}
+
+const ENVIO_DOT_CONFIG = {
+  enviado:   { bg: '#10B981', icon: <IconCheck size={11} color="#fff" /> },
+  falhou:    { bg: '#EF4444', icon: <IconX size={11} color="#fff" /> },
+  cancelado: { bg: '#9CA3AF', icon: <IconX size={11} color="#fff" /> },
+  pendente:  { bg: 'var(--bg3)', icon: <IconClock size={10} color="var(--text3)" /> },
+}
+
+// Linha do tempo visual dos envios de um lead matriculado: bolinha por email, conectadas por um traço.
+function EnvioStepper({ envios }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      {envios.map((e, i) => {
+        const conf = ENVIO_DOT_CONFIG[e.status] || ENVIO_DOT_CONFIG.pendente
+        return (
+          <div key={e.id} style={{ display: 'flex', alignItems: 'center', flex: i === envios.length - 1 ? '0 0 auto' : 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div title={e.erro || ''} style={{ width: 24, height: 24, borderRadius: '50%', background: conf.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {conf.icon}
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                Email {i + 1}{e.status === 'pendente' ? ` · ${new Date(e.scheduled_for).toLocaleDateString('pt-BR')}` : ''}
+              </span>
+            </div>
+            {i < envios.length - 1 && <div style={{ flex: 1, height: 2, background: 'var(--border)', margin: '0 4px', minWidth: 16 }} />}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -378,17 +459,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
                     {en.status}
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {meusEnvios.map((e, i) => (
-                    <span key={e.id} title={e.erro || ''} style={{
-                      fontSize: 11, padding: '3px 9px', borderRadius: 20,
-                      background: e.status === 'enviado' ? '#d4edda' : e.status === 'falhou' ? '#f8d7da' : e.status === 'cancelado' ? 'var(--bg3)' : 'var(--bg3)',
-                      color: e.status === 'enviado' ? '#1e7e34' : e.status === 'falhou' ? '#c0392b' : 'var(--text3)',
-                    }}>
-                      Email {i + 1}: {e.status} {e.status === 'pendente' && `(${new Date(e.scheduled_for).toLocaleDateString('pt-BR')})`}
-                    </span>
-                  ))}
-                </div>
+                <EnvioStepper envios={meusEnvios} />
               </div>
             )
           })}
