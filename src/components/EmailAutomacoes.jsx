@@ -386,32 +386,62 @@ function AutomacaoForm({ automacao, tagsDisponiveis, cnaesDisponiveis, onCancel,
 }
 
 const ENVIO_DOT_CONFIG = {
-  enviado:   { bg: '#10B981', icon: <IconCheck size={11} color="#fff" /> },
-  falhou:    { bg: '#EF4444', icon: <IconX size={11} color="#fff" /> },
-  cancelado: { bg: '#9CA3AF', icon: <IconX size={11} color="#fff" /> },
-  pendente:  { bg: 'var(--bg3)', icon: <IconClock size={10} color="var(--text3)" /> },
+  enviado:   { bg: '#10B981', icon: <IconCheck size={11} color="#fff" />, label: 'Enviado',   textColor: '#10B981' },
+  falhou:    { bg: '#EF4444', icon: <IconX size={11} color="#fff" />,    label: 'Falhou',     textColor: '#EF4444' },
+  cancelado: { bg: '#9CA3AF', icon: <IconX size={11} color="#fff" />,    label: 'Cancelado',  textColor: 'var(--text3)' },
+  pendente:  { bg: 'var(--bg3)', icon: <IconClock size={10} color="var(--text3)" />, label: 'Agendado', textColor: 'var(--text3)' },
 }
 
-// Linha do tempo visual dos envios de um lead matriculado: bolinha por email, conectadas por um traço.
+// Resumo do progresso de um lead na sequência: "2 de 3 emails enviados" + barra.
+function ProgressoResumo({ envios }) {
+  const total = envios.length
+  const enviados = envios.filter(e => e.status === 'enviado').length
+  const falhou = envios.some(e => e.status === 'falhou')
+  const cancelado = envios.every(e => e.status === 'cancelado')
+  let texto = `${enviados} de ${total} email(s) enviado(s)`
+  let cor = 'var(--text3)'
+  if (cancelado) { texto = 'Sequência cancelada'; cor = 'var(--text3)' }
+  else if (falhou) { texto = `${enviados} de ${total} enviado(s) · houve falha`; cor = '#EF4444' }
+  else if (enviados === total) { texto = 'Sequência concluída'; cor = '#10B981' }
+  else if (enviados > 0) { cor = '#10B981' }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--bg3)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: total ? `${(enviados / total) * 100}%` : 0, background: falhou ? '#EF4444' : '#10B981', borderRadius: 3 }} />
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 600, color: cor, whiteSpace: 'nowrap' }}>{texto}</span>
+    </div>
+  )
+}
+
+// Linha do tempo visual dos envios de um lead matriculado: bolinha por email, conectadas por um traço,
+// com rótulo de status explícito embaixo de cada uma (não dá pra confundir enviado x pendente).
 function EnvioStepper({ envios }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-      {envios.map((e, i) => {
-        const conf = ENVIO_DOT_CONFIG[e.status] || ENVIO_DOT_CONFIG.pendente
-        return (
-          <div key={e.id} style={{ display: 'flex', alignItems: 'center', flex: i === envios.length - 1 ? '0 0 auto' : 1 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <div title={e.erro || ''} style={{ width: 24, height: 24, borderRadius: '50%', background: conf.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {conf.icon}
+    <div>
+      <div style={{ marginBottom: 10 }}><ProgressoResumo envios={envios} /></div>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        {envios.map((e, i) => {
+          const conf = ENVIO_DOT_CONFIG[e.status] || ENVIO_DOT_CONFIG.pendente
+          const data = new Date(e.status === 'enviado' ? (e.enviado_em || e.scheduled_for) : e.scheduled_for).toLocaleDateString('pt-BR')
+          return (
+            <div key={e.id} style={{ display: 'flex', alignItems: 'center', flex: i === envios.length - 1 ? '0 0 auto' : 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div title={e.erro || ''} style={{ width: 26, height: 26, borderRadius: '50%', background: conf.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: e.status === 'enviado' ? '0 0 0 3px rgba(16,185,129,0.15)' : 'none' }}>
+                  {conf.icon}
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 600, color: conf.textColor, whiteSpace: 'nowrap' }}>
+                  {conf.label}
+                </span>
+                <span style={{ fontSize: 9, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                  Email {i + 1} · {data}
+                </span>
               </div>
-              <span style={{ fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
-                Email {i + 1}{e.status === 'pendente' ? ` · ${new Date(e.scheduled_for).toLocaleDateString('pt-BR')}` : ''}
-              </span>
+              {i < envios.length - 1 && <div style={{ flex: 1, height: 2, background: envios[i].status === 'enviado' ? '#10B981' : 'var(--border)', margin: '0 4px', minWidth: 16, marginTop: 13 }} />}
             </div>
-            {i < envios.length - 1 && <div style={{ flex: 1, height: 2, background: 'var(--border)', margin: '0 4px', minWidth: 16 }} />}
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -455,8 +485,8 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
               <div key={en.id} className="card" style={{ padding: '14px 18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{lead ? leadName(lead) : 'Lead removido'}</span>
-                  <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 20, background: en.status === 'ativo' ? '#fff3cd' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)', color: en.status === 'ativo' ? '#92740c' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)' }}>
-                    {en.status}
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20, background: en.status === 'ativo' ? '#fff3cd' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)', color: en.status === 'ativo' ? '#92740c' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)' }}>
+                    {en.status === 'ativo' ? 'Em andamento' : en.status === 'concluido' ? 'Concluído' : 'Cancelado'}
                   </span>
                 </div>
                 <EnvioStepper envios={meusEnvios} />
@@ -489,6 +519,7 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
     const { data: steps } = await supabase.from('email_automation_steps').select('*').order('ordem', { ascending: true })
     const { data: triggers } = await supabase.from('email_automation_triggers').select('*')
     const { data: enrollCounts } = await supabase.from('email_automation_enrollments').select('automation_id, status')
+    const { data: envioCounts } = await supabase.from('email_automation_envios').select('automation_id, status')
     const stepsByAuto = {}
     ;(steps || []).forEach(s => { (stepsByAuto[s.automation_id] = stepsByAuto[s.automation_id] || []).push(s) })
     const triggersByAuto = {}
@@ -499,7 +530,20 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
       c.total++
       if (e.status === 'ativo') c.ativos++
     })
-    setAutomacoes((autos || []).map(a => ({ ...a, steps: stepsByAuto[a.id] || [], triggers: triggersByAuto[a.id] || [], counts: countsByAuto[a.id] || { total: 0, ativos: 0 } })))
+    const envioCountsByAuto = {}
+    ;(envioCounts || []).forEach(e => {
+      const c = envioCountsByAuto[e.automation_id] || (envioCountsByAuto[e.automation_id] = { enviados: 0, pendentes: 0, falhas: 0 })
+      if (e.status === 'enviado') c.enviados++
+      else if (e.status === 'pendente') c.pendentes++
+      else if (e.status === 'falhou') c.falhas++
+    })
+    setAutomacoes((autos || []).map(a => ({
+      ...a,
+      steps: stepsByAuto[a.id] || [],
+      triggers: triggersByAuto[a.id] || [],
+      counts: countsByAuto[a.id] || { total: 0, ativos: 0 },
+      envioCounts: envioCountsByAuto[a.id] || { enviados: 0, pendentes: 0, falhas: 0 },
+    })))
     setLoading(false)
   }, [])
 
@@ -568,8 +612,23 @@ export default function EmailAutomacoes({ empresas = [], cnaesDisponiveis = [] }
                   {a.segmento_tags?.length ? ` · tags: ${a.segmento_tags.join(', ')}` : ''}
                   {a.cnae_filtro?.length ? ` · segmento: ${a.cnae_filtro.join(', ')}` : ''}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                  {a.counts.total} matriculado(s) · {a.counts.ativos} em andamento
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                    {a.counts.total} matriculado(s) · {a.counts.ativos} em andamento
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#10B981' }}>
+                    <IconCheck size={11} color="#10B981" /> {a.envioCounts.enviados} enviado(s)
+                  </span>
+                  {a.envioCounts.pendentes > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>
+                      <IconClock size={11} color="var(--text3)" /> {a.envioCounts.pendentes} agendado(s)
+                    </span>
+                  )}
+                  {a.envioCounts.falhas > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#EF4444' }}>
+                      <IconX size={11} color="#EF4444" /> {a.envioCounts.falhas} falhou(falharam)
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
