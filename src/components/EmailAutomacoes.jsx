@@ -103,6 +103,16 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState(null)
 
+  const segmentoCount = useMemo(() => {
+    return empresas.filter(e => {
+      if (!e.email?.includes('@') || e.email_opt_out) return false
+      if (origemFiltro.length && !origemFiltro.includes(e.origem)) return false
+      if (segmentoTags.length && !(e.tags || []).some(t => segmentoTags.includes(t))) return false
+      if (cnaeFiltro.length && !cnaeFiltro.includes(e.cnae_principal_descricao)) return false
+      return true
+    }).length
+  }, [empresas, origemFiltro, segmentoTags, cnaeFiltro])
+
   function toggleOrigem(v) {
     setOrigemFiltro(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
   }
@@ -294,9 +304,13 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
                     ))}
                   </div>
                 </div>
-                <div>
+                <div style={{ marginBottom: 14 }}>
                   <label style={labelStyle}>Segmento/CNAE (vazio = qualquer segmento)</label>
                   <CnaeFilter allCnaes={cnaesDisponiveis} cnaeFilter={cnaeFiltro} setCnaeFilter={setCnaeFiltro} label="Selecionar segmentos" />
+                </div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, background: 'var(--bg2)', border: '1px solid var(--border)', fontSize: 12, fontWeight: 600, color: segmentoCount > 0 ? 'var(--accent)' : 'var(--text3)' }}>
+                  <IconMail size={12} color={segmentoCount > 0 ? 'var(--accent)' : 'var(--text3)'} />
+                  {segmentoCount} lead{segmentoCount !== 1 ? 's' : ''} com email bate{segmentoCount !== 1 ? 'm' : ''} com esse filtro agora
                 </div>
               </>
             ) : (
