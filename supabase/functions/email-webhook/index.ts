@@ -76,8 +76,11 @@ serve(async (req) => {
       await marcar('clicado_em', new Date().toISOString())
     } else if (event.type === 'email.delivered') {
       await marcar('entregue_em', new Date().toISOString())
-    } else if (event.type === 'email.bounced') {
-      const motivo = String(event.data?.bounce?.message || event.data?.reason || 'Email rejeitado pelo destinatário (bounce)').slice(0, 500)
+    } else if (event.type === 'email.bounced' || event.type === 'email.failed' || event.type === 'email.suppressed') {
+      // failed (Resend não conseguiu enviar) e suppressed (endereço já está
+      // na lista de suprimidos do Resend, geralmente por bounce anterior) na
+      // prática significam a mesma coisa pro usuário: o email não chegou.
+      const motivo = String(event.data?.bounce?.message || event.data?.reason || `Email não entregue (${event.type}).`).slice(0, 500)
       await marcar('bounced_em', new Date().toISOString(), { bounce_motivo: motivo })
       await marcarLeadOptOut(emailId)
     } else if (event.type === 'email.complained') {
