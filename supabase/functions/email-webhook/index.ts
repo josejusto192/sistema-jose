@@ -1,8 +1,10 @@
-// Recebe webhooks do Resend (email.opened / email.clicked) e atualiza o
-// envio correspondente em email_campaign_envios, casando pelo resend_id
-// salvo em email-send. Resend assina o payload no formato Svix
-// (svix-id/svix-timestamp/svix-signature) — validamos antes de processar
-// pra não deixar qualquer um forjar "abertura" de campanha.
+// Recebe webhooks do Resend (opened/clicked/bounced/complained/delivered) e
+// atualiza o envio correspondente em email_campaign_envios e/ou
+// email_automation_envios, casando pelo resend_id salvo no envio. Resend
+// assina o payload no formato Svix (svix-id/svix-timestamp/svix-signature)
+// — validamos antes de processar pra não deixar qualquer um forjar eventos.
+// IMPORTANTE: os tipos de evento abaixo só chegam aqui se estiverem
+// marcados no webhook configurado no painel do Resend (Webhooks > eventos).
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -29,6 +31,17 @@ async function verifySignature(secret: string, svixId: string, svixTimestamp: st
   return svixSignature.split(' ').some(part => part.split(',')[1] === expected)
 }
 
+// Bounce/reclamação de spam: endereço inválido ou que não nos quer mais.
+// Continuar tentando enviar pra ele só prejudica a reputação do remetente —
+// descadastra automaticamente, igual ao link de descadastro no rodapé.
+async function marcarLeadOptOut(emailId: string) {
+  const { data: envioCampanha } = await db.from('email_campaign_envios').select('lead_id').eq('resend_id', emailId).maybeSingle()
+  const { data: envioAutomacao } = await db.from('email_automation_envios').select('lead_id').eq('resend_id', emailId).maybeSingle()
+  const leadId = envioCampanha?.lead_id || envioAutomacao?.lead_id
+  if (!leadId) return
+  await db.from('leads').update({ email_opt_out: true, email_opt_out_em: new Date().toISOString() }).eq('id', leadId)
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') return new Response('method_not_allowed', { status: 405 })
 
@@ -49,10 +62,27 @@ serve(async (req) => {
     const emailId = event.data?.email_id
     if (!emailId) return new Response('ok', { status: 200 })
 
+    // O resend_id pode ter sido salvo numa campanha manual antiga ou numa
+    // automação atual — aplica em ambas as tabelas (a que não tiver o envio
+    // simplesmente não atualiza nenhuma linha).
+    async function marcar(coluna: string, valor: unknown, extra: Record<string, unknown> = {}) {
+      await db.from('email_campaign_envios').update({ [coluna]: valor, ...extra }).eq('resend_id', emailId).is(coluna, null)
+      await db.from('email_automation_envios').update({ [coluna]: valor, ...extra }).eq('resend_id', emailId).is(coluna, null)
+    }
+
     if (event.type === 'email.opened') {
-      await db.from('email_campaign_envios').update({ aberto_em: new Date().toISOString() }).eq('resend_id', emailId).is('aberto_em', null)
+      await marcar('aberto_em', new Date().toISOString())
     } else if (event.type === 'email.clicked') {
-      await db.from('email_campaign_envios').update({ clicado_em: new Date().toISOString() }).eq('resend_id', emailId).is('clicado_em', null)
+      await marcar('clicado_em', new Date().toISOString())
+    } else if (event.type === 'email.delivered') {
+      await marcar('entregue_em', new Date().toISOString())
+    } else if (event.type === 'email.bounced') {
+      const motivo = String(event.data?.bounce?.message || event.data?.reason || 'Email rejeitado pelo destinatário (bounce)').slice(0, 500)
+      await marcar('bounced_em', new Date().toISOString(), { bounce_motivo: motivo })
+      await marcarLeadOptOut(emailId)
+    } else if (event.type === 'email.complained') {
+      await marcar('reclamado_em', new Date().toISOString())
+      await marcarLeadOptOut(emailId)
     }
 
     return new Response('ok', { status: 200 })

@@ -448,6 +448,17 @@ const ENVIO_DOT_CONFIG = {
   falhou:    { bg: '#EF4444', icon: <IconX size={11} color="#fff" />,    label: 'Falhou',     textColor: '#EF4444' },
   cancelado: { bg: '#9CA3AF', icon: <IconX size={11} color="#fff" />,    label: 'Cancelado',  textColor: 'var(--text3)' },
   pendente:  { bg: 'var(--bg3)', icon: <IconClock size={10} color="var(--text3)" />, label: 'Agendado', textColor: 'var(--text3)' },
+  rejeitado: { bg: '#B91C1C', icon: <IconX size={11} color="#fff" />,    label: 'Rejeitado (bounce)', textColor: '#B91C1C' },
+  spam:      { bg: '#B91C1C', icon: <IconX size={11} color="#fff" />,    label: 'Marcado como spam',  textColor: '#B91C1C' },
+}
+
+// O Resend aceita o envio (status fica "enviado") mas bounce/reclamação de
+// spam acontecem depois, de forma assíncrona — usa as colunas preenchidas
+// pelo webhook pra refletir isso, já que "enviado" sozinho seria enganoso.
+function statusVisual(e) {
+  if (e.status === 'enviado' && e.bounced_em) return 'rejeitado'
+  if (e.status === 'enviado' && e.reclamado_em) return 'spam'
+  return e.status
 }
 
 // Resumo do progresso de um lead na sequência: "2 de 3 emails enviados" + barra.
@@ -480,9 +491,10 @@ function EnvioStepper({ envios, erroAberto, onToggleErro }) {
       <div style={{ marginBottom: 10 }}><ProgressoResumo envios={envios} /></div>
       <div style={{ display: 'flex', alignItems: 'flex-start' }}>
         {envios.map((e, i) => {
-          const conf = ENVIO_DOT_CONFIG[e.status] || ENVIO_DOT_CONFIG.pendente
+          const status = statusVisual(e)
+          const conf = ENVIO_DOT_CONFIG[status] || ENVIO_DOT_CONFIG.pendente
           const data = new Date(e.status === 'enviado' ? (e.enviado_em || e.scheduled_for) : e.scheduled_for).toLocaleDateString('pt-BR')
-          const clicavel = e.status === 'falhou' && e.erro
+          const clicavel = (e.status === 'falhou' && e.erro) || status === 'rejeitado' || status === 'spam'
           return (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', flex: i === envios.length - 1 ? '0 0 auto' : 1 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -510,7 +522,13 @@ function EnvioStepper({ envios, erroAberto, onToggleErro }) {
       </div>
       {erroAberto && (
         <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, fontSize: 11, color: '#EF4444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflowY: 'auto' }}>
-          {envios.find(e => e.id === erroAberto)?.erro || 'Erro não registrado.'}
+          {(() => {
+            const e = envios.find(e => e.id === erroAberto)
+            if (!e) return 'Erro não registrado.'
+            if (e.bounced_em) return `Bounce: ${e.bounce_motivo || 'endereço rejeitou o email (provavelmente inválido).'}`
+            if (e.reclamado_em) return 'O destinatário marcou este email como spam. O lead foi descadastrado automaticamente.'
+            return e.erro || 'Erro não registrado.'
+          })()}
         </div>
       )}
     </div>
