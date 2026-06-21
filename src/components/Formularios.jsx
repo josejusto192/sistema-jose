@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase.js'
 import { IconPlus, IconEdit, IconTrash, IconCheck, IconX, IconLink, IconFileText, IconArrowLeft } from './Icons.jsx'
+import { useDialog } from './Dialog.jsx'
 
 const TIPOS = [
   { value: 'briefing',  label: 'Briefing' },
@@ -133,6 +134,7 @@ function CampoEditor({ campo, onChange, onRemove, index }) {
 
 // ─── Editor de Formulário ─────────────────────────────────────────────────────
 function FormEditor({ form, onSave, onCancel }) {
+  const { notifyError } = useDialog()
   const isNew = !form?.id
   const [titulo, setTitulo] = useState(form?.titulo || '')
   const [descricao, setDescricao] = useState(form?.descricao || '')
@@ -173,7 +175,7 @@ function FormEditor({ form, onSave, onCancel }) {
       error = err
       if (!err) onSave({ ...form, ...payload })
     }
-    if (error) alert('Erro ao salvar: ' + error.message)
+    if (error) notifyError('Erro ao salvar: ' + error.message)
     setSaving(false)
   }
 
@@ -483,6 +485,7 @@ function RespostasViewer({ form, onBack }) {
 
 // ─── Principal ────────────────────────────────────────────────────────────────
 export default function Formularios() {
+  const { confirmDialog } = useDialog()
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)   // null = list, {} = new, form = edit
@@ -501,7 +504,8 @@ export default function Formularios() {
   useEffect(() => { load() }, [load])
 
   async function handleDelete(f) {
-    if (!confirm(`Excluir "${f.titulo}"? As respostas também serão apagadas.`)) return
+    const ok = await confirmDialog(`Excluir "${f.titulo}"? As respostas também serão apagadas.`, { title: 'Excluir formulário', danger: true, confirmLabel: 'Excluir' })
+    if (!ok) return
     await supabase.from('formularios').delete().eq('id', f.id)
     setForms(prev => prev.filter(x => x.id !== f.id))
   }

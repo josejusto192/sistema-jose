@@ -7,6 +7,7 @@ import { supabase } from '../supabase.js'
 import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck, IconCopy, IconX, IconHistory, IconPlus, IconTrash, IconEdit, IconClock, IconSearch } from './Icons.jsx'
 import { TASK_TYPES } from './Agenda.jsx'
 import { consultarCnpj, mapCnpjToLead, API_KEY } from '../lib/casaDados.js'
+import { useDialog } from './Dialog.jsx'
 
 function parseDate(str) {
   if (!str) return null
@@ -56,6 +57,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const theme = useTheme()
   const isSuperAdmin = useIsSuperAdmin()
   const isMobile = useIsMobile()
+  const { notifyError } = useDialog()
   const [status, setStatus] = useState(lead.status_prospeccao || 'novo')
   const [vendedorId, setVendedorId] = useState(lead.vendedor_id || '')
   const [vendedores, setVendedores] = useState([])
@@ -191,14 +193,14 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
     setTags(updated)
     setTagInput('')
     const ok = await onUpdate(lead.id, { tags: updated })
-    if (!ok) { setTags(tags); alert('Não foi possível salvar a tag. Tente novamente.') }
+    if (!ok) { setTags(tags); notifyError('Não foi possível salvar a tag. Tente novamente.') }
   }
 
   async function removeTag(tag) {
     const updated = tags.filter(t => t !== tag)
     setTags(updated)
     const ok = await onUpdate(lead.id, { tags: updated })
-    if (!ok) { setTags(tags); alert('Não foi possível remover a tag. Tente novamente.') }
+    if (!ok) { setTags(tags); notifyError('Não foi possível remover a tag. Tente novamente.') }
   }
 
   const cnpjFormatado = lead.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')

@@ -3,6 +3,7 @@ import { useIsSuperAdmin, useProfile } from '../App.jsx'
 import { IconSearch, IconPlus, IconCheck } from './Icons.jsx'
 import { CNAES as CNAES_FALLBACK } from '../data/cnaes.js'
 import { API_KEY, API_BUSCA_URL, API_CONSULTA_URL, consultarCnpj, mapCnpjToLead } from '../lib/casaDados.js'
+import { useDialog } from './Dialog.jsx'
 
 export { API_KEY, API_BUSCA_URL, API_CONSULTA_URL, consultarCnpj, mapCnpjToLead }
 
@@ -271,6 +272,7 @@ function MunicipioPicker({ ufs, value, onChange }) {
 export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profiles = [] }) {
   const isSuperAdmin = useIsSuperAdmin()
   const profile      = useProfile()
+  const { confirmDialog, notify, notifyError } = useDialog()
 
   const [form, setForm]           = useState(EMPTY_FORM)
   const [results, setResults]     = useState([])
@@ -374,7 +376,13 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
 
   async function saveAll() {
     if (!total) return
-    if (totalPages > 1 && !confirm(`Isso vai importar até ${total.toLocaleString('pt-BR')} empresas, percorrendo todas as ${totalPages} páginas do resultado. Pode demorar um pouco. Continuar?`)) return
+    if (totalPages > 1) {
+      const ok = await confirmDialog(
+        `Isso vai importar até ${total.toLocaleString('pt-BR')} empresas, percorrendo todas as ${totalPages} páginas do resultado. Pode demorar um pouco. Continuar?`,
+        { title: 'Salvar todos os resultados', confirmLabel: 'Salvar todos' }
+      )
+      if (!ok) return
+    }
     const formSnapshot    = form
     const pageSnapshot    = page
     const resultsSnapshot = results

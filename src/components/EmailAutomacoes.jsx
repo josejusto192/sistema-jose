@@ -4,6 +4,7 @@ import { leadName, STATUS_CONFIG } from '../constants.js'
 import { IconPlus, IconTrash, IconArrowLeft, IconCheck, IconZap, IconFilter, IconFlag, IconMail, IconClock, IconX } from './Icons.jsx'
 import CnaeFilter from './CnaeFilter.jsx'
 import SeletorDestinatarios from './SeletorDestinatarios.jsx'
+import { useDialog } from './Dialog.jsx'
 
 const ORIGENS = [
   { value: 'manual',         label: 'Manual (app)' },
@@ -558,6 +559,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
 
 /* ─── Lista ────────────────────────────────────────────────────────────────── */
 export default function EmailAutomacoes({ empresas = [] }) {
+  const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
   const [automacoes, setAutomacoes] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -615,22 +617,31 @@ export default function EmailAutomacoes({ empresas = [] }) {
   const [matriculando, setMatriculando] = useState(null) // id da automação rodando "iniciar agora"
 
   async function iniciarAgora(a) {
-    if (!confirm(`Matricular agora os leads que já existem e batem com o público de "${a.nome}"? Quem já estiver matriculado não é duplicado.`)) return
+    const ok = await confirmDialog(
+      `Matricular agora os leads que já existem e batem com o público de "${a.nome}"? Quem já estiver matriculado não é duplicado.`,
+      { title: 'Iniciar campanha agora' }
+    )
+    if (!ok) return
     setMatriculando(a.id)
     try {
       const { data: count, error } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: a.id })
       if (error) throw error
-      alert(`${count} lead(s) existente(s) matriculado(s) na sequência.`)
+      if (count > 0) {
+        notifySuccess(`${count} novo(s) lead(s) matriculado(s) agora na sequência.`)
+      } else {
+        notify(`Nenhum lead novo para matricular: todos os leads que batem com o público de "${a.nome}" já estavam matriculados (${a.counts?.total || 0} no total).`)
+      }
       fetchAutomacoes()
     } catch (e) {
-      alert('Erro ao matricular leads: ' + (e.message || e))
+      notifyError('Erro ao matricular leads: ' + (e.message || e))
     } finally {
       setMatriculando(null)
     }
   }
 
   async function excluir(id) {
-    if (!confirm('Excluir esta campanha? Leads já matriculados deixarão de receber os próximos emails da sequência.')) return
+    const ok = await confirmDialog('Excluir esta campanha? Leads já matriculados deixarão de receber os próximos emails da sequência.', { title: 'Excluir campanha', danger: true, confirmLabel: 'Excluir' })
+    if (!ok) return
     await supabase.from('email_automations').delete().eq('id', id)
     fetchAutomacoes()
   }
@@ -650,7 +661,10 @@ export default function EmailAutomacoes({ empresas = [] }) {
         onCancel={() => { setShowForm(false); setEditando(null) }}
         onSaved={(matriculados) => {
           setShowForm(false); setEditando(null); fetchAutomacoes()
-          if (matriculados !== null) alert(`${matriculados} lead(s) existente(s) matriculado(s) na sequência.`)
+          if (matriculados !== null) {
+            if (matriculados > 0) notifySuccess(`${matriculados} lead(s) já existente(s) matriculado(s) na sequência.`)
+            else notify('Nenhum lead existente bate com o público da campanha por enquanto. Novos leads que baterem com o filtro serão matriculados automaticamente.')
+          }
         }}
       />
     )
