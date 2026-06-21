@@ -485,7 +485,7 @@ function ProgressoResumo({ envios }) {
 
 // Linha do tempo visual dos envios de um lead matriculado: bolinha por email, conectadas por um traço,
 // com rótulo de status explícito embaixo de cada uma (não dá pra confundir enviado x pendente).
-function EnvioStepper({ envios, erroAberto, onToggleErro }) {
+function EnvioStepper({ envios, detalheAberto, onToggleDetalhe }) {
   return (
     <div>
       <div style={{ marginBottom: 10 }}><ProgressoResumo envios={envios} /></div>
@@ -494,12 +494,12 @@ function EnvioStepper({ envios, erroAberto, onToggleErro }) {
           const status = statusVisual(e)
           const conf = ENVIO_DOT_CONFIG[status] || ENVIO_DOT_CONFIG.pendente
           const data = new Date(e.status === 'enviado' ? (e.enviado_em || e.scheduled_for) : e.scheduled_for).toLocaleDateString('pt-BR')
-          const clicavel = (e.status === 'falhou' && e.erro) || status === 'rejeitado' || status === 'spam'
+          const clicavel = !!(e.assunto_gerado || e.corpo_gerado || e.prompt_ia || e.erro)
           return (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', flex: i === envios.length - 1 ? '0 0 auto' : 1 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                 <button
-                  onClick={() => clicavel && onToggleErro(e.id)}
+                  onClick={() => clicavel && onToggleDetalhe(e.id)}
                   style={{
                     width: 26, height: 26, borderRadius: '50%', background: conf.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     boxShadow: e.status === 'enviado' ? '0 0 0 3px rgba(16,185,129,0.15)' : (clicavel ? '0 0 0 3px rgba(239,68,68,0.18)' : 'none'),
@@ -509,7 +509,7 @@ function EnvioStepper({ envios, erroAberto, onToggleErro }) {
                   {conf.icon}
                 </button>
                 <span style={{ fontSize: 10, fontWeight: 600, color: conf.textColor, whiteSpace: 'nowrap' }}>
-                  {conf.label}{clicavel ? ' · ver erro' : ''}
+                  {conf.label}{clicavel ? ' · ver detalhes' : ''}
                 </span>
                 <span style={{ fontSize: 9, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                   Email {i + 1} · {data}
@@ -520,17 +520,48 @@ function EnvioStepper({ envios, erroAberto, onToggleErro }) {
           )
         })}
       </div>
-      {erroAberto && (
-        <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, fontSize: 11, color: '#EF4444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflowY: 'auto' }}>
-          {(() => {
-            const e = envios.find(e => e.id === erroAberto)
-            if (!e) return 'Erro não registrado.'
-            if (e.bounced_em) return `Bounce: ${e.bounce_motivo || 'endereço rejeitou o email (provavelmente inválido).'}`
-            if (e.reclamado_em) return 'O destinatário marcou este email como spam. O lead foi descadastrado automaticamente.'
-            return e.erro || 'Erro não registrado.'
-          })()}
-        </div>
-      )}
+      {detalheAberto && (() => {
+        const e = envios.find(e => e.id === detalheAberto)
+        if (!e) return null
+        return (
+          <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}>
+            {(e.bounced_em || e.reclamado_em || (e.status === 'falhou' && e.erro)) && (
+              <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#EF4444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto' }}>
+                {e.bounced_em
+                  ? `Bounce: ${e.bounce_motivo || 'endereço rejeitou o email (provavelmente inválido).'}`
+                  : e.reclamado_em
+                  ? 'O destinatário marcou este email como spam. O lead foi descadastrado automaticamente.'
+                  : e.erro}
+              </div>
+            )}
+            {e.assunto_gerado && (
+              <div style={{ marginBottom: 10 }}>
+                <strong style={{ color: 'var(--text2)' }}>Assunto: </strong>
+                <span style={{ color: 'var(--text)' }}>{e.assunto_gerado}</span>
+              </div>
+            )}
+            {e.corpo_gerado && (
+              <details style={{ marginBottom: e.prompt_ia ? 10 : 0 }}>
+                <summary style={{ cursor: 'pointer', color: 'var(--text2)', fontWeight: 600 }}>Email enviado</summary>
+                <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                  <iframe sandbox="" srcDoc={e.corpo_gerado} title="Email enviado" style={{ width: '100%', height: 280, border: 'none', background: '#fff' }} />
+                </div>
+              </details>
+            )}
+            {e.prompt_ia && (
+              <details>
+                <summary style={{ cursor: 'pointer', color: 'var(--text2)', fontWeight: 600 }}>Prompt enviado à IA</summary>
+                <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg3)', borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflowY: 'auto', color: 'var(--text2)' }}>
+                  {e.prompt_ia}
+                </div>
+              </details>
+            )}
+            {!e.assunto_gerado && !e.corpo_gerado && !e.prompt_ia && !e.erro && !e.bounced_em && !e.reclamado_em && (
+              <div style={{ color: 'var(--text3)' }}>Nenhum detalhe registrado pra este envio ainda.</div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -542,7 +573,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
-  const [erroAberto, setErroAberto] = useState(null) // id do envio cujo erro está expandido
+  const [detalheAberto, setDetalheAberto] = useState(null) // id do envio cujos detalhes estão expandidos
   const leadById = useState(() => new Map(empresas.map(e => [e.id, e])))[0]
 
   const carregar = useCallback(async () => {
@@ -638,8 +669,8 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
                 </div>
                 <EnvioStepper
                   envios={meusEnvios}
-                  erroAberto={meusEnvios.some(e => e.id === erroAberto) ? erroAberto : null}
-                  onToggleErro={id => setErroAberto(prev => prev === id ? null : id)}
+                  detalheAberto={meusEnvios.some(e => e.id === detalheAberto) ? detalheAberto : null}
+                  onToggleDetalhe={id => setDetalheAberto(prev => prev === id ? null : id)}
                 />
               </div>
             )
