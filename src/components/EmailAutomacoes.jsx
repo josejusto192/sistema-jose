@@ -592,6 +592,56 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
 
   const falhas = envios.filter(e => e.status === 'falhou')
 
+  const metrics = useMemo(() => {
+    const total = enrollments.length
+    const ativos = enrollments.filter(e => e.status === 'ativo').length
+    const concluidos = enrollments.filter(e => e.status === 'concluido').length
+    const cancelados = enrollments.filter(e => e.status === 'cancelado').length
+    const enviados = envios.filter(e => e.status === 'enviado').length
+    const entregues = envios.filter(e => e.entregue_em).length
+    const abertos = envios.filter(e => e.aberto_em).length
+    const clicados = envios.filter(e => e.clicado_em).length
+    const rejeitados = envios.filter(e => e.bounced_em || e.reclamado_em).length
+    const pct = (n, d) => d ? Math.round((n / d) * 100) : 0
+    return {
+      total, ativos, concluidos, cancelados, enviados, entregues, abertos, clicados, rejeitados,
+      taxaAbertura: pct(abertos, enviados), taxaClique: pct(clicados, enviados), taxaRejeicao: pct(rejeitados, enviados),
+    }
+  }, [enrollments, envios])
+
+  // Funil por etapa da sequência: quantos leads chegaram/abriram/clicaram em cada email,
+  // pra ver onde a sequência perde gente (em vez de só uma contagem geral).
+  const funilEtapas = useMemo(() => {
+    return (automacao.steps || []).map(step => {
+      const desteStep = envios.filter(e => e.step_id === step.id)
+      return {
+        ordem: step.ordem,
+        usar_ia: step.usar_ia,
+        total: desteStep.length,
+        enviados: desteStep.filter(e => e.status === 'enviado').length,
+        abertos: desteStep.filter(e => e.aberto_em).length,
+        clicados: desteStep.filter(e => e.clicado_em).length,
+        falhas: desteStep.filter(e => e.status === 'falhou').length,
+        rejeitados: desteStep.filter(e => e.bounced_em || e.reclamado_em).length,
+      }
+    })
+  }, [automacao.steps, envios])
+
+  const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [busca, setBusca] = useState('')
+
+  const enrollmentsFiltrados = useMemo(() => {
+    return enrollments.filter(en => {
+      if (filtroStatus !== 'todos' && en.status !== filtroStatus) return false
+      if (busca.trim()) {
+        const lead = leadById.get(en.lead_id)
+        const nome = lead ? leadName(lead) : ''
+        if (!nome.toLowerCase().includes(busca.trim().toLowerCase())) return false
+      }
+      return true
+    })
+  }, [enrollments, filtroStatus, busca, leadById])
+
   async function tentarNovamente() {
     if (!falhas.length) return
     const ok = await confirmDialog(
@@ -646,37 +696,130 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
       {enrollments.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Nenhum lead matriculado ainda. Leads novos que baterem com o filtro entram automaticamente.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {enrollments.map(en => {
-            const lead = leadById.get(en.lead_id)
-            const meusEnvios = envios.filter(e => e.enrollment_id === en.id).sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for))
-            return (
-              <div key={en.id} className="card" style={{ padding: '14px 18px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  {lead ? (
-                    <button
-                      onClick={() => onOpenLead?.(lead)}
-                      style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
-                    >
-                      {leadName(lead)}
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Lead removido</span>
-                  )}
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20, background: en.status === 'ativo' ? '#fff3cd' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)', color: en.status === 'ativo' ? '#92740c' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)' }}>
-                    {en.status === 'ativo' ? 'Em andamento' : en.status === 'concluido' ? 'Concluído' : 'Cancelado'}
-                  </span>
-                </div>
-                <EnvioStepper
-                  envios={meusEnvios}
-                  detalheAberto={meusEnvios.some(e => e.id === detalheAberto) ? detalheAberto : null}
-                  onToggleDetalhe={id => setDetalheAberto(prev => prev === id ? null : id)}
-                />
-              </div>
-            )
-          })}
-        </div>
+        <>
+          <MetricasResumo metrics={metrics} />
+          {funilEtapas.length > 0 && <FunilEtapas etapas={funilEtapas} />}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 12px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: 0, flex: 1 }}>Leads matriculados ({enrollmentsFiltrados.length})</h3>
+            <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}>
+              <option value="todos">Todos os status</option>
+              <option value="ativo">Em andamento</option>
+              <option value="concluido">Concluído</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+            <input
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar lead..."
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', width: 180 }}
+            />
+          </div>
+
+          {enrollmentsFiltrados.length === 0 ? (
+            <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Nenhum lead bate com esse filtro.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {enrollmentsFiltrados.map(en => {
+                const lead = leadById.get(en.lead_id)
+                const meusEnvios = envios.filter(e => e.enrollment_id === en.id).sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for))
+                return (
+                  <div key={en.id} className="card" style={{ padding: '14px 18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      {lead ? (
+                        <button
+                          onClick={() => onOpenLead?.(lead)}
+                          style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+                        >
+                          {leadName(lead)}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Lead removido</span>
+                      )}
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20, background: en.status === 'ativo' ? '#fff3cd' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)', color: en.status === 'ativo' ? '#92740c' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)' }}>
+                        {en.status === 'ativo' ? 'Em andamento' : en.status === 'concluido' ? 'Concluído' : 'Cancelado'}
+                      </span>
+                    </div>
+                    <EnvioStepper
+                      envios={meusEnvios}
+                      detalheAberto={meusEnvios.some(e => e.id === detalheAberto) ? detalheAberto : null}
+                      onToggleDetalhe={id => setDetalheAberto(prev => prev === id ? null : id)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
+    </div>
+  )
+}
+
+/* ─── Dashboard da campanha: métricas + funil por etapa ─────────────────────── */
+function MetricasResumo({ metrics: m }) {
+  const cards = [
+    { label: 'Matriculados', valor: m.total, cor: 'var(--text)' },
+    { label: 'Em andamento', valor: m.ativos, cor: '#92740c' },
+    { label: 'Concluídos', valor: m.concluidos, cor: '#1e7e34' },
+    { label: 'Enviados', valor: m.enviados, cor: 'var(--text)' },
+    { label: 'Abertos', valor: m.abertos, sub: `${m.taxaAbertura}% dos enviados`, cor: '#2563EB' },
+    { label: 'Clicados', valor: m.clicados, sub: `${m.taxaClique}% dos enviados`, cor: '#7C3AED' },
+    { label: 'Rejeitados', valor: m.rejeitados, sub: `${m.taxaRejeicao}% dos enviados · bounce/spam`, cor: '#B91C1C' },
+  ]
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 20 }}>
+      {cards.map(c => (
+        <div key={c.label} className="card" style={{ padding: '12px 14px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{c.label}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: c.cor }}>{c.valor}</div>
+          {c.sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{c.sub}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Funil de cada email da sequência: quantos chegaram a esse passo, foram
+// enviados, abriram, clicaram ou tiveram problema — mostra onde a sequência
+// perde gente, em vez de só uma contagem geral da campanha.
+function FunilEtapas({ etapas }) {
+  return (
+    <div className="card" style={{ padding: '14px 18px', marginBottom: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Funil por email da sequência</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {etapas.map(et => {
+          const base = et.total || 1
+          const segmentos = [
+            { label: 'Enviado', valor: et.enviados, cor: '#10B981' },
+            { label: 'Aberto', valor: et.abertos, cor: '#2563EB' },
+            { label: 'Clicado', valor: et.clicados, cor: '#7C3AED' },
+            { label: 'Falhou', valor: et.falhas, cor: '#EF4444' },
+            { label: 'Bounce/Spam', valor: et.rejeitados, cor: '#B91C1C' },
+          ]
+          return (
+            <div key={et.ordem}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Email {et.ordem}{et.usar_ia ? ' (IA)' : ''}</span>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{et.total} agendado(s)</span>
+              </div>
+              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--bg3)', marginBottom: 6 }}>
+                {segmentos.filter(s => s.valor > 0).map(s => (
+                  <div key={s.label} style={{ width: `${(s.valor / base) * 100}%`, background: s.cor }} title={`${s.label}: ${s.valor}`} />
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                {segmentos.map(s => (
+                  <span key={s.label} style={{ fontSize: 10, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.cor, display: 'inline-block' }} />
+                    {s.label}: {s.valor}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
