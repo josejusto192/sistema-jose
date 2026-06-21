@@ -25,12 +25,17 @@ serve(async (req) => {
       return json({ ok: true, processados: 0, motivo: 'email marketing não configurado' })
     }
 
+    const { data: automacoesAtivas } = await db.from('email_automations').select('id').eq('ativo', true)
+    const idsAtivos = (automacoesAtivas || []).map(a => a.id)
+    if (!idsAtivos.length) return json({ ok: true, processados: 0, motivo: 'nenhuma campanha ativa' })
+
     const agora = new Date().toISOString()
     const { data: envios } = await db
       .from('email_automation_envios')
       .select('*, email_automation_steps(*), email_automation_enrollments(*)')
       .eq('status', 'pendente')
       .lte('scheduled_for', agora)
+      .in('automation_id', idsAtivos)
       .order('scheduled_for', { ascending: true })
       .limit(BATCH_SIZE)
 
