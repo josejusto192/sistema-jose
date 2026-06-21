@@ -11,7 +11,10 @@ const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const BATCH_SIZE = 15
-const PAUSA_ENTRE_GERACOES_MS = 1200 // evita sobrecarregar a API do Gemini quando há passos de IA
+// O tier gratuito do Gemini limita requisições por minuto (ex.: 15 RPM no
+// gemini-2.0-flash); 1.2s de pausa permitia ~50/min e esgotava a cota em
+// segundos. 4.5s mantém no máx. ~13 chamadas/min, com margem de segurança.
+const PAUSA_ENTRE_GERACOES_MS = 4500
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -49,6 +52,7 @@ serve(async (req) => {
     let enviados = 0
     let falhas = 0
     let cancelados = 0
+    let geracoesIa = 0
 
     for (let i = 0; i < envios.length; i++) {
       const envio = envios[i]
@@ -63,13 +67,13 @@ serve(async (req) => {
       }
 
       try {
-        if (i > 0) await new Promise(r => setTimeout(r, PAUSA_ENTRE_GERACOES_MS))
-
         let assunto: string
         let corpoHtml: string
         let promptIa: string | null = null
 
         if (step.usar_ia) {
+          if (geracoesIa > 0) await new Promise(r => setTimeout(r, PAUSA_ENTRE_GERACOES_MS))
+          geracoesIa++
           if (!cfg.ia_api_key) throw { mensagem: 'Defina a chave da API de IA em Configurações > Email.' }
           const gerado = await gerarEmailComIA(cfg.ia_api_key, cfg.ia_modelo || 'gemini-2.0-flash', cfg.ia_diretrizes || null, step.ia_objetivo || '', lead)
           assunto = gerado.assunto

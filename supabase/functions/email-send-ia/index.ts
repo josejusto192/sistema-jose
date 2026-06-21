@@ -13,7 +13,10 @@ const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const BATCH_SIZE = 8
-const PAUSA_ENTRE_GERACOES_MS = 1200 // evita sobrecarregar a API do Gemini
+// O tier gratuito do Gemini limita requisições por minuto (ex.: 15 RPM no
+// gemini-2.0-flash); 1.2s de pausa permitia ~50/min e esgotava a cota em
+// segundos. 4.5s mantém no máx. ~13 chamadas/min, com margem de segurança.
+const PAUSA_ENTRE_GERACOES_MS = 4500
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
