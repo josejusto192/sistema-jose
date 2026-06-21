@@ -23,6 +23,7 @@ import { notify } from './lib/notifications.js'
 import { useNotifications } from './hooks/useNotifications.js'
 import NotificationBell from './components/NotificationBell.jsx'
 import OnboardingModal from './components/OnboardingModal.jsx'
+import { fetchAllRows } from './lib/fetchAll.js'
 
 export const AppContext = createContext({ theme: 'light', currentUser: '', isSuperAdmin: false, profile: null })
 export const useTheme = () => useContext(AppContext).theme
@@ -146,9 +147,10 @@ export default function App() {
     async function loadLeads() {
       if (!initialLoaded.current) setLoading(true)
       const requestId = ++leadsRequestId.current
-      let q = supabase.from('leads').select('*').order('criado_em', { ascending: false })
-      if (!isAdmin) q = q.eq('vendedor_id', userId)
-      const { data } = await q
+      const data = await fetchAllRows('leads', '*', q => {
+        q = q.order('criado_em', { ascending: false })
+        return isAdmin ? q : q.eq('vendedor_id', userId)
+      })
       // Descarta respostas que chegaram fora de ordem (ex: um fetch antigo que
       // resolve depois de um mais novo) — senão um refetch desatualizado pode
       // sobrescrever uma alteração local mais recente (otimista ou não).
@@ -159,9 +161,10 @@ export default function App() {
     }
 
     async function loadContratos() {
-      let q = supabase.from('contratos').select('*').order('criado_em', { ascending: false })
-      if (!isAdmin) q = q.eq('vendedor_id', userId)
-      const { data } = await q
+      const data = await fetchAllRows('contratos', '*', q => {
+        q = q.order('criado_em', { ascending: false })
+        return isAdmin ? q : q.eq('vendedor_id', userId)
+      })
       if (data) setContratos(data)
     }
 

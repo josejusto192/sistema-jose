@@ -519,25 +519,57 @@ function EnvioStepper({ envios, erroAberto, onToggleErro }) {
 
 /* ─── Detalhe (matrículas/envios) ─────────────────────────────────────────── */
 function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
+  const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
   const [enrollments, setEnrollments] = useState([])
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
+  const [retrying, setRetrying] = useState(false)
   const [erroAberto, setErroAberto] = useState(null) // id do envio cujo erro está expandido
   const leadById = useState(() => new Map(empresas.map(e => [e.id, e])))[0]
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true)
-      const [en, ev] = await Promise.all([
-        fetchAllRows('email_automation_enrollments', '*', ['automation_id', automacao.id]),
-        fetchAllRows('email_automation_envios', '*', ['automation_id', automacao.id]),
-      ])
-      en.sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at))
-      setEnrollments(en)
-      setEnvios(ev)
-      setLoading(false)
-    })()
+  const carregar = useCallback(async () => {
+    setLoading(true)
+    const [en, ev] = await Promise.all([
+      fetchAllRows('email_automation_enrollments', '*', ['automation_id', automacao.id]),
+      fetchAllRows('email_automation_envios', '*', ['automation_id', automacao.id]),
+    ])
+    en.sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at))
+    setEnrollments(en)
+    setEnvios(ev)
+    setLoading(false)
   }, [automacao.id])
+
+  useEffect(() => { carregar() }, [carregar])
+
+  const falhas = envios.filter(e => e.status === 'falhou')
+
+  async function tentarNovamente() {
+    if (!falhas.length) return
+    const ok = await confirmDialog(
+      `Isso vai marcar os ${falhas.length} email(s) que falharam para serem enviados novamente na próxima execução automática (em até 10 min). Útil depois de resolver um problema de crédito/cota da IA ou do provedor de email. Continuar?`,
+      { title: 'Tentar novamente', confirmLabel: 'Tentar novamente' }
+    )
+    if (!ok) return
+    setRetrying(true)
+    try {
+      const agora = new Date().toISOString()
+      const idsEnvios = falhas.map(e => e.id)
+      const { error } = await supabase.from('email_automation_envios')
+        .update({ status: 'pendente', erro: null, scheduled_for: agora })
+        .in('id', idsEnvios)
+      if (error) throw error
+      // Se a falha foi a última pendência do lead, o worker já marcou a matrícula
+      // como "concluído" — reabre essas matrículas para o reenvio não ser ignorado.
+      const idsEnrollments = [...new Set(falhas.map(e => e.enrollment_id))]
+      await supabase.from('email_automation_enrollments').update({ status: 'ativo' }).in('id', idsEnrollments).eq('status', 'concluido')
+      notifySuccess(`${falhas.length} email(s) marcado(s) para tentar novamente.`)
+      await carregar()
+    } catch (e) {
+      notifyError('Erro ao tentar novamente: ' + (e.message || e))
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
 
@@ -546,8 +578,21 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
       <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit' }}>
         <IconArrowLeft size={14} color="var(--text2)" /> Voltar
       </button>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>{automacao.nome}</h2>
-      <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>{enrollments.length} lead(s) matriculado(s)</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>{automacao.nome}</h2>
+          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>{enrollments.length} lead(s) matriculado(s)</div>
+        </div>
+        {falhas.length > 0 && (
+          <button
+            onClick={tentarNovamente}
+            disabled={retrying}
+            style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #EF4444', background: 'none', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+          >
+            {retrying ? 'Reenviando...' : `Tentar novamente (${falhas.length} falha(s))`}
+          </button>
+        )}
+      </div>
 
       {enrollments.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Nenhum lead matriculado ainda. Leads novos que baterem com o filtro entram automaticamente.</div>
