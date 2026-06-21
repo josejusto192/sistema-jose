@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '../supabase.js'
 import { leadName, STATUS_CONFIG } from '../constants.js'
+import { useTheme } from '../App.jsx'
 import { IconPlus, IconTrash, IconArrowLeft, IconCheck, IconZap, IconFilter, IconFlag, IconMail, IconClock, IconX } from './Icons.jsx'
 import CnaeFilter from './CnaeFilter.jsx'
 import SeletorDestinatarios from './SeletorDestinatarios.jsx'
@@ -844,6 +846,78 @@ async function fetchAllRows(table, columns, eqFilter) {
   return all
 }
 
+const SERIES_CHART = [
+  { key: 'enviados',   nome: 'Enviados',   cor: '#2563EB' },
+  { key: 'entregues',  nome: 'Entregues',  cor: '#10B981' },
+  { key: 'abertos',    nome: 'Abertos',    cor: '#7C3AED' },
+  { key: 'rejeitados', nome: 'Rejeitados', cor: '#B91C1C' },
+]
+
+function ChartTooltipEmail({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="card" style={{ padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
+      {payload.map(p => (
+        <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>{p.name}: {p.value}</div>
+      ))}
+    </div>
+  )
+}
+
+// Gráfico de volume de emails por dia (estilo "Metrics" do Resend), com filtro por campanha.
+function EmailMetricasChart({ chartData, automacoes, chartFiltro, onChangeFiltro }) {
+  const theme = useTheme()
+  const tickColor = theme === 'dark' ? '#4B5563' : '#9CA3AF'
+
+  return (
+    <div className="card" style={{ padding: '20px 20px 8px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>Volume de emails (últimos 15 dias)</div>
+        <select
+          value={chartFiltro}
+          onChange={e => onChangeFiltro(e.target.value)}
+          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}
+        >
+          <option value="todas">Todas as campanhas</option>
+          {automacoes.map(a => (
+            <option key={a.id} value={a.id}>{a.nome}</option>
+          ))}
+        </select>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <AreaChart data={chartData} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+          <defs>
+            {SERIES_CHART.map(s => (
+              <linearGradient key={s.key} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={s.cor} stopOpacity={0.18} />
+                <stop offset="95%" stopColor={s.cor} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
+          <XAxis dataKey="dia" tick={{ fill: tickColor, fontSize: 11 }} axisLine={false} tickLine={false} interval={1} />
+          <YAxis hide />
+          <Tooltip content={<ChartTooltipEmail />} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          {SERIES_CHART.map(s => (
+            <Area
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.nome}
+              stroke={s.cor}
+              strokeWidth={2}
+              fill={`url(#grad-${s.key})`}
+              dot={false}
+              activeDot={{ r: 4, fill: s.cor, strokeWidth: 0 }}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
   const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
   const [automacoes, setAutomacoes] = useState([])
@@ -851,6 +925,8 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState(null)
   const [detalhe, setDetalhe] = useState(null)
+  const [todosEnvios, setTodosEnvios] = useState([])
+  const [chartFiltro, setChartFiltro] = useState('todas')
 
   const tagsDisponiveis = useMemo(() => {
     const set = new Set()
@@ -870,7 +946,8 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
     const { data: steps } = await supabase.from('email_automation_steps').select('*').order('ordem', { ascending: true })
     const { data: triggers } = await supabase.from('email_automation_triggers').select('*')
     const enrollCounts = await fetchAllRows('email_automation_enrollments', 'automation_id, status')
-    const envioCounts = await fetchAllRows('email_automation_envios', 'automation_id, status')
+    const envioCounts = await fetchAllRows('email_automation_envios', 'automation_id, status, enviado_em, entregue_em, bounced_em, reclamado_em, aberto_em')
+    setTodosEnvios(envioCounts || [])
     const stepsByAuto = {}
     ;(steps || []).forEach(s => { (stepsByAuto[s.automation_id] = stepsByAuto[s.automation_id] || []).push(s) })
     const triggersByAuto = {}
@@ -899,6 +976,27 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
   }, [])
 
   useEffect(() => { fetchAutomacoes() }, [fetchAutomacoes])
+
+  const PERIODO_DIAS = 15
+  const chartData = useMemo(() => {
+    const envios = chartFiltro === 'todas' ? todosEnvios : todosEnvios.filter(e => e.automation_id === chartFiltro)
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    return Array.from({ length: PERIODO_DIAS }, (_, i) => {
+      const dia = new Date(hoje)
+      dia.setDate(hoje.getDate() - (PERIODO_DIAS - 1 - i))
+      const proximoDia = new Date(dia)
+      proximoDia.setDate(dia.getDate() + 1)
+      const noDia = (iso) => { if (!iso) return false; const d = new Date(iso); return d >= dia && d < proximoDia }
+      return {
+        dia: `${String(dia.getDate()).padStart(2, '0')}/${String(dia.getMonth() + 1).padStart(2, '0')}`,
+        enviados: envios.filter(e => noDia(e.enviado_em)).length,
+        entregues: envios.filter(e => noDia(e.entregue_em)).length,
+        abertos: envios.filter(e => noDia(e.aberto_em)).length,
+        rejeitados: envios.filter(e => noDia(e.bounced_em) || noDia(e.reclamado_em)).length,
+      }
+    })
+  }, [todosEnvios, chartFiltro])
 
   const [matriculando, setMatriculando] = useState(null) // id da automação rodando "iniciar agora"
 
@@ -975,6 +1073,15 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
           <IconPlus size={14} color="#fff" /> Nova campanha
         </button>
       </div>
+
+      {!loading && automacoes.length > 0 && (
+        <EmailMetricasChart
+          chartData={chartData}
+          automacoes={automacoes}
+          chartFiltro={chartFiltro}
+          onChangeFiltro={setChartFiltro}
+        />
+      )}
 
       {loading ? (
         <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
