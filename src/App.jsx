@@ -612,7 +612,7 @@ export default function App() {
             <CaixaEntrada empresas={empresas} onOpenLead={openLead} />
           )}
           {view === 'email-marketing' && (
-            <EmailAutomacoes empresas={empresas} />
+            <EmailAutomacoes empresas={empresas} onOpenLead={openLead} />
           )}
           {view === 'dashboard' && (
             <Dashboard

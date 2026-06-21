@@ -474,7 +474,7 @@ function ProgressoResumo({ envios }) {
 
 // Linha do tempo visual dos envios de um lead matriculado: bolinha por email, conectadas por um traço,
 // com rótulo de status explícito embaixo de cada uma (não dá pra confundir enviado x pendente).
-function EnvioStepper({ envios }) {
+function EnvioStepper({ envios, erroAberto, onToggleErro }) {
   return (
     <div>
       <div style={{ marginBottom: 10 }}><ProgressoResumo envios={envios} /></div>
@@ -482,14 +482,22 @@ function EnvioStepper({ envios }) {
         {envios.map((e, i) => {
           const conf = ENVIO_DOT_CONFIG[e.status] || ENVIO_DOT_CONFIG.pendente
           const data = new Date(e.status === 'enviado' ? (e.enviado_em || e.scheduled_for) : e.scheduled_for).toLocaleDateString('pt-BR')
+          const clicavel = e.status === 'falhou' && e.erro
           return (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', flex: i === envios.length - 1 ? '0 0 auto' : 1 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div title={e.erro || ''} style={{ width: 26, height: 26, borderRadius: '50%', background: conf.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: e.status === 'enviado' ? '0 0 0 3px rgba(16,185,129,0.15)' : 'none' }}>
+                <button
+                  onClick={() => clicavel && onToggleErro(e.id)}
+                  style={{
+                    width: 26, height: 26, borderRadius: '50%', background: conf.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    boxShadow: e.status === 'enviado' ? '0 0 0 3px rgba(16,185,129,0.15)' : (clicavel ? '0 0 0 3px rgba(239,68,68,0.18)' : 'none'),
+                    border: 'none', padding: 0, cursor: clicavel ? 'pointer' : 'default',
+                  }}
+                >
                   {conf.icon}
-                </div>
+                </button>
                 <span style={{ fontSize: 10, fontWeight: 600, color: conf.textColor, whiteSpace: 'nowrap' }}>
-                  {conf.label}
+                  {conf.label}{clicavel ? ' · ver erro' : ''}
                 </span>
                 <span style={{ fontSize: 9, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
                   Email {i + 1} · {data}
@@ -500,24 +508,33 @@ function EnvioStepper({ envios }) {
           )
         })}
       </div>
+      {erroAberto && (
+        <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, fontSize: 11, color: '#EF4444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflowY: 'auto' }}>
+          {envios.find(e => e.id === erroAberto)?.erro || 'Erro não registrado.'}
+        </div>
+      )}
     </div>
   )
 }
 
 /* ─── Detalhe (matrículas/envios) ─────────────────────────────────────────── */
-function AutomacaoDetalhe({ automacao, empresas, onBack }) {
+function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
   const [enrollments, setEnrollments] = useState([])
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
+  const [erroAberto, setErroAberto] = useState(null) // id do envio cujo erro está expandido
   const leadById = useState(() => new Map(empresas.map(e => [e.id, e])))[0]
 
   useEffect(() => {
     (async () => {
       setLoading(true)
-      const { data: en } = await supabase.from('email_automation_enrollments').select('*').eq('automation_id', automacao.id).order('enrolled_at', { ascending: false })
-      const { data: ev } = await supabase.from('email_automation_envios').select('*').eq('automation_id', automacao.id)
-      setEnrollments(en || [])
-      setEnvios(ev || [])
+      const [en, ev] = await Promise.all([
+        fetchAllRows('email_automation_enrollments', '*', ['automation_id', automacao.id]),
+        fetchAllRows('email_automation_envios', '*', ['automation_id', automacao.id]),
+      ])
+      en.sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at))
+      setEnrollments(en)
+      setEnvios(ev)
       setLoading(false)
     })()
   }, [automacao.id])
@@ -542,12 +559,25 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
             return (
               <div key={en.id} className="card" style={{ padding: '14px 18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{lead ? leadName(lead) : 'Lead removido'}</span>
+                  {lead ? (
+                    <button
+                      onClick={() => onOpenLead?.(lead)}
+                      style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+                    >
+                      {leadName(lead)}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Lead removido</span>
+                  )}
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20, background: en.status === 'ativo' ? '#fff3cd' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)', color: en.status === 'ativo' ? '#92740c' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)' }}>
                     {en.status === 'ativo' ? 'Em andamento' : en.status === 'concluido' ? 'Concluído' : 'Cancelado'}
                   </span>
                 </div>
-                <EnvioStepper envios={meusEnvios} />
+                <EnvioStepper
+                  envios={meusEnvios}
+                  erroAberto={meusEnvios.some(e => e.id === erroAberto) ? erroAberto : null}
+                  onToggleErro={id => setErroAberto(prev => prev === id ? null : id)}
+                />
               </div>
             )
           })}
@@ -558,7 +588,26 @@ function AutomacaoDetalhe({ automacao, empresas, onBack }) {
 }
 
 /* ─── Lista ────────────────────────────────────────────────────────────────── */
-export default function EmailAutomacoes({ empresas = [] }) {
+// O Supabase/PostgREST limita cada select a 1000 linhas por padrão; com
+// milhares de matrículas/envios acumulados, isso truncava silenciosamente
+// as contagens da lista de campanhas. Pagina em blocos de 1000 até esgotar.
+async function fetchAllRows(table, columns, eqFilter) {
+  const all = []
+  let from = 0
+  const pageSize = 1000
+  while (true) {
+    let query = supabase.from(table).select(columns).range(from, from + pageSize - 1)
+    if (eqFilter) query = query.eq(eqFilter[0], eqFilter[1])
+    const { data, error } = await query
+    if (error || !data?.length) break
+    all.push(...data)
+    if (data.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
+export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
   const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
   const [automacoes, setAutomacoes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -583,8 +632,8 @@ export default function EmailAutomacoes({ empresas = [] }) {
     const { data: autos } = await supabase.from('email_automations').select('*').order('created_at', { ascending: false })
     const { data: steps } = await supabase.from('email_automation_steps').select('*').order('ordem', { ascending: true })
     const { data: triggers } = await supabase.from('email_automation_triggers').select('*')
-    const { data: enrollCounts } = await supabase.from('email_automation_enrollments').select('automation_id, status')
-    const { data: envioCounts } = await supabase.from('email_automation_envios').select('automation_id, status')
+    const enrollCounts = await fetchAllRows('email_automation_enrollments', 'automation_id, status')
+    const envioCounts = await fetchAllRows('email_automation_envios', 'automation_id, status')
     const stepsByAuto = {}
     ;(steps || []).forEach(s => { (stepsByAuto[s.automation_id] = stepsByAuto[s.automation_id] || []).push(s) })
     const triggersByAuto = {}
@@ -671,7 +720,7 @@ export default function EmailAutomacoes({ empresas = [] }) {
   }
 
   if (detalhe) {
-    return <AutomacaoDetalhe automacao={detalhe} empresas={empresas} onBack={() => setDetalhe(null)} />
+    return <AutomacaoDetalhe automacao={detalhe} empresas={empresas} onBack={() => setDetalhe(null)} onOpenLead={onOpenLead} />
   }
 
   return (
