@@ -1,5 +1,5 @@
 -- =============================================
--- Migration 029: Matricular leads existentes manualmente numa automação
+-- Migration 033: Matricular leads existentes manualmente numa automação
 -- =============================================
 -- Até aqui uma automação só pegava leads NOVOS que batessem com o gatilho
 -- (lead_criado/status_mudou/tag_*). Não existia um jeito de rodar a
