@@ -1082,6 +1082,7 @@ function EmailTab() {
   const [showKey, setShowKey] = useState(false)
   const [showWebhookSecret, setShowWebhookSecret] = useState(false)
   const [showIaKey, setShowIaKey] = useState(false)
+  const [showImapPassword, setShowImapPassword] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
   const webhookUrl = `${SUPABASE_URL}/functions/v1/email-webhook`
@@ -1094,6 +1095,7 @@ function EmailTab() {
     setCfg(data || {
       provider: 'resend', api_key: '', remetente_nome: '', remetente_email: '', webhook_secret: '', ativo: false,
       ia_api_key: '', ia_modelo: 'gemini-2.0-flash', ia_diretrizes: '', ia_intervalo_segundos: 60,
+      caixa_respostas_email: '', imap_host: '', imap_port: 993, imap_user: '', imap_password: '',
     })
     setLoading(false)
   }
@@ -1112,6 +1114,11 @@ function EmailTab() {
       ia_modelo: cfg.ia_modelo || 'gemini-2.0-flash',
       ia_diretrizes: cfg.ia_diretrizes || null,
       ia_intervalo_segundos: Number(cfg.ia_intervalo_segundos) || 60,
+      caixa_respostas_email: cfg.caixa_respostas_email || null,
+      imap_host: cfg.imap_host || null,
+      imap_port: Number(cfg.imap_port) || 993,
+      imap_user: cfg.imap_user || null,
+      imap_password: cfg.imap_password || null,
     }
     const { data, error } = cfg.id
       ? await supabase.from('email_config').update(payload).eq('id', cfg.id).select().maybeSingle()
@@ -1187,6 +1194,47 @@ function EmailTab() {
           {feedback && (
             <span style={{ fontSize: 12, color: feedback.ok ? 'var(--green)' : 'var(--red)' }}>{feedback.msg}</span>
           )}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Receber respostas (caixa de email dedicada via IMAP)</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Endereço de resposta (Reply-To — onde a resposta do lead vai cair)</div>
+            <input style={inp()} value={cfg.caixa_respostas_email || ''} onChange={e => setCfg(p => ({ ...p, caixa_respostas_email: e.target.value }))} placeholder="ex: respostas@seudominio.com" />
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Servidor IMAP</div>
+              <input style={inp()} value={cfg.imap_host || ''} onChange={e => setCfg(p => ({ ...p, imap_host: e.target.value }))} placeholder="ex: mail.seudominio.com" />
+            </div>
+            <div style={{ width: 100 }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Porta</div>
+              <input style={inp()} type="number" value={cfg.imap_port ?? 993} onChange={e => setCfg(p => ({ ...p, imap_port: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Usuário IMAP (geralmente o próprio email da caixa)</div>
+            <input style={inp()} value={cfg.imap_user || ''} onChange={e => setCfg(p => ({ ...p, imap_user: e.target.value }))} placeholder="ex: respostas@seudominio.com" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Senha IMAP</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={inp({ flex: 1 })}
+                type={showImapPassword ? 'text' : 'password'}
+                value={cfg.imap_password || ''}
+                onChange={e => setCfg(p => ({ ...p, imap_password: e.target.value }))}
+              />
+              <button type="button" onClick={() => setShowImapPassword(s => !s)} style={{ padding: '0 14px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {showImapPassword ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+              Crie essa caixa de email no painel da sua hospedagem (cPanel) — não precisa mudar nenhum registro de DNS. As respostas chegam aqui e aparecem na Caixa de Entrada (aba Email), separadas das mensagens normais do domínio.
+            </div>
+          </div>
         </div>
       </div>
 

@@ -6,7 +6,7 @@
 // Resend, não esperando dentro da função.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders, json, linkDescadastro, comRodape, gerarEmailComIA } from '../_shared/email.ts'
+import { corsHeaders, json, linkDescadastro, comRodape, gerarEmailComIA, gerarMessageId, registrarEnvioNaConversa } from '../_shared/email.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -77,6 +77,8 @@ serve(async (req) => {
         if (i > 0) await new Promise(r => setTimeout(r, PAUSA_ENTRE_GERACOES_MS))
         const gerado = await gerarEmailComIA(cfg.ia_api_key, cfg.ia_modelo || 'gemini-2.0-flash', cfg.ia_diretrizes || null, campaign.ia_objetivo, lead)
 
+        const envioId = crypto.randomUUID()
+        const messageId = gerarMessageId('camp', envioId, cfg.remetente_email)
         const unsubLink = linkDescadastro(SUPABASE_URL, { campaignId: campaign_id }, lead.id)
         const html = comRodape(gerado.corpo_html, cfg.remetente_nome, unsubLink)
         const globalIndex = jaProcessados + i
@@ -95,9 +97,11 @@ serve(async (req) => {
           headers: {
             'List-Unsubscribe': `<${unsubLink}>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            'Message-ID': messageId,
           },
         }
         if (campaign.responder_para) payload.reply_to = campaign.responder_para
+        else if (cfg.caixa_respostas_email) payload.reply_to = cfg.caixa_respostas_email
         if (campaign.cc?.length) payload.cc = campaign.cc
         if (campaign.cco?.length) payload.bcc = campaign.cco
         if (anexos.length) payload.attachments = anexos
@@ -112,8 +116,12 @@ serve(async (req) => {
           enviadosLote++
           const result = await res.json().catch(() => ({}))
           await db.from('email_campaign_envios').insert({
-            campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(),
+            id: envioId, campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(),
             resend_id: result.id || null, assunto_gerado: gerado.assunto, corpo_gerado: gerado.corpo_html, prompt_ia: gerado.prompt,
+          })
+          await registrarEnvioNaConversa(db, {
+            leadId: lead.id, remetenteEmail: cfg.remetente_email, destinatarioEmail: lead.email,
+            assunto: gerado.assunto, corpoHtml: html, messageId, resendId: result.id || null, campaignEnvioId: envioId,
           })
         } else {
           falhasLote++

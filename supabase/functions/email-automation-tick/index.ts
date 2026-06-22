@@ -4,7 +4,7 @@
 // JWT de usuário) já que não há uma sessão humana disparando a chamada.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders, json, personalizar, linkDescadastro, comRodape, gerarEmailComIA } from '../_shared/email.ts'
+import { corsHeaders, json, personalizar, linkDescadastro, comRodape, gerarEmailComIA, gerarMessageId, registrarEnvioNaConversa } from '../_shared/email.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -60,6 +60,10 @@ serve(async (req) => {
       const enrollment = envio.email_automation_enrollments
       const lead = leadById.get(envio.lead_id)
 
+      // 'pausado': lead respondeu, automação espera — não cancela o envio
+      // (ele continua pendente e é retentado no próximo tick), só pula.
+      if (enrollment?.status === 'pausado') continue
+
       if (enrollment?.status !== 'ativo' || !lead || lead.email_opt_out) {
         cancelados++
         await db.from('email_automation_envios').update({ status: 'cancelado' }).eq('id', envio.id)
@@ -84,6 +88,7 @@ serve(async (req) => {
           corpoHtml = personalizar(step.corpo_html || '', lead)
         }
 
+        const messageId = gerarMessageId('auto', envio.id, cfg.remetente_email)
         const unsubLink = linkDescadastro(SUPABASE_URL, { automationId: envio.automation_id }, lead.id)
         const html = comRodape(corpoHtml, cfg.remetente_nome, unsubLink)
         // Margem mínima a partir de agora (não de quando o índice i foi calculado),
@@ -99,9 +104,11 @@ serve(async (req) => {
           headers: {
             'List-Unsubscribe': `<${unsubLink}>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            'Message-ID': messageId,
           },
         }
         if (step.responder_para) payload.reply_to = step.responder_para
+        else if (cfg.caixa_respostas_email) payload.reply_to = cfg.caixa_respostas_email
         if (step.cc?.length) payload.cc = step.cc
         if (step.cco?.length) payload.bcc = step.cco
         const anexos = (step.anexos || []).filter((a: any) => a?.url).map((a: any) => ({ filename: a.filename || 'anexo', path: a.url }))
@@ -120,6 +127,10 @@ serve(async (req) => {
             status: 'enviado', enviado_em: new Date().toISOString(), resend_id: result.id || null,
             assunto_gerado: assunto, corpo_gerado: corpoHtml, prompt_ia: promptIa,
           }).eq('id', envio.id)
+          await registrarEnvioNaConversa(db, {
+            leadId: lead.id, remetenteEmail: cfg.remetente_email, destinatarioEmail: lead.email,
+            assunto, corpoHtml: html, messageId, resendId: result.id || null, automationEnvioId: envio.id,
+          })
         } else {
           falhas++
           const result = await res.json().catch(() => ({}))

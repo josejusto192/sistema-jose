@@ -2,7 +2,7 @@
 // Chamado pelo frontend (Email Marketing) autenticado via supabase.functions.invoke.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders, json, personalizar, linkDescadastro, comRodape } from '../_shared/email.ts'
+import { corsHeaders, json, personalizar, linkDescadastro, comRodape, gerarMessageId, registrarEnvioNaConversa } from '../_shared/email.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -52,6 +52,8 @@ serve(async (req) => {
     const anexos = (campaign.anexos || []).filter((a: any) => a?.url).map((a: any) => ({ filename: a.filename || 'anexo', path: a.url }))
 
     for (const lead of destinatarios) {
+      const envioId = crypto.randomUUID()
+      const messageId = gerarMessageId('camp', envioId, cfg.remetente_email)
       const assunto = personalizar(campaign.assunto, lead)
       const unsubLink = linkDescadastro(SUPABASE_URL, { campaignId: campaign_id }, lead.id)
       const html = comRodape(personalizar(campaign.corpo_html, lead), cfg.remetente_nome, unsubLink)
@@ -64,9 +66,11 @@ serve(async (req) => {
         headers: {
           'List-Unsubscribe': `<${unsubLink}>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          'Message-ID': messageId,
         },
       }
       if (campaign.responder_para) payload.reply_to = campaign.responder_para
+      else if (cfg.caixa_respostas_email) payload.reply_to = cfg.caixa_respostas_email
       if (campaign.cc?.length) payload.cc = campaign.cc
       if (campaign.cco?.length) payload.bcc = campaign.cco
       if (campaign.agendado_para) payload.scheduled_at = campaign.agendado_para
@@ -82,7 +86,11 @@ serve(async (req) => {
         enviados++
         const result = await res.json().catch(() => ({}))
         await db.from('email_campaign_envios').insert({
-          campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(), resend_id: result.id || null,
+          id: envioId, campaign_id, lead_id: lead.id, email: lead.email, status: 'enviado', enviado_em: new Date().toISOString(), resend_id: result.id || null,
+        })
+        await registrarEnvioNaConversa(db, {
+          leadId: lead.id, remetenteEmail: cfg.remetente_email, destinatarioEmail: lead.email,
+          assunto, corpoHtml: html, messageId, resendId: result.id || null, campaignEnvioId: envioId,
         })
       } else {
         falhas++

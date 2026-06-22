@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../supabase.js'
-import { IconInbox, IconWhatsApp, IconSearch, IconCheck, IconPaperclip, IconX, IconMic, IconSquare, IconTrash } from './Icons.jsx'
+import { IconInbox, IconWhatsApp, IconMail, IconSearch, IconCheck, IconPaperclip, IconX, IconMic, IconSquare, IconTrash } from './Icons.jsx'
 
 // Ordem de preferência de formato pro MediaRecorder — só entra na lista o
 // que o navegador realmente sabe gravar (varia entre Chrome/Firefox/Safari).
@@ -15,6 +15,7 @@ function pickAudioMime() {
 // próximos entram aqui conforme as integrações forem ficando prontas.
 const CANAIS = [
   { id: 'whatsapp',  label: 'WhatsApp',  Icon: IconWhatsApp, color: '#25D366', ativo: true },
+  { id: 'email',     label: 'Email',     Icon: IconMail,     color: '#3B82F6', ativo: true },
   { id: 'instagram', label: 'Instagram', Icon: IconInbox,    color: '#E1306C', ativo: false },
 ]
 
@@ -112,6 +113,17 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   const timerRef = useRef(null)
   const canceladoRef = useRef(false)
 
+  // Email: estado separado (sem mídia/áudio — só texto, num thread por lead).
+  const [conversasEmail, setConversasEmail] = useState([])
+  const [loadingConversasEmail, setLoadingConversasEmail] = useState(true)
+  const [leadIdEmail, setLeadIdEmail] = useState(null)
+  const [mensagensEmail, setMensagensEmail] = useState([])
+  const [loadingMsgsEmail, setLoadingMsgsEmail] = useState(false)
+  const [textoEmail, setTextoEmail] = useState('')
+  const [enviandoEmail, setEnviandoEmail] = useState(false)
+  const [erroEnvioEmail, setErroEnvioEmail] = useState(null)
+  const scrollEmailRef = useRef(null)
+
   const loadConversas = useCallback(async () => {
     setLoadingConversas(true)
     const { data, error } = await supabase
@@ -163,6 +175,82 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [mensagens])
+
+  const loadConversasEmail = useCallback(async () => {
+    setLoadingConversasEmail(true)
+    const { data, error } = await supabase
+      .from('email_conversas_resumo')
+      .select('*')
+      .order('ultima_mensagem_em', { ascending: false })
+      .limit(200)
+    if (!error) setConversasEmail(data || [])
+    setLoadingConversasEmail(false)
+  }, [])
+
+  useEffect(() => { if (canal === 'email') loadConversasEmail() }, [canal, loadConversasEmail])
+
+  useEffect(() => {
+    if (canal !== 'email') return
+    const ch = supabase.channel('email-conversas-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_conversas_mensagens' }, () => {
+        loadConversasEmail()
+        if (leadIdEmail) loadMensagensEmail(leadIdEmail)
+      })
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [canal, loadConversasEmail, leadIdEmail])
+
+  const loadMensagensEmail = useCallback(async (leadId) => {
+    setLoadingMsgsEmail(true)
+    const { data, error } = await supabase
+      .from('email_conversas_mensagens')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: true })
+      .limit(500)
+    if (!error) setMensagensEmail(data || [])
+    setLoadingMsgsEmail(false)
+  }, [])
+
+  async function openConversaEmail(leadId) {
+    setLeadIdEmail(leadId)
+    setErroEnvioEmail(null)
+    await loadMensagensEmail(leadId)
+    await supabase.from('email_conversas_mensagens')
+      .update({ lida_pelo_agente: true })
+      .eq('lead_id', leadId)
+      .eq('direction', 'inbound')
+      .eq('lida_pelo_agente', false)
+    setConversasEmail(prev => prev.map(c => c.lead_id === leadId ? { ...c, nao_lidas: 0 } : c))
+  }
+
+  useEffect(() => {
+    scrollEmailRef.current?.scrollTo({ top: scrollEmailRef.current.scrollHeight })
+  }, [mensagensEmail])
+
+  async function enviarEmail() {
+    const txt = textoEmail.trim()
+    if (!txt || !leadIdEmail || enviandoEmail) return
+    setEnviandoEmail(true)
+    setErroEnvioEmail(null)
+    const corpoHtml = txt.split(/\n+/).map(p => `<p>${p}</p>`).join('')
+    const { data, error } = await supabase.functions.invoke('email-reply-send', { body: { lead_id: leadIdEmail, corpo_html: corpoHtml } })
+    setEnviandoEmail(false)
+    if (error || data?.error) {
+      let msg = data?.error || error?.message || 'Erro ao enviar email'
+      if (error?.context) {
+        try {
+          const errBody = await error.context.json()
+          if (errBody?.error) msg = errBody.error
+        } catch {}
+      }
+      setErroEnvioEmail(msg)
+      return
+    }
+    setTextoEmail('')
+    await loadMensagensEmail(leadIdEmail)
+    loadConversasEmail()
+  }
 
   // Para a stream do microfone sempre que o componente desmontar com uma
   // gravação em andamento (ex: troca de conversa ou de tela).
@@ -268,6 +356,23 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   }, [conversasComLead, busca])
 
   const conversaAtual = conversasComLead.find(c => c.session_id === sessionId)
+
+  const conversasEmailComLead = useMemo(
+    () => conversasEmail.map(c => ({ ...c, lead: empresas.find(e => e.id === c.lead_id) || null })),
+    [conversasEmail, empresas]
+  )
+
+  const conversasEmailFiltradas = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    if (!q) return conversasEmailComLead
+    return conversasEmailComLead.filter(c =>
+      (c.lead?.nome_fantasia || c.lead?.razao_social || '').toLowerCase().includes(q) ||
+      (c.lead?.email || '').toLowerCase().includes(q) ||
+      (c.ultima_mensagem || '').toLowerCase().includes(q)
+    )
+  }, [conversasEmailComLead, busca])
+
+  const conversaEmailAtual = conversasEmailComLead.find(c => c.lead_id === leadIdEmail)
   const canalAtual = CANAIS.find(c => c.id === canal)
 
   return (
@@ -323,6 +428,7 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
 
         {/* Lista de conversas */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
+          {canal === 'whatsapp' && (<>
           {loadingConversas && (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
           )}
@@ -374,10 +480,66 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
               </button>
             )
           })}
+          </>)}
+
+          {canal === 'email' && (<>
+          {loadingConversasEmail && (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+          )}
+
+          {!loadingConversasEmail && conversasEmailFiltradas.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>
+              <IconMail size={36} color="var(--border)" />
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginTop: 12 }}>Nenhuma conversa ainda</div>
+              <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+                Emails enviados e respostas dos leads vão aparecer aqui automaticamente.
+              </div>
+            </div>
+          )}
+
+          {conversasEmailFiltradas.map(c => {
+            const nome = c.lead?.nome_fantasia || c.lead?.razao_social || c.lead?.email || c.lead_id
+            const ativa = c.lead_id === leadIdEmail
+            return (
+              <button
+                key={c.lead_id}
+                onClick={() => openConversaEmail(c.lead_id)}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: 'left',
+                  padding: '11px 14px', background: ativa ? 'var(--bg3)' : 'transparent',
+                  border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+                  {nome.slice(0, 1).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: c.nao_lidas > 0 ? 700 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {nome}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>{formatDay(c.ultima_mensagem_em)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 2 }}>
+                    <span style={{ fontSize: 12, color: c.nao_lidas > 0 ? 'var(--text2)' : 'var(--text3)', fontWeight: c.nao_lidas > 0 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.ultima_direcao === 'outbound' ? 'Você: ' : ''}{(c.ultima_mensagem || '').replace(/<[^>]+>/g, '').slice(0, 80)}
+                    </span>
+                    {c.nao_lidas > 0 && (
+                      <span style={{ flexShrink: 0, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>
+                        {c.nao_lidas}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+          </>)}
         </div>
       </div>
 
       {/* Painel da conversa selecionada */}
+      {canal === 'whatsapp' && (<>
       {!sessionId && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
           <div style={{ textAlign: 'center', maxWidth: 360, padding: 24 }}>
@@ -523,6 +685,102 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           </div>
         </div>
       )}
+      </>)}
+
+      {canal === 'email' && (<>
+      {!leadIdEmail && (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+          <div style={{ textAlign: 'center', maxWidth: 360, padding: 24 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <IconMail size={26} color="#3B82F6" />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Caixa de Entrada de Email</div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
+              Selecione uma conversa à esquerda para ver as mensagens e responder direto por aqui.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {leadIdEmail && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', minWidth: 0 }}>
+          {/* Header da conversa */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                {conversaEmailAtual?.lead?.nome_fantasia || conversaEmailAtual?.lead?.razao_social || conversaEmailAtual?.lead?.email || leadIdEmail}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{conversaEmailAtual?.lead?.email}</div>
+            </div>
+            {conversaEmailAtual?.lead && (
+              <button
+                onClick={() => onOpenLead?.(conversaEmailAtual.lead)}
+                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+              >
+                Ver lead
+              </button>
+            )}
+          </div>
+
+          {/* Mensagens */}
+          <div ref={scrollEmailRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {loadingMsgsEmail && <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando mensagens...</div>}
+            {!loadingMsgsEmail && mensagensEmail.map(m => {
+              const out = m.direction === 'outbound'
+              return (
+                <div key={m.id} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
+                  <div style={{
+                    maxWidth: '70%', padding: '8px 12px', borderRadius: 12,
+                    background: out ? 'var(--accent)' : 'var(--bg3)',
+                    color: out ? '#fff' : 'var(--text)',
+                    fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
+                  }}>
+                    {m.assunto && <div style={{ fontWeight: 700, marginBottom: 4 }}>{m.assunto}</div>}
+                    <div dangerouslySetInnerHTML={{ __html: m.corpo_html || (m.corpo_texto || '').replace(/\n/g, '<br>') }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, opacity: 0.7, justifyContent: 'flex-end' }}>
+                      {formatTime(m.created_at)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Composição */}
+          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            {erroEnvioEmail && (
+              <div style={{ marginBottom: 8, fontSize: 12, color: '#DC2626' }}>{erroEnvioEmail}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <textarea
+                value={textoEmail}
+                onChange={e => setTextoEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarEmail() } }}
+                placeholder="Digite a resposta..."
+                rows={1}
+                style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
+                  background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none',
+                  resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', maxHeight: 120,
+                }}
+              />
+              <button
+                onClick={enviarEmail}
+                disabled={!textoEmail.trim() || enviandoEmail}
+                style={{
+                  padding: '0 18px', borderRadius: 10, border: 'none',
+                  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
+                  cursor: (!textoEmail.trim() || enviandoEmail) ? 'default' : 'pointer',
+                  opacity: (!textoEmail.trim() || enviandoEmail) ? 0.6 : 1,
+                }}
+              >
+                {enviandoEmail ? 'Enviando...' : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>)}
     </div>
   )
 }

@@ -597,6 +597,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
   const metrics = useMemo(() => {
     const total = enrollments.length
     const ativos = enrollments.filter(e => e.status === 'ativo').length
+    const pausados = enrollments.filter(e => e.status === 'pausado').length
     const concluidos = enrollments.filter(e => e.status === 'concluido').length
     const cancelados = enrollments.filter(e => e.status === 'cancelado').length
     const enviados = envios.filter(e => e.status === 'enviado').length
@@ -606,7 +607,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
     const rejeitados = envios.filter(e => e.bounced_em || e.reclamado_em).length
     const pct = (n, d) => d ? Math.round((n / d) * 100) : 0
     return {
-      total, ativos, concluidos, cancelados, enviados, entregues, abertos, clicados, rejeitados,
+      total, ativos, pausados, concluidos, cancelados, enviados, entregues, abertos, clicados, rejeitados,
       taxaAbertura: pct(abertos, enviados), taxaClique: pct(clicados, enviados), taxaRejeicao: pct(rejeitados, enviados),
     }
   }, [enrollments, envios])
@@ -707,6 +708,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
             <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}>
               <option value="todos">Todos os status</option>
               <option value="ativo">Em andamento</option>
+              <option value="pausado">Pausado (respondeu)</option>
               <option value="concluido">Concluído</option>
               <option value="cancelado">Cancelado</option>
             </select>
@@ -738,9 +740,26 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
                       ) : (
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Lead removido</span>
                       )}
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20, background: en.status === 'ativo' ? '#fff3cd' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)', color: en.status === 'ativo' ? '#92740c' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)' }}>
-                        {en.status === 'ativo' ? 'Em andamento' : en.status === 'concluido' ? 'Concluído' : 'Cancelado'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20,
+                          background: en.status === 'ativo' ? '#fff3cd' : en.status === 'pausado' ? '#dbeafe' : en.status === 'concluido' ? '#d4edda' : 'var(--bg3)',
+                          color: en.status === 'ativo' ? '#92740c' : en.status === 'pausado' ? '#1d4ed8' : en.status === 'concluido' ? '#1e7e34' : 'var(--text3)',
+                        }}>
+                          {en.status === 'ativo' ? 'Em andamento' : en.status === 'pausado' ? 'Pausado (respondeu)' : en.status === 'concluido' ? 'Concluído' : 'Cancelado'}
+                        </span>
+                        {en.status === 'pausado' && (
+                          <button
+                            onClick={async () => {
+                              await supabase.from('email_automation_enrollments').update({ status: 'ativo' }).eq('id', en.id)
+                              await carregar()
+                            }}
+                            style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+                          >
+                            Retomar sequência
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <EnvioStepper
                       envios={meusEnvios}

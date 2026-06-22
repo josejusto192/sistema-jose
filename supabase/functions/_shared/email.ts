@@ -30,6 +30,48 @@ export function personalizar(template: string, lead: Record<string, unknown>) {
     .replace(/\{\{\s*email\s*\}\}/gi, String(lead.email || ''))
 }
 
+// Gera o Message-ID que vai no header do envio. Não usamos o id retornado
+// pelo Resend (não é garantido ser o mesmo que vai no header SMTP de
+// fato) — geramos o nosso próprio, vinculado ao id da linha de envio, pra
+// poder casar a resposta do lead (header In-Reply-To/References) de volta
+// com o envio exato que a gerou.
+export function gerarMessageId(prefixo: 'camp' | 'auto', envioId: string, remetenteEmail: string) {
+  const dominio = (remetenteEmail.split('@')[1] || 'localhost').trim()
+  return `<${prefixo}-${envioId}@${dominio}>`
+}
+
+// Registra a cópia "outbound" do que foi enviado na conversa do lead, pra a
+// caixa de email do lead (CaixaEntradaEmail) mostrar o histórico completo —
+// não só as respostas dele, também o que nós mandamos.
+export async function registrarEnvioNaConversa(
+  db: any,
+  args: {
+    leadId: string
+    remetenteEmail: string
+    destinatarioEmail: string
+    assunto: string
+    corpoHtml: string
+    messageId: string
+    resendId: string | null
+    automationEnvioId?: string
+    campaignEnvioId?: string
+  }
+) {
+  await db.from('email_conversas_mensagens').insert({
+    lead_id: args.leadId,
+    direction: 'outbound',
+    remetente_email: args.remetenteEmail,
+    destinatario_email: args.destinatarioEmail,
+    assunto: args.assunto,
+    corpo_html: args.corpoHtml,
+    message_id: args.messageId,
+    resend_id: args.resendId,
+    automation_envio_id: args.automationEnvioId || null,
+    campaign_envio_id: args.campaignEnvioId || null,
+    lida_pelo_agente: true,
+  })
+}
+
 export function linkDescadastro(supabaseUrl: string, ref: { campaignId?: string; automationId?: string }, leadId: string) {
   const params = new URLSearchParams({ lead_id: leadId })
   if (ref.campaignId) params.set('campaign_id', ref.campaignId)
