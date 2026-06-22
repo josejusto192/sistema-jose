@@ -1,10 +1,10 @@
-// Envia uma resposta manual dentro de uma conversa de email com um lead
-// (continuação depois que ele respondeu uma campanha/automação, ou uma
-// mensagem nova mesmo sem resposta prévia). Mantém o thread visível no
-// cliente de email do lead via In-Reply-To/References, e sempre sai com
-// Reply-To pra caixa de respostas dedicada (não pro remetente de marketing).
-// Chamado pelo frontend (Caixa de Entrada de Email) autenticado via
-// supabase.functions.invoke.
+// Envia uma resposta manual dentro de uma conversa de email, com um lead ou
+// com um contato avulso que iniciou contato sem nunca ter recebido nada da
+// gente antes (identificado só pelo thread_key/email, sem lead_id). Mantém o
+// thread visível no cliente de email da outra ponta via In-Reply-To/References,
+// e sempre sai com Reply-To pra caixa de respostas dedicada (não pro
+// remetente de marketing). Chamado pelo frontend (Caixa de Entrada de Email)
+// autenticado via supabase.functions.invoke.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders, json } from '../_shared/email.ts'
@@ -23,21 +23,30 @@ serve(async (req) => {
     const { data: userData } = await db.auth.getUser(authHeader.replace('Bearer ', ''))
     if (!userData?.user) return json({ error: 'not_authenticated' }, 401)
 
-    const { lead_id, corpo_html, assunto } = await req.json()
-    if (!lead_id || !corpo_html?.trim()) return json({ error: 'lead_id e corpo_html são obrigatórios' }, 400)
+    const { lead_id, thread_key, destinatario_email, corpo_html, assunto } = await req.json()
+    if (!corpo_html?.trim()) return json({ error: 'corpo_html é obrigatório' }, 400)
+    if (!lead_id && !thread_key) return json({ error: 'lead_id ou thread_key são obrigatórios' }, 400)
 
-    const { data: lead } = await db.from('leads').select('id, email').eq('id', lead_id).maybeSingle()
-    if (!lead?.email) return json({ error: 'Lead não encontrado ou sem email' }, 404)
+    let destinoEmail: string | null = null
+    if (lead_id) {
+      const { data: lead } = await db.from('leads').select('id, email').eq('id', lead_id).maybeSingle()
+      if (!lead?.email) return json({ error: 'Lead não encontrado ou sem email' }, 404)
+      destinoEmail = lead.email
+    } else {
+      if (!destinatario_email?.trim()) return json({ error: 'destinatario_email é obrigatório quando não há lead_id' }, 400)
+      destinoEmail = destinatario_email.trim()
+    }
 
     const { data: cfg } = await db.from('email_config').select('*').eq('ativo', true).limit(1).maybeSingle()
     if (!cfg?.api_key || !cfg.remetente_email) return json({ error: 'Email marketing não configurado.' }, 400)
 
-    const { data: ultima } = await db.from('email_conversas_mensagens')
+    const conversaQuery = db.from('email_conversas_mensagens')
       .select('message_id, assunto, in_reply_to')
-      .eq('lead_id', lead_id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
+    const { data: ultima } = lead_id
+      ? await conversaQuery.eq('lead_id', lead_id).maybeSingle()
+      : await conversaQuery.eq('thread_key', thread_key).maybeSingle()
 
     const messageId = `<reply-${crypto.randomUUID()}@${cfg.remetente_email.split('@')[1]}>`
     const assuntoFinal = assunto?.trim() || (ultima?.assunto ? `Re: ${ultima.assunto.replace(/^Re:\s*/i, '')}` : 'Re:')
@@ -50,7 +59,7 @@ serve(async (req) => {
 
     const payload: Record<string, unknown> = {
       from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),
-      to: lead.email,
+      to: destinoEmail,
       subject: assuntoFinal,
       html: corpo_html,
       headers,
@@ -66,10 +75,11 @@ serve(async (req) => {
     if (!res.ok) return json({ error: `Resend: ${res.status} ${result.message || JSON.stringify(result)}` }, 400)
 
     await db.from('email_conversas_mensagens').insert({
-      lead_id,
+      lead_id: lead_id || null,
+      contato_email: lead_id ? null : destinoEmail,
       direction: 'outbound',
       remetente_email: cfg.remetente_email,
-      destinatario_email: lead.email,
+      destinatario_email: destinoEmail,
       assunto: assuntoFinal,
       corpo_html,
       message_id: messageId,

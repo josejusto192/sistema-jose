@@ -4,6 +4,10 @@
 // Quando a resposta pertence a uma automação em andamento, pausa o
 // enrollment (não cancela — só para de avançar a sequência até alguém
 // continuar manualmente pela Caixa de Entrada de Email).
+// Remetente sem lead/envio anterior associado entra mesmo assim na conversa
+// (thread_key = email da outra ponta, lead_id fica nulo) — qualquer um que
+// iniciar contato precisa aparecer na Caixa de Entrada, não só quem já é lead.
+// Também varre a pasta de spam da caixa (quando existir), marcando pasta='spam'.
 // Chamada periodicamente (mesmo esquema do email-automation-tick) via
 // pg_cron, autenticada por x-automation-secret.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -44,14 +48,15 @@ serve(async (req) => {
     let processados = 0
     let pausados = 0
 
-    try {
-      const lock = await client.getMailboxLock('INBOX')
+    async function processarPasta(mailboxPath: string, pasta: 'inbox' | 'spam') {
+      const lock = await client.getMailboxLock(mailboxPath)
       try {
         for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
           processados++
           const parsed = await simpleParser(msg.source as Buffer)
 
           const remetenteEmail = (parsed.from?.value?.[0]?.address || '').toLowerCase().trim()
+          const remetenteNome = parsed.from?.value?.[0]?.name || null
           const messageId = limparMessageId(parsed.messageId)
           const inReplyTo = limparMessageId(parsed.inReplyTo) || limparMessageId(parsed.references as any)
 
@@ -80,32 +85,35 @@ serve(async (req) => {
             if (lead) leadId = lead.id
           }
 
-          if (leadId) {
-            await db.from('email_conversas_mensagens').insert({
-              lead_id: leadId,
-              direction: 'inbound',
-              remetente_email: remetenteEmail || 'desconhecido',
-              destinatario_email: cfg.imap_user,
-              assunto: parsed.subject || null,
-              corpo_texto: parsed.text || null,
-              corpo_html: parsed.html || null,
-              message_id: messageId,
-              in_reply_to: inReplyTo,
-              automation_envio_id: automationEnvioId,
-              campaign_envio_id: campaignEnvioId,
-              lida_pelo_agente: false,
-            })
+          // Mesmo sem lead/envio anterior, a mensagem entra na conversa
+          // (thread_key cai no fallback do email da outra ponta, via trigger).
+          await db.from('email_conversas_mensagens').insert({
+            lead_id: leadId,
+            contato_email: leadId ? null : remetenteEmail || null,
+            contato_nome: leadId ? null : remetenteNome,
+            direction: 'inbound',
+            remetente_email: remetenteEmail || 'desconhecido',
+            destinatario_email: cfg.imap_user,
+            assunto: parsed.subject || null,
+            corpo_texto: parsed.text || null,
+            corpo_html: parsed.html || null,
+            message_id: messageId,
+            in_reply_to: inReplyTo,
+            automation_envio_id: automationEnvioId,
+            campaign_envio_id: campaignEnvioId,
+            pasta,
+            lida_pelo_agente: false,
+          })
 
-            if (automationEnvioId) {
-              const { data: envio } = await db.from('email_automation_envios').select('enrollment_id').eq('id', automationEnvioId).maybeSingle()
-              if (envio?.enrollment_id) {
-                const { count } = await db.from('email_automation_enrollments')
-                  .update({ status: 'pausado' })
-                  .eq('id', envio.enrollment_id)
-                  .eq('status', 'ativo')
-                  .select('id', { count: 'exact', head: true })
-                if (count) pausados++
-              }
+          if (pasta === 'inbox' && automationEnvioId) {
+            const { data: envio } = await db.from('email_automation_envios').select('enrollment_id').eq('id', automationEnvioId).maybeSingle()
+            if (envio?.enrollment_id) {
+              const { count } = await db.from('email_automation_enrollments')
+                .update({ status: 'pausado' })
+                .eq('id', envio.enrollment_id)
+                .eq('status', 'ativo')
+                .select('id', { count: 'exact', head: true })
+              if (count) pausados++
             }
           }
 
@@ -113,6 +121,18 @@ serve(async (req) => {
         }
       } finally {
         lock.release()
+      }
+    }
+
+    try {
+      await processarPasta('INBOX', 'inbox')
+
+      // Nome da pasta de spam varia por provedor (cPanel/Horde costuma usar
+      // INBOX.Junk). Detecta dinamicamente em vez de fixar um nome.
+      const mailboxes = await client.list()
+      const pastaSpam = mailboxes.find((m) => /junk|spam/i.test(m.path))
+      if (pastaSpam) {
+        await processarPasta(pastaSpam.path, 'spam')
       }
     } finally {
       await client.logout().catch(() => {})

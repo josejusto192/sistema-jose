@@ -116,7 +116,8 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   // Email: estado separado (sem mídia/áudio — só texto, num thread por lead).
   const [conversasEmail, setConversasEmail] = useState([])
   const [loadingConversasEmail, setLoadingConversasEmail] = useState(true)
-  const [leadIdEmail, setLeadIdEmail] = useState(null)
+  const [threadKeyEmail, setThreadKeyEmail] = useState(null)
+  const [pastaEmail, setPastaEmail] = useState('inbox') // 'inbox' | 'spam'
   const [mensagensEmail, setMensagensEmail] = useState([])
   const [loadingMsgsEmail, setLoadingMsgsEmail] = useState(false)
   const [textoEmail, setTextoEmail] = useState('')
@@ -194,34 +195,34 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
     const ch = supabase.channel('email-conversas-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'email_conversas_mensagens' }, () => {
         loadConversasEmail()
-        if (leadIdEmail) loadMensagensEmail(leadIdEmail)
+        if (threadKeyEmail) loadMensagensEmail(threadKeyEmail)
       })
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [canal, loadConversasEmail, leadIdEmail])
+  }, [canal, loadConversasEmail, threadKeyEmail])
 
-  const loadMensagensEmail = useCallback(async (leadId) => {
+  const loadMensagensEmail = useCallback(async (threadKey) => {
     setLoadingMsgsEmail(true)
     const { data, error } = await supabase
       .from('email_conversas_mensagens')
       .select('*')
-      .eq('lead_id', leadId)
+      .eq('thread_key', threadKey)
       .order('created_at', { ascending: true })
       .limit(500)
     if (!error) setMensagensEmail(data || [])
     setLoadingMsgsEmail(false)
   }, [])
 
-  async function openConversaEmail(leadId) {
-    setLeadIdEmail(leadId)
+  async function openConversaEmail(threadKey) {
+    setThreadKeyEmail(threadKey)
     setErroEnvioEmail(null)
-    await loadMensagensEmail(leadId)
+    await loadMensagensEmail(threadKey)
     await supabase.from('email_conversas_mensagens')
       .update({ lida_pelo_agente: true })
-      .eq('lead_id', leadId)
+      .eq('thread_key', threadKey)
       .eq('direction', 'inbound')
       .eq('lida_pelo_agente', false)
-    setConversasEmail(prev => prev.map(c => c.lead_id === leadId ? { ...c, nao_lidas: 0 } : c))
+    setConversasEmail(prev => prev.map(c => c.thread_key === threadKey ? { ...c, nao_lidas: 0 } : c))
   }
 
   useEffect(() => {
@@ -230,11 +231,15 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
 
   async function enviarEmail() {
     const txt = textoEmail.trim()
-    if (!txt || !leadIdEmail || enviandoEmail) return
+    const conversa = conversasEmailComLead.find(c => c.thread_key === threadKeyEmail)
+    if (!txt || !conversa || enviandoEmail) return
     setEnviandoEmail(true)
     setErroEnvioEmail(null)
     const corpoHtml = txt.split(/\n+/).map(p => `<p>${p}</p>`).join('')
-    const { data, error } = await supabase.functions.invoke('email-reply-send', { body: { lead_id: leadIdEmail, corpo_html: corpoHtml } })
+    const body = conversa.lead_id
+      ? { lead_id: conversa.lead_id, corpo_html: corpoHtml }
+      : { thread_key: conversa.thread_key, destinatario_email: conversa.contato_email, corpo_html: corpoHtml }
+    const { data, error } = await supabase.functions.invoke('email-reply-send', { body })
     setEnviandoEmail(false)
     if (error || data?.error) {
       let msg = data?.error || error?.message || 'Erro ao enviar email'
@@ -248,7 +253,7 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
       return
     }
     setTextoEmail('')
-    await loadMensagensEmail(leadIdEmail)
+    await loadMensagensEmail(threadKeyEmail)
     loadConversasEmail()
   }
 
@@ -358,21 +363,26 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   const conversaAtual = conversasComLead.find(c => c.session_id === sessionId)
 
   const conversasEmailComLead = useMemo(
-    () => conversasEmail.map(c => ({ ...c, lead: empresas.find(e => e.id === c.lead_id) || null })),
+    () => conversasEmail.map(c => ({ ...c, lead: c.lead_id ? (empresas.find(e => e.id === c.lead_id) || null) : null })),
     [conversasEmail, empresas]
   )
 
+  const conversasEmailPorPasta = useMemo(() => {
+    if (pastaEmail === 'enviados') return conversasEmailComLead.filter(c => c.ultima_direcao === 'outbound')
+    return conversasEmailComLead.filter(c => (c.pasta || 'inbox') === pastaEmail)
+  }, [conversasEmailComLead, pastaEmail])
+
   const conversasEmailFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase()
-    if (!q) return conversasEmailComLead
-    return conversasEmailComLead.filter(c =>
+    if (!q) return conversasEmailPorPasta
+    return conversasEmailPorPasta.filter(c =>
       (c.lead?.nome_fantasia || c.lead?.razao_social || '').toLowerCase().includes(q) ||
-      (c.lead?.email || '').toLowerCase().includes(q) ||
+      (c.lead?.email || c.contato_email || '').toLowerCase().includes(q) ||
       (c.ultima_mensagem || '').toLowerCase().includes(q)
     )
-  }, [conversasEmailComLead, busca])
+  }, [conversasEmailPorPasta, busca])
 
-  const conversaEmailAtual = conversasEmailComLead.find(c => c.lead_id === leadIdEmail)
+  const conversaEmailAtual = conversasEmailComLead.find(c => c.thread_key === threadKeyEmail)
   const canalAtual = CANAIS.find(c => c.id === canal)
 
   return (
@@ -483,6 +493,21 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           </>)}
 
           {canal === 'email' && (<>
+          <div style={{ display: 'flex', gap: 4, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+            {[['inbox', 'Recebidos'], ['enviados', 'Enviados'], ['spam', 'Spam']].map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setPastaEmail(id)}
+                style={{
+                  fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', background: pastaEmail === id ? 'var(--accent)' : 'var(--bg3)',
+                  color: pastaEmail === id ? '#fff' : 'var(--text2)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {loadingConversasEmail && (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
           )}
@@ -498,12 +523,12 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           )}
 
           {conversasEmailFiltradas.map(c => {
-            const nome = c.lead?.nome_fantasia || c.lead?.razao_social || c.lead?.email || c.lead_id
-            const ativa = c.lead_id === leadIdEmail
+            const nome = c.lead?.nome_fantasia || c.lead?.razao_social || c.lead?.email || c.contato_nome || c.contato_email || c.thread_key
+            const ativa = c.thread_key === threadKeyEmail
             return (
               <button
-                key={c.lead_id}
-                onClick={() => openConversaEmail(c.lead_id)}
+                key={c.thread_key}
+                onClick={() => openConversaEmail(c.thread_key)}
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: 'left',
                   padding: '11px 14px', background: ativa ? 'var(--bg3)' : 'transparent',
@@ -688,7 +713,7 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
       </>)}
 
       {canal === 'email' && (<>
-      {!leadIdEmail && (
+      {!threadKeyEmail && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
           <div style={{ textAlign: 'center', maxWidth: 360, padding: 24 }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
@@ -702,15 +727,15 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
         </div>
       )}
 
-      {leadIdEmail && (
+      {threadKeyEmail && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', minWidth: 0 }}>
           {/* Header da conversa */}
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-                {conversaEmailAtual?.lead?.nome_fantasia || conversaEmailAtual?.lead?.razao_social || conversaEmailAtual?.lead?.email || leadIdEmail}
+                {conversaEmailAtual?.lead?.nome_fantasia || conversaEmailAtual?.lead?.razao_social || conversaEmailAtual?.lead?.email || conversaEmailAtual?.contato_nome || conversaEmailAtual?.contato_email || threadKeyEmail}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{conversaEmailAtual?.lead?.email}</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{conversaEmailAtual?.lead?.email || conversaEmailAtual?.contato_email}</div>
             </div>
             {conversaEmailAtual?.lead && (
               <button
