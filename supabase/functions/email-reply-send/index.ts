@@ -9,7 +9,7 @@
 // via supabase.functions.invoke.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders, json } from '../_shared/email.ts'
+import { corsHeaders, json, gerarEmailComIA } from '../_shared/email.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -25,28 +25,43 @@ serve(async (req) => {
     const { data: userData } = await db.auth.getUser(authHeader.replace('Bearer ', ''))
     if (!userData?.user) return json({ error: 'not_authenticated' }, 401)
 
-    const { lead_id, thread_key, destinatario_email, corpo_html, assunto } = await req.json()
-    if (!corpo_html?.trim()) return json({ error: 'corpo_html é obrigatório' }, 400)
+    const { lead_id, thread_key, destinatario_email, corpo_html, assunto, objetivo, gerar_apenas } = await req.json()
+
+    const usarIa = !!objetivo?.trim()
+    if (!usarIa && !corpo_html?.trim()) return json({ error: 'corpo_html é obrigatório' }, 400)
 
     const temConversaPrevia = !!(lead_id || thread_key)
     if (!temConversaPrevia && !destinatario_email?.trim()) {
       return json({ error: 'destinatario_email é obrigatório' }, 400)
     }
-    if (!temConversaPrevia && !assunto?.trim()) {
+    if (!usarIa && !temConversaPrevia && !assunto?.trim()) {
       return json({ error: 'assunto é obrigatório para uma mensagem nova (sem conversa prévia)' }, 400)
     }
 
     let destinoEmail: string | null = null
+    let leadDados: Record<string, unknown> | null = null
     if (lead_id) {
-      const { data: lead } = await db.from('leads').select('id, email').eq('id', lead_id).maybeSingle()
+      const { data: lead } = await db.from('leads').select('*').eq('id', lead_id).maybeSingle()
       if (!lead?.email) return json({ error: 'Lead não encontrado ou sem email' }, 404)
       destinoEmail = lead.email
+      leadDados = lead
     } else {
       destinoEmail = destinatario_email.trim()
     }
 
     const { data: cfg } = await db.from('email_config').select('*').eq('ativo', true).limit(1).maybeSingle()
     if (!cfg?.api_key || !cfg.remetente_email) return json({ error: 'Email marketing não configurado.' }, 400)
+
+    let corpoHtmlFinal = corpo_html
+    let assuntoIa: string | null = null
+    if (usarIa) {
+      if (!cfg.ia_api_key) return json({ error: 'IA de email não configurada (sem ia_api_key em email_config).' }, 400)
+      const gerado = await gerarEmailComIA(cfg.ia_api_key, cfg.ia_modelo || 'gemini-2.0-flash', cfg.ia_diretrizes || null, objetivo, leadDados || { email: destinoEmail })
+      assuntoIa = gerado.assunto
+      corpoHtmlFinal = gerado.corpo_html
+    }
+
+    if (gerar_apenas) return json({ ok: true, assunto: assuntoIa, corpo_html: corpoHtmlFinal })
 
     let ultima: { message_id: string | null; assunto: string | null; in_reply_to: string | null } | null = null
     if (temConversaPrevia) {
@@ -61,7 +76,7 @@ serve(async (req) => {
     }
 
     const messageId = `<reply-${crypto.randomUUID()}@${cfg.remetente_email.split('@')[1]}>`
-    const assuntoFinal = assunto?.trim() || (ultima?.assunto ? `Re: ${ultima.assunto.replace(/^Re:\s*/i, '')}` : 'Re:')
+    const assuntoFinal = assunto?.trim() || assuntoIa || (ultima?.assunto ? `Re: ${ultima.assunto.replace(/^Re:\s*/i, '')}` : 'Re:')
 
     const headers: Record<string, string> = { 'Message-ID': messageId }
     if (ultima?.message_id) {
@@ -73,7 +88,7 @@ serve(async (req) => {
       from: `${cfg.remetente_nome || ''} <${cfg.remetente_email}>`.trim(),
       to: destinoEmail,
       subject: assuntoFinal,
-      html: corpo_html,
+      html: corpoHtmlFinal,
       headers,
     }
     if (cfg.caixa_respostas_email) payload.reply_to = cfg.caixa_respostas_email
@@ -93,14 +108,14 @@ serve(async (req) => {
       remetente_email: cfg.remetente_email,
       destinatario_email: destinoEmail,
       assunto: assuntoFinal,
-      corpo_html,
+      corpo_html: corpoHtmlFinal,
       message_id: messageId,
       in_reply_to: ultima?.message_id || null,
       resend_id: result.id || null,
       lida_pelo_agente: true,
     })
 
-    return json({ ok: true })
+    return json({ ok: true, assunto: assuntoFinal, corpo_html: corpoHtmlFinal })
   } catch (err) {
     console.error('email-reply-send error:', err)
     return json({ error: String(err) }, 500)

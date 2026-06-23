@@ -78,6 +78,85 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   const [scriptsOpen, setScriptsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dados') // eslint-disable-line
 
+  // Modal de envio de email pro lead (texto, html ou gerado por IA)
+  const [emailModal, setEmailModal] = useState(false)
+  const [emailModo, setEmailModo] = useState('texto') // 'texto' | 'html' | 'ia'
+  const [emailAssunto, setEmailAssunto] = useState('')
+  const [emailCorpo, setEmailCorpo] = useState('')
+  const [emailObjetivo, setEmailObjetivo] = useState('')
+  const [iaRascunhoGerado, setIaRascunhoGerado] = useState(false)
+  const [gerandoIa, setGerandoIa] = useState(false)
+  const [enviandoEmailLead, setEnviandoEmailLead] = useState(false)
+  const [erroEmailLead, setErroEmailLead] = useState(null)
+
+  function abrirModalEmail() {
+    setEmailModo('texto')
+    setEmailAssunto('')
+    setEmailCorpo('')
+    setEmailObjetivo('')
+    setIaRascunhoGerado(false)
+    setErroEmailLead(null)
+    setEmailModal(true)
+  }
+
+  function fecharModalEmail() {
+    setEmailModal(false)
+  }
+
+  function trocarModoEmail(modo) {
+    setEmailModo(modo)
+    setIaRascunhoGerado(false)
+    setErroEmailLead(null)
+  }
+
+  async function extrairErro(error, data) {
+    let msg = data?.error || error?.message || 'Erro ao processar email'
+    if (error?.context) {
+      try {
+        const errBody = await error.context.json()
+        if (errBody?.error) msg = errBody.error
+      } catch {}
+    }
+    return msg
+  }
+
+  async function gerarRascunhoIaLead() {
+    if (!emailObjetivo.trim() || gerandoIa) return
+    setGerandoIa(true)
+    setErroEmailLead(null)
+    const { data, error } = await supabase.functions.invoke('email-reply-send', {
+      body: { lead_id: lead.id, objetivo: emailObjetivo.trim(), gerar_apenas: true },
+    })
+    setGerandoIa(false)
+    if (error || data?.error) {
+      setErroEmailLead(await extrairErro(error, data))
+      return
+    }
+    setEmailAssunto(data.assunto || '')
+    setEmailCorpo(data.corpo_html || '')
+    setIaRascunhoGerado(true)
+  }
+
+  async function enviarEmailLead() {
+    if (enviandoEmailLead) return
+    const assunto = emailAssunto.trim()
+    const corpoHtml = emailModo === 'texto'
+      ? emailCorpo.trim().split(/\n+/).filter(Boolean).map(p => `<p>${p}</p>`).join('')
+      : emailCorpo.trim()
+    if (!assunto || !corpoHtml) return
+    setEnviandoEmailLead(true)
+    setErroEmailLead(null)
+    const { data, error } = await supabase.functions.invoke('email-reply-send', {
+      body: { lead_id: lead.id, assunto, corpo_html: corpoHtml },
+    })
+    setEnviandoEmailLead(false)
+    if (error || data?.error) {
+      setErroEmailLead(await extrairErro(error, data))
+      return
+    }
+    fecharModalEmail()
+  }
+
   // Tags state
   const [tags, setTags] = useState(() => lead.tags || [])
   const [tagInput, setTagInput] = useState('')
@@ -274,9 +353,9 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
               </a>
             )}
             {lead.email && (
-              <a href={`mailto:${lead.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 12, textDecoration: 'none' }}>
+              <button onClick={abrirModalEmail} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}>
                 <IconMail size={14} color="var(--text2)" /> E-mail
-              </a>
+              </button>
             )}
           </div>
         </div>
@@ -866,6 +945,100 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {emailModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ background: 'var(--bg)', borderRadius: 12, width: 520, maxWidth: '90vw', padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Enviar email para {lead.email}</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 14, marginTop: 10 }}>
+              {[['texto', 'Texto'], ['html', 'HTML'], ['ia', 'Gerar com IA']].map(([id, label]) => (
+                <button key={id} onClick={() => trocarModoEmail(id)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    background: emailModo === id ? 'var(--accent)' : 'var(--bg3)', color: emailModo === id ? '#fff' : 'var(--text2)',
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {erroEmailLead && (
+              <div style={{ marginBottom: 10, fontSize: 12, color: '#DC2626' }}>{erroEmailLead}</div>
+            )}
+
+            {emailModo === 'ia' && !iaRascunhoGerado ? (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Objetivo do email</label>
+                <textarea
+                  value={emailObjetivo}
+                  onChange={e => setEmailObjetivo(e.target.value)}
+                  placeholder="Ex: convidar o lead para uma demonstração do produto, destacando o benefício X..."
+                  rows={5}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 14, fontFamily: 'inherit' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={fecharModalEmail} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={gerarRascunhoIaLead}
+                    disabled={!emailObjetivo.trim() || gerandoIa}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, border: 'none', fontFamily: 'inherit',
+                      background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
+                      cursor: (!emailObjetivo.trim() || gerandoIa) ? 'default' : 'pointer',
+                      opacity: (!emailObjetivo.trim() || gerandoIa) ? 0.6 : 1,
+                    }}
+                  >
+                    {gerandoIa ? 'Gerando...' : 'Gerar com IA'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Assunto</label>
+                <input
+                  type="text"
+                  value={emailAssunto}
+                  onChange={e => setEmailAssunto(e.target.value)}
+                  placeholder="Assunto do email"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }}
+                />
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>
+                  {emailModo === 'texto' ? 'Mensagem' : 'HTML'}
+                </label>
+                <textarea
+                  value={emailCorpo}
+                  onChange={e => setEmailCorpo(e.target.value)}
+                  placeholder={emailModo === 'texto' ? 'Digite a mensagem...' : '<p>Conteúdo em HTML...</p>'}
+                  rows={emailModo === 'texto' ? 6 : 10}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 14, fontFamily: emailModo === 'texto' ? 'inherit' : 'var(--font-mono)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={fecharModalEmail} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={enviarEmailLead}
+                    disabled={!emailAssunto.trim() || !emailCorpo.trim() || enviandoEmailLead}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, border: 'none', fontFamily: 'inherit',
+                      background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
+                      cursor: (!emailAssunto.trim() || !emailCorpo.trim() || enviandoEmailLead) ? 'default' : 'pointer',
+                      opacity: (!emailAssunto.trim() || !emailCorpo.trim() || enviandoEmailLead) ? 0.6 : 1,
+                    }}
+                  >
+                    {enviandoEmailLead ? 'Enviando...' : 'Enviar'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
