@@ -50,6 +50,7 @@ serve(async (req) => {
 
     async function processarPasta(mailboxPath: string, pasta: 'inbox' | 'spam') {
       const lock = await client.getMailboxLock(mailboxPath)
+      const uidsProcessados: number[] = []
       try {
         for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
           processados++
@@ -59,6 +60,18 @@ serve(async (req) => {
           const remetenteNome = parsed.from?.value?.[0]?.name || null
           const messageId = limparMessageId(parsed.messageId)
           const inReplyTo = limparMessageId(parsed.inReplyTo) || limparMessageId(parsed.references as any)
+
+          // Defesa contra reprocessar a mesma mensagem (ex: marcação de \Seen
+          // não persistiu no servidor por algum motivo) — sem isso, ela
+          // duplicava na conversa a cada novo ciclo do cron.
+          if (messageId) {
+            const { data: jaExiste } = await db.from('email_conversas_mensagens')
+              .select('id').eq('message_id', messageId).eq('direction', 'inbound').maybeSingle()
+            if (jaExiste) {
+              uidsProcessados.push(msg.uid)
+              continue
+            }
+          }
 
           // Acha o envio original pelo Message-ID que nós mesmos geramos
           // (gerarMessageId em _shared/email.ts) — é o jeito confiável de
@@ -117,9 +130,15 @@ serve(async (req) => {
             }
           }
 
-          await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'], { uid: true })
+          uidsProcessados.push(msg.uid)
         }
       } finally {
+        // Marca \Seen depois de fechar o FETCH (em lote, fora do loop) —
+        // fazer isso intercalado com o fetch ativo é o que estava deixando
+        // a marcação não persistir em alguns servidores, causando reprocesso.
+        if (uidsProcessados.length) {
+          await client.messageFlagsAdd(uidsProcessados, ['\\Seen'], { uid: true }).catch((e) => console.error('messageFlagsAdd falhou:', e))
+        }
         lock.release()
       }
     }
