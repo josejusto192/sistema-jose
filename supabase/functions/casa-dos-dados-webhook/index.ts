@@ -75,6 +75,32 @@ function mapApiToLead(api: Record<string, any>, dataEvento: string | null) {
   }
 }
 
+// Notifica os superadmins (sino de notificações + push), mesmo esquema já
+// usado pra "lead fechou" em App.jsx — só que aqui não tem usuário logado
+// disparando a ação (é o webhook), então a lista de destinatários é só os
+// superadmins.
+async function notificarNovoLead(nome: string) {
+  try {
+    const { data: admins } = await db.from('profiles').select('id').eq('role', 'superadmin')
+    const userIds = (admins || []).map((a: { id: string }) => a.id)
+    if (!userIds.length) return
+    await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({
+        user_ids: userIds,
+        title: '🟢 Novo lead adicionado',
+        body: nome,
+        url: '#/leads',
+        tag: 'novo-lead',
+        type: 'novo_lead',
+      }),
+    })
+  } catch (err) {
+    console.error('casa-dos-dados-webhook: erro ao notificar novo lead', err)
+  }
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
@@ -109,6 +135,8 @@ serve(async (req) => {
     // mesmo CNPJ (já inserido por outra chamada concorrente); não é erro.
     if (error && error.code !== '23505') {
       console.error('casa-dos-dados-webhook: erro ao inserir lead', error)
+    } else if (!error) {
+      await notificarNovoLead(lead.razao_social || lead.nome_fantasia || cnpj)
     }
 
     return new Response('ok', { status: 200 })
