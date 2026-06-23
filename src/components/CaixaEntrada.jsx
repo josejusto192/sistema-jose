@@ -125,6 +125,14 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
   const [erroEnvioEmail, setErroEnvioEmail] = useState(null)
   const scrollEmailRef = useRef(null)
 
+  // Nova mensagem do zero (prospecção manual, sem conversa/lead prévio).
+  const [mostrarNovaMsgEmail, setMostrarNovaMsgEmail] = useState(false)
+  const [novaMsgPara, setNovaMsgPara] = useState('')
+  const [novaMsgAssunto, setNovaMsgAssunto] = useState('')
+  const [novaMsgTexto, setNovaMsgTexto] = useState('')
+  const [enviandoNovaMsg, setEnviandoNovaMsg] = useState(false)
+  const [erroNovaMsg, setErroNovaMsg] = useState(null)
+
   const loadConversas = useCallback(async () => {
     setLoadingConversas(true)
     const { data, error } = await supabase
@@ -255,6 +263,39 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
     setTextoEmail('')
     await loadMensagensEmail(threadKeyEmail)
     loadConversasEmail()
+  }
+
+  async function enviarNovaMensagemEmail() {
+    const para = novaMsgPara.trim()
+    const assunto = novaMsgAssunto.trim()
+    const txt = novaMsgTexto.trim()
+    if (!para || !assunto || !txt || enviandoNovaMsg) return
+    setEnviandoNovaMsg(true)
+    setErroNovaMsg(null)
+    const corpoHtml = txt.split(/\n+/).map(p => `<p>${p}</p>`).join('')
+    const { data, error } = await supabase.functions.invoke('email-reply-send', {
+      body: { destinatario_email: para, assunto, corpo_html: corpoHtml },
+    })
+    setEnviandoNovaMsg(false)
+    if (error || data?.error) {
+      let msg = data?.error || error?.message || 'Erro ao enviar email'
+      if (error?.context) {
+        try {
+          const errBody = await error.context.json()
+          if (errBody?.error) msg = errBody.error
+        } catch {}
+      }
+      setErroNovaMsg(msg)
+      return
+    }
+    setMostrarNovaMsgEmail(false)
+    setNovaMsgPara('')
+    setNovaMsgAssunto('')
+    setNovaMsgTexto('')
+    await loadConversasEmail()
+    setPastaEmail('enviados')
+    setThreadKeyEmail(para.toLowerCase())
+    await loadMensagensEmail(para.toLowerCase())
   }
 
   // Para a stream do microfone sempre que o componente desmontar com uma
@@ -493,7 +534,19 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           </>)}
 
           {canal === 'email' && (<>
-          <div style={{ display: 'flex', gap: 4, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ padding: '10px 10px 8px' }}>
+            <button
+              onClick={() => { setMostrarNovaMsgEmail(true); setErroNovaMsg(null) }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
+              }}
+            >
+              + Nova mensagem
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 4, padding: '0 10px 8px', borderBottom: '1px solid var(--border)' }}>
             {[['inbox', 'Recebidos'], ['enviados', 'Enviados'], ['spam', 'Spam']].map(([id, label]) => (
               <button
                 key={id}
@@ -806,6 +859,67 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
         </div>
       )}
       </>)}
+
+      {mostrarNovaMsgEmail && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ background: 'var(--bg)', borderRadius: 12, width: 480, maxWidth: '90vw', padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Nova mensagem</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.5 }}>
+              Envia um email do zero pra qualquer endereço, mesmo que nunca tenha trocado mensagem antes (útil pra prospecção manual).
+            </div>
+            {erroNovaMsg && (
+              <div style={{ marginBottom: 10, fontSize: 12, color: '#DC2626' }}>{erroNovaMsg}</div>
+            )}
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Para</label>
+            <input
+              type="email"
+              value={novaMsgPara}
+              onChange={e => setNovaMsgPara(e.target.value)}
+              placeholder="email@exemplo.com"
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }}
+            />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Assunto</label>
+            <input
+              type="text"
+              value={novaMsgAssunto}
+              onChange={e => setNovaMsgAssunto(e.target.value)}
+              placeholder="Assunto do email"
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }}
+            />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Mensagem</label>
+            <textarea
+              value={novaMsgTexto}
+              onChange={e => setNovaMsgTexto(e.target.value)}
+              placeholder="Digite a mensagem..."
+              rows={6}
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 14, fontFamily: 'inherit' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setMostrarNovaMsgEmail(false)}
+                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={enviarNovaMensagemEmail}
+                disabled={!novaMsgPara.trim() || !novaMsgAssunto.trim() || !novaMsgTexto.trim() || enviandoNovaMsg}
+                style={{
+                  padding: '8px 16px', borderRadius: 8, border: 'none', fontFamily: 'inherit',
+                  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
+                  cursor: (!novaMsgPara.trim() || !novaMsgAssunto.trim() || !novaMsgTexto.trim() || enviandoNovaMsg) ? 'default' : 'pointer',
+                  opacity: (!novaMsgPara.trim() || !novaMsgAssunto.trim() || !novaMsgTexto.trim() || enviandoNovaMsg) ? 0.6 : 1,
+                }}
+              >
+                {enviandoNovaMsg ? 'Enviando...' : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

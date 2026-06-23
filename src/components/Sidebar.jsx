@@ -71,7 +71,7 @@ export default function Sidebar({ view, setView, empresas, contratos, tasks = []
   const navAdmin = [
     { id: 'dashboard',       label: 'Dashboard',      icon: IconGrid },
     { id: 'caixa-entrada',   label: 'Caixa de Entrada', icon: IconInbox },
-    { id: 'email-marketing', label: 'Campanhas',       icon: IconMail },
+    { id: 'email-marketing', label: 'Email Marketing', icon: IconMail },
     { id: 'leads',           label: 'Leads',           icon: IconList,     badge: total, alert: followupCount || null },
     { id: 'busca-avancada',  label: 'Busca Avançada',  icon: IconSearch },
     { id: 'contratos',       label: 'Contratos',       icon: IconContract, badge: contratosAtivos || null },

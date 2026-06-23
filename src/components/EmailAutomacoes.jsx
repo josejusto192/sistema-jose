@@ -1081,7 +1081,7 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
     <div style={{ padding: '28px 32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <IconMail size={20} color="var(--text)" />
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Campanhas</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Email Marketing</h1>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, marginTop: 12 }}>
         <div style={{ fontSize: 13, color: 'var(--text3)' }}>Dispare agora pros leads que já existem e/ou deixe rodando automaticamente pra leads novos.</div>

@@ -1,10 +1,12 @@
-// Envia uma resposta manual dentro de uma conversa de email, com um lead ou
-// com um contato avulso que iniciou contato sem nunca ter recebido nada da
-// gente antes (identificado só pelo thread_key/email, sem lead_id). Mantém o
-// thread visível no cliente de email da outra ponta via In-Reply-To/References,
-// e sempre sai com Reply-To pra caixa de respostas dedicada (não pro
-// remetente de marketing). Chamado pelo frontend (Caixa de Entrada de Email)
-// autenticado via supabase.functions.invoke.
+// Envia um email manual: continuação de uma conversa existente (lead ou
+// contato avulso que já trocou mensagens, identificado por lead_id/thread_key)
+// ou uma mensagem nova do zero pra um endereço que nunca recebeu nada da
+// gente (só destinatario_email + assunto, sem thread prévia — usado pra
+// prospecção manual). Mantém o thread visível no cliente de email da outra
+// ponta via In-Reply-To/References quando há conversa prévia, e sempre sai
+// com Reply-To pra caixa de respostas dedicada (não pro remetente de
+// marketing). Chamado pelo frontend (Caixa de Entrada de Email) autenticado
+// via supabase.functions.invoke.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders, json } from '../_shared/email.ts'
@@ -25,7 +27,14 @@ serve(async (req) => {
 
     const { lead_id, thread_key, destinatario_email, corpo_html, assunto } = await req.json()
     if (!corpo_html?.trim()) return json({ error: 'corpo_html é obrigatório' }, 400)
-    if (!lead_id && !thread_key) return json({ error: 'lead_id ou thread_key são obrigatórios' }, 400)
+
+    const temConversaPrevia = !!(lead_id || thread_key)
+    if (!temConversaPrevia && !destinatario_email?.trim()) {
+      return json({ error: 'destinatario_email é obrigatório' }, 400)
+    }
+    if (!temConversaPrevia && !assunto?.trim()) {
+      return json({ error: 'assunto é obrigatório para uma mensagem nova (sem conversa prévia)' }, 400)
+    }
 
     let destinoEmail: string | null = null
     if (lead_id) {
@@ -33,20 +42,23 @@ serve(async (req) => {
       if (!lead?.email) return json({ error: 'Lead não encontrado ou sem email' }, 404)
       destinoEmail = lead.email
     } else {
-      if (!destinatario_email?.trim()) return json({ error: 'destinatario_email é obrigatório quando não há lead_id' }, 400)
       destinoEmail = destinatario_email.trim()
     }
 
     const { data: cfg } = await db.from('email_config').select('*').eq('ativo', true).limit(1).maybeSingle()
     if (!cfg?.api_key || !cfg.remetente_email) return json({ error: 'Email marketing não configurado.' }, 400)
 
-    const conversaQuery = db.from('email_conversas_mensagens')
-      .select('message_id, assunto, in_reply_to')
-      .order('created_at', { ascending: false })
-      .limit(1)
-    const { data: ultima } = lead_id
-      ? await conversaQuery.eq('lead_id', lead_id).maybeSingle()
-      : await conversaQuery.eq('thread_key', thread_key).maybeSingle()
+    let ultima: { message_id: string | null; assunto: string | null; in_reply_to: string | null } | null = null
+    if (temConversaPrevia) {
+      const conversaQuery = db.from('email_conversas_mensagens')
+        .select('message_id, assunto, in_reply_to')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      const { data } = lead_id
+        ? await conversaQuery.eq('lead_id', lead_id).maybeSingle()
+        : await conversaQuery.eq('thread_key', thread_key).maybeSingle()
+      ultima = data
+    }
 
     const messageId = `<reply-${crypto.randomUUID()}@${cfg.remetente_email.split('@')[1]}>`
     const assuntoFinal = assunto?.trim() || (ultima?.assunto ? `Re: ${ultima.assunto.replace(/^Re:\s*/i, '')}` : 'Re:')
