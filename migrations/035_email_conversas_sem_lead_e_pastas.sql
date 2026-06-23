@@ -49,8 +49,11 @@ ALTER TABLE email_conversas_mensagens ALTER COLUMN thread_key SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_email_conversas_mensagens_thread_key ON email_conversas_mensagens(thread_key, created_at);
 
 -- Resumo por thread (lead ou contato avulso), agora com pasta e identidade
--- de quem não está cadastrado como lead.
-CREATE OR REPLACE VIEW email_conversas_resumo AS
+-- de quem não está cadastrado como lead. Colunas mudaram (thread_key no
+-- lugar do antigo agrupamento só por lead_id), então a view precisa ser
+-- recriada do zero em vez de um CREATE OR REPLACE.
+DROP VIEW IF EXISTS email_conversas_resumo;
+CREATE VIEW email_conversas_resumo AS
 SELECT
   last.thread_key,
   last.lead_id,
