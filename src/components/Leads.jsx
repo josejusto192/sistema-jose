@@ -616,7 +616,7 @@ function NewLeadModal({ onClose, onSave }) {
 }
 
 /* ─── Main component ───────────────────────────────────────────────────────── */
-export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, cnaeFilter = [], setCnaeFilter, allCnaes = [], onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, onCreateLead, tasks = [], totalCount }) {
+export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, cnaeFilter = [], setCnaeFilter, allCnaes = [], onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, onCreateLead, tasks = [], totalCount, profiles = [] }) {
   const isMobile = useIsMobile()
   const isSuperAdmin = useIsSuperAdmin()
   const [sortField, setSortField] = useState('criado_em')
@@ -673,15 +673,15 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   // Limpa seleção ao trocar modo ou filtros
   useEffect(() => { setSelectedIds([]) }, [viewMode, statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter])
 
-  // Lista de vendedores únicos nos leads carregados (superadmin)
+  // Todos os vendedores do sistema (não só quem aparece nos leads já
+  // carregados/filtrados — senão filtrar por "Não atribuídos" esvaziava
+  // essa lista, já que nenhum lead unassigned tem vendedor_nome).
   const vendedoresDisponiveis = useMemo(() => {
     if (!isSuperAdmin) return []
-    const map = {}
-    empresas.forEach(e => {
-      if (e.vendedor_id && e.vendedor_nome) map[e.vendedor_id] = e.vendedor_nome
-    })
-    return Object.entries(map).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome))
-  }, [empresas, isSuperAdmin])
+    return profiles
+      .map(p => ({ id: p.id, nome: [p.nome, p.sobrenome].filter(Boolean).join(' ') || p.nome || 'Sem nome' }))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  }, [profiles, isSuperAdmin])
 
   function persistFilters(list) {
     setSavedFilters(list)

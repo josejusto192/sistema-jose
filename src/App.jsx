@@ -650,6 +650,7 @@ export default function App() {
               onCreateLead={createEmpresa}
               tasks={tasks}
               totalCount={empresas.length}
+              profiles={profiles}
             />
           )}
           {view === 'detail' && selectedLead && (
