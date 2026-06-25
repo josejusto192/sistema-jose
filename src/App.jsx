@@ -72,6 +72,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('todos')
   const [tagFilter, setTagFilter] = useState('')
   const [cnaeFilter, setCnaeFilter] = useState([])
+  const ultimaBuscaLogada = useRef('')
   const [pendingContrato, setPendingContrato] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -84,6 +85,26 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  // Métrica de uso da busca avançada: loga só quando o usuário "para" de
+  // ajustar os filtros (debounce), e só se há algum filtro de fato ativo —
+  // evita logar a tela em estado default e logar a cada tecla digitada.
+  useEffect(() => {
+    const temFiltro = !!searchQuery || statusFilter !== 'todos' || !!tagFilter || cnaeFilter.length > 0
+    if (!temFiltro) return
+    const assinatura = JSON.stringify({ searchQuery, statusFilter, tagFilter, cnaeFilter })
+    const timer = setTimeout(() => {
+      if (assinatura === ultimaBuscaLogada.current) return
+      ultimaBuscaLogada.current = assinatura
+      logAction('buscar', 'leads', null, {
+        termo: searchQuery || null,
+        status: statusFilter !== 'todos' ? statusFilter : null,
+        etiqueta: tagFilter || null,
+        cnae: cnaeFilter.length ? cnaeFilter : null,
+      })
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [searchQuery, statusFilter, tagFilter, cnaeFilter])
 
   // Hash-based routing
   useEffect(() => {

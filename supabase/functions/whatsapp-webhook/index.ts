@@ -3,6 +3,7 @@
 // POST -> mensagens recebidas (inbound) e atualizações de status (sent/delivered/read)
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { registrarLog } from '../_shared/log.ts'
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -69,7 +70,7 @@ async function handleIncomingMessage(value: any) {
 
   // upsert ignorando conflito de wamid: a Meta reenvia o mesmo evento em
   // caso de timeout, então isso evita duplicar a mensagem na conversa.
-  await db.from('whatsapp_messages').upsert({
+  const { data: inserida } = await db.from('whatsapp_messages').upsert({
     session_id: msg.from,
     direction: 'inbound',
     sent_by: null,
@@ -78,7 +79,19 @@ async function handleIncomingMessage(value: any) {
     message_type: msg.type || 'text',
     media_url: mediaUrl,
     mime_type: mimeType,
-  }, { onConflict: 'wamid', ignoreDuplicates: true })
+  }, { onConflict: 'wamid', ignoreDuplicates: true }).select('id').maybeSingle()
+
+  // ignoreDuplicates faz o upsert não retornar nada quando já existe (reenvio
+  // da Meta) — só loga quando a mensagem foi de fato inserida.
+  if (inserida) {
+    await registrarLog(db, {
+      acao: 'receber',
+      tabela: 'whatsapp_messages',
+      registroId: inserida.id,
+      detalhes: { session_id: msg.from, tipo: msg.type || 'text', conteudo: texto || null },
+      usuarioNome: 'Webhook WhatsApp',
+    })
+  }
 }
 
 async function handleStatusUpdate(value: any) {

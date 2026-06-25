@@ -16,6 +16,8 @@ const ACAO_CONFIG = {
   reabrir:   { label: 'Reabrir',   color: '#0891B2', bg: '#ECFEFF', darkBg: '#0c4a6e30', darkColor: '#38bdf8' },
   enviar:    { label: 'Enviar',    color: '#C2410C', bg: '#FFF7ED', darkBg: '#43140330', darkColor: '#fb923c' },
   pausar:    { label: 'Pausar',    color: '#92740C', bg: '#FFFBEB', darkBg: '#42330630', darkColor: '#fbbf24' },
+  receber:   { label: 'Receber',   color: '#15803D', bg: '#F0FDF4', darkBg: '#052e1630', darkColor: '#4ade80' },
+  buscar:    { label: 'Buscar',    color: '#4338CA', bg: '#EEF2FF', darkBg: '#1e1b4b30', darkColor: '#818cf8' },
 }
 
 const TABELA_LABELS = {
@@ -36,7 +38,7 @@ const TABELA_LABELS = {
 
 // Origens "Sistema" (webhooks/automações sem usuário logado disparando a
 // ação) — usadas pra exibir um selo visual diferente de ações de usuário.
-const ORIGENS_SISTEMA = ['Sistema', 'Webhook Casa dos Dados', 'Sincronização de Email (IMAP)']
+const ORIGENS_SISTEMA = ['Sistema', 'Webhook Casa dos Dados', 'Sincronização de Email (IMAP)', 'Webhook WhatsApp']
 
 const PERIOD_OPTIONS = [
   { value: 'today',   label: 'Hoje' },
@@ -67,6 +69,10 @@ function fmtDetalhes(detalhes) {
   if (d.razao_social)   return d.razao_social
   if (d.cliente_nome)   return d.cliente_nome
   if (d.destinatario_email) return `Para: ${d.destinatario_email}${d.assunto ? ` · "${d.assunto}"` : ''}`
+  if (d.termo !== undefined || d.status || d.etiqueta || d.cnae) {
+    const partes = [d.termo && `"${d.termo}"`, d.status && `status: ${d.status}`, d.etiqueta && `etiqueta: ${d.etiqueta}`, d.cnae?.length && `${d.cnae.length} CNAE(s)`].filter(Boolean)
+    return partes.join(' · ') || 'sem filtros'
+  }
   if (d.tipo === 'pessoa' && d.nome) return [d.nome, d.sobrenome].filter(Boolean).join(' ')
   if (d.nome && d.sobrenome) return `${d.nome} ${d.sobrenome}`
   if (d.nome)           return d.nome
@@ -116,6 +122,9 @@ const FIELD_LABELS = {
   matriculados:      'Matriculados',
   steps:             'Etapas',
   ativo:             'Ativo',
+  termo:             'Termo buscado',
+  etiqueta:          'Etiqueta',
+  cnae:              'CNAE',
 }
 
 function DetalhesExpanded({ detalhes, acao }) {

@@ -101,7 +101,7 @@ serve(async (req) => {
 
           // Mesmo sem lead/envio anterior, a mensagem entra na conversa
           // (thread_key cai no fallback do email da outra ponta, via trigger).
-          await db.from('email_conversas_mensagens').insert({
+          const { data: mensagemInserida } = await db.from('email_conversas_mensagens').insert({
             lead_id: leadId,
             contato_email: leadId ? null : remetenteEmail || null,
             contato_nome: leadId ? null : remetenteNome,
@@ -117,6 +117,14 @@ serve(async (req) => {
             campaign_envio_id: campaignEnvioId,
             pasta,
             lida_pelo_agente: false,
+          }).select('id').single()
+
+          await registrarLog(db, {
+            acao: 'receber',
+            tabela: 'email_conversas_mensagens',
+            registroId: mensagemInserida?.id ?? null,
+            detalhes: { remetente: remetenteEmail || null, assunto: parsed.subject || null, pasta },
+            usuarioNome: 'Sincronização de Email (IMAP)',
           })
 
           if (pasta === 'inbox' && automationEnvioId) {
