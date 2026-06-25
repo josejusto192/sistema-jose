@@ -3,6 +3,7 @@
 // Substitui o nó HTTP Request do n8n usado hoje pra envio.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { registrarLog } from '../_shared/log.ts'
 
 // Token, phone_number_id e versão da Graph API vêm todos da tabela whatsapp_config
 // (editável pela tela de Configurações) — não exige configurar Edge Function Secrets.
@@ -63,7 +64,7 @@ serve(async (req) => {
 
     const wamid = result.messages?.[0]?.id || null
 
-    await db.from('whatsapp_messages').insert({
+    const { data: mensagemInserida } = await db.from('whatsapp_messages').insert({
       session_id,
       direction: 'outbound',
       sent_by: 'human',
@@ -75,6 +76,15 @@ serve(async (req) => {
       wamid,
       whatsapp_status: 'sent',
       whatsapp_sent_at: new Date().toISOString(),
+    }).select('id').single()
+
+    const { data: perfil } = await db.from('profiles').select('nome').eq('id', userData.user.id).maybeSingle()
+    await registrarLog(db, {
+      acao: 'enviar',
+      tabela: 'whatsapp_messages',
+      registroId: mensagemInserida?.id ?? null,
+      detalhes: { session_id, tipo, conteudo: caption || null },
+      usuarioNome: perfil?.nome || userData.user.email || 'Sistema',
     })
 
     return json({ ok: true, wamid })

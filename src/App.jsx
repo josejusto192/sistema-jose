@@ -615,7 +615,7 @@ export default function App() {
             <CaixaEntrada empresas={empresas} onOpenLead={openLead} />
           )}
           {view === 'email-marketing' && (
-            <EmailAutomacoes empresas={empresas} onOpenLead={openLead} />
+            <EmailAutomacoes empresas={empresas} onOpenLead={openLead} logAction={logAction} />
           )}
           {view === 'dashboard' && (
             <Dashboard
@@ -703,7 +703,7 @@ export default function App() {
             />
           )}
           {view === 'formularios' && isSuperAdmin && (
-            <Formularios />
+            <Formularios logAction={logAction} />
           )}
           {view === 'logs' && (
             <Logs isSuperAdmin={isSuperAdmin} />

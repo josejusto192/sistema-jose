@@ -6,6 +6,7 @@
 // mesma URL que era configurada no n8n passa a apontar pra aqui.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { registrarLog } from '../_shared/log.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -130,13 +131,21 @@ serve(async (req) => {
     const api = await res.json()
 
     const lead = mapApiToLead(api, body?.data_evento || null)
-    const { error } = await db.from('leads').insert(lead)
+    const { data: inserido, error } = await db.from('leads').insert(lead).select('id').single()
     // 23505 = unique_violation — corrida entre eventos simultâneos do
     // mesmo CNPJ (já inserido por outra chamada concorrente); não é erro.
     if (error && error.code !== '23505') {
       console.error('casa-dos-dados-webhook: erro ao inserir lead', error)
     } else if (!error) {
-      await notificarNovoLead(lead.razao_social || lead.nome_fantasia || cnpj)
+      const nome = lead.razao_social || lead.nome_fantasia || cnpj
+      await notificarNovoLead(nome)
+      await registrarLog(db, {
+        acao: 'criar',
+        tabela: 'leads',
+        registroId: inserido?.id ?? null,
+        detalhes: { razao_social: lead.razao_social, nome_fantasia: lead.nome_fantasia, cnpj: lead.cnpj, origem: 'webhook_casa_dos_dados' },
+        usuarioNome: 'Webhook Casa dos Dados',
+      })
     }
 
     return new Response('ok', { status: 200 })

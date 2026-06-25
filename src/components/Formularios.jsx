@@ -484,7 +484,7 @@ function RespostasViewer({ form, onBack }) {
 }
 
 // ─── Principal ────────────────────────────────────────────────────────────────
-export default function Formularios() {
+export default function Formularios({ logAction }) {
   const { confirmDialog } = useDialog()
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
@@ -507,15 +507,21 @@ export default function Formularios() {
     const ok = await confirmDialog(`Excluir "${f.titulo}"? As respostas também serão apagadas.`, { title: 'Excluir formulário', danger: true, confirmLabel: 'Excluir' })
     if (!ok) return
     await supabase.from('formularios').delete().eq('id', f.id)
+    logAction?.('deletar', 'formularios', f.id, { titulo: f.titulo })
     setForms(prev => prev.filter(x => x.id !== f.id))
   }
 
   async function handleToggleAtivo(f) {
     const { error } = await supabase.from('formularios').update({ ativo: !f.ativo }).eq('id', f.id)
-    if (!error) setForms(prev => prev.map(x => x.id === f.id ? { ...x, ativo: !f.ativo } : x))
+    if (!error) {
+      logAction?.('atualizar', 'formularios', f.id, { titulo: f.titulo, ativo: !f.ativo })
+      setForms(prev => prev.map(x => x.id === f.id ? { ...x, ativo: !f.ativo } : x))
+    }
   }
 
   function handleSaved(saved) {
+    const ehNovo = !forms.find(f => f.id === saved.id)
+    logAction?.(ehNovo ? 'criar' : 'atualizar', 'formularios', saved.id, { titulo: saved.titulo, tipo: saved.tipo })
     setForms(prev => {
       const exists = prev.find(f => f.id === saved.id)
       return exists ? prev.map(f => f.id === saved.id ? { ...f, ...saved } : f) : [saved, ...prev]

@@ -14,18 +14,29 @@ const ACAO_CONFIG = {
   deletar:   { label: 'Deletar',   color: '#B91C1C', bg: '#FEF2F2', darkBg: '#450a0a30', darkColor: '#f87171' },
   concluir:  { label: 'Concluir',  color: '#7C3AED', bg: '#F5F3FF', darkBg: '#3b0764 30', darkColor: '#a78bfa' },
   reabrir:   { label: 'Reabrir',   color: '#0891B2', bg: '#ECFEFF', darkBg: '#0c4a6e30', darkColor: '#38bdf8' },
+  enviar:    { label: 'Enviar',    color: '#C2410C', bg: '#FFF7ED', darkBg: '#43140330', darkColor: '#fb923c' },
+  pausar:    { label: 'Pausar',    color: '#92740C', bg: '#FFFBEB', darkBg: '#42330630', darkColor: '#fbbf24' },
 }
 
 const TABELA_LABELS = {
-  leads:     'Leads',
-  empresas:  'Leads',
-  contratos: 'Contratos',
-  tasks:     'Tarefas',
-  pacotes:   'Serviços',
-  perfil:    'Perfil',
-  users:     'Usuários',
-  scripts:   'Scripts',
+  leads:                          'Leads',
+  empresas:                       'Leads',
+  contratos:                      'Contratos',
+  tasks:                          'Tarefas',
+  pacotes:                        'Serviços',
+  perfil:                         'Perfil',
+  users:                          'Usuários',
+  scripts:                        'Scripts',
+  email_automations:              'Email Marketing',
+  email_automation_enrollments:   'Email Marketing',
+  email_conversas_mensagens:      'Email',
+  formularios:                    'Formulários',
+  whatsapp_messages:              'WhatsApp',
 }
+
+// Origens "Sistema" (webhooks/automações sem usuário logado disparando a
+// ação) — usadas pra exibir um selo visual diferente de ações de usuário.
+const ORIGENS_SISTEMA = ['Sistema', 'Webhook Casa dos Dados', 'Sincronização de Email (IMAP)']
 
 const PERIOD_OPTIONS = [
   { value: 'today',   label: 'Hoje' },
@@ -51,9 +62,11 @@ function fmtDetalhes(detalhes) {
   if (typeof detalhes === 'string') return detalhes.slice(0, 120)
   const d = detalhes
   if (d.title)          return `"${d.title}"${d.empresa_nome ? ` · ${d.empresa_nome}` : ''}${d.due_date ? ` · ${d.due_date}` : ''}`
+  if (d.titulo)         return d.titulo
   if (d.nome_fantasia)  return d.nome_fantasia
   if (d.razao_social)   return d.razao_social
   if (d.cliente_nome)   return d.cliente_nome
+  if (d.destinatario_email) return `Para: ${d.destinatario_email}${d.assunto ? ` · "${d.assunto}"` : ''}`
   if (d.tipo === 'pessoa' && d.nome) return [d.nome, d.sobrenome].filter(Boolean).join(' ')
   if (d.nome && d.sobrenome) return `${d.nome} ${d.sobrenome}`
   if (d.nome)           return d.nome
@@ -90,6 +103,19 @@ const FIELD_LABELS = {
   municipio:         'Município',
   uf:                'UF',
   origem:            'Origem',
+  cnpj:              'CNPJ',
+  nome:              'Nome',
+  titulo:            'Título',
+  assunto:           'Assunto',
+  destinatario_email: 'Destinatário',
+  remetente:         'Remetente',
+  motivo:            'Motivo',
+  session_id:        'Conversa (WhatsApp)',
+  conteudo:          'Conteúdo',
+  gerado_por_ia:     'Gerado por IA',
+  matriculados:      'Matriculados',
+  steps:             'Etapas',
+  ativo:             'Ativo',
 }
 
 function DetalhesExpanded({ detalhes, acao }) {
@@ -341,7 +367,12 @@ export default function Logs({ isSuperAdmin }) {
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 2 }}>{fmtDetalhes(log.detalhes)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{log.usuario_nome || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {log.usuario_nome || '—'}
+                    {ORIGENS_SISTEMA.includes(log.usuario_nome) && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>AUTO</span>
+                    )}
+                  </div>
                   {expanded && (
                     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                       <DetalhesExpanded detalhes={log.detalhes} acao={log.acao} />
@@ -384,7 +415,12 @@ export default function Logs({ isSuperAdmin }) {
                         </span>
                       </td>
                       <td style={{ padding: '9px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
-                        <span style={{ fontSize: 12, color: 'var(--text2)' }}>{log.usuario_nome || '—'}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text2)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          {log.usuario_nome || '—'}
+                          {ORIGENS_SISTEMA.includes(log.usuario_nome) && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>AUTO</span>
+                          )}
+                        </span>
                       </td>
                       <td style={{ padding: '9px 12px', background: 'var(--bg2)', transition: 'background 0.1s' }}>
                         <AcaoBadge acao={log.acao} theme={theme} />

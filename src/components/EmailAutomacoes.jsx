@@ -90,7 +90,7 @@ function FlowCard({ color, children }) {
 }
 
 /* ─── Form de criação/edição ──────────────────────────────────────────────── */
-function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis, onCancel, onSaved }) {
+function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis, onCancel, onSaved, logAction }) {
   const [nome, setNome] = useState(automacao?.nome || '')
   const [ativo, setAtivo] = useState(automacao?.ativo ?? true)
   const [publicoModo, setPublicoModo] = useState(automacao?.leads_manual?.length ? 'manual' : 'segmento')
@@ -168,6 +168,7 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
     setErro(null)
     try {
       let automationId = automacao?.id
+      const ehNova = !automationId
       const payload = {
         nome: nome.trim(), ativo, parar_se_perdido: pararSePerdido,
         leads_manual: publicoModo === 'manual' ? leadsManual : null,
@@ -209,6 +210,7 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
         if (rpcError) throw rpcError
         matriculados = count
       }
+      logAction?.(ehNova ? 'criar' : 'atualizar', 'email_automations', automationId, { nome: payload.nome, ativo: payload.ativo, steps: stepsPayload.length })
       onSaved(matriculados)
     } catch (e) {
       setErro(e.message || 'Erro ao salvar campanha')
@@ -937,7 +939,7 @@ function EmailMetricasChart({ chartData, automacoes, chartFiltro, onChangeFiltro
   )
 }
 
-export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
+export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }) {
   const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
   const [automacoes, setAutomacoes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1030,6 +1032,7 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
       const { data: count, error } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: a.id })
       if (error) throw error
       if (count > 0) {
+        logAction?.('atualizar', 'email_automations', a.id, { nome: a.nome, acao_detalhe: 'iniciar_agora', matriculados: count })
         notifySuccess(`${count} novo(s) lead(s) matriculado(s) agora na sequência.`)
       } else {
         notify(`Nenhum lead novo para matricular: todos os leads que batem com o público de "${a.nome}" já estavam matriculados (${a.counts?.total || 0} no total).`)
@@ -1042,15 +1045,17 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
     }
   }
 
-  async function excluir(id) {
+  async function excluir(a) {
     const ok = await confirmDialog('Excluir esta campanha? Leads já matriculados deixarão de receber os próximos emails da sequência.', { title: 'Excluir campanha', danger: true, confirmLabel: 'Excluir' })
     if (!ok) return
-    await supabase.from('email_automations').delete().eq('id', id)
+    await supabase.from('email_automations').delete().eq('id', a.id)
+    logAction?.('deletar', 'email_automations', a.id, { nome: a.nome })
     fetchAutomacoes()
   }
 
   async function toggleAtivo(a) {
     await supabase.from('email_automations').update({ ativo: !a.ativo }).eq('id', a.id)
+    logAction?.('atualizar', 'email_automations', a.id, { nome: a.nome, ativo: !a.ativo })
     fetchAutomacoes()
   }
 
@@ -1061,6 +1066,7 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
         empresas={empresas}
         tagsDisponiveis={tagsDisponiveis}
         cnaesDisponiveis={cnaesDisponiveis}
+        logAction={logAction}
         onCancel={() => { setShowForm(false); setEditando(null) }}
         onSaved={(matriculados) => {
           setShowForm(false); setEditando(null); fetchAutomacoes()
@@ -1161,7 +1167,7 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead }) {
                 <button onClick={() => { setEditando(a); setShowForm(true) }} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Editar
                 </button>
-                <button onClick={() => excluir(a.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' }}>
+                <button onClick={() => excluir(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' }}>
                   <IconTrash size={14} color="var(--text3)" />
                 </button>
               </div>

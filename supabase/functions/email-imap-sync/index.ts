@@ -15,6 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ImapFlow } from 'npm:imapflow@1'
 import { simpleParser } from 'npm:mailparser@3'
 import { json } from '../_shared/email.ts'
+import { registrarLog } from '../_shared/log.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -126,7 +127,16 @@ serve(async (req) => {
                 .eq('id', envio.enrollment_id)
                 .eq('status', 'ativo')
                 .select('id', { count: 'exact', head: true })
-              if (count) pausados++
+              if (count) {
+                pausados++
+                await registrarLog(db, {
+                  acao: 'pausar',
+                  tabela: 'email_automation_enrollments',
+                  registroId: envio.enrollment_id,
+                  detalhes: { motivo: 'resposta_recebida', remetente: remetenteEmail || null, assunto: parsed.subject || null },
+                  usuarioNome: 'Sincronização de Email (IMAP)',
+                })
+              }
             }
           }
 

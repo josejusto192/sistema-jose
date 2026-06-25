@@ -10,6 +10,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders, json, gerarEmailComIA } from '../_shared/email.ts'
+import { registrarLog } from '../_shared/log.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -101,7 +102,7 @@ serve(async (req) => {
     const result = await res.json().catch(() => ({}))
     if (!res.ok) return json({ error: `Resend: ${res.status} ${result.message || JSON.stringify(result)}` }, 400)
 
-    await db.from('email_conversas_mensagens').insert({
+    const { data: mensagemInserida } = await db.from('email_conversas_mensagens').insert({
       lead_id: lead_id || null,
       contato_email: lead_id ? null : destinoEmail,
       direction: 'outbound',
@@ -113,6 +114,15 @@ serve(async (req) => {
       in_reply_to: ultima?.message_id || null,
       resend_id: result.id || null,
       lida_pelo_agente: true,
+    }).select('id').single()
+
+    const { data: perfil } = await db.from('profiles').select('nome').eq('id', userData.user.id).maybeSingle()
+    await registrarLog(db, {
+      acao: 'enviar',
+      tabela: 'email_conversas_mensagens',
+      registroId: mensagemInserida?.id ?? null,
+      detalhes: { destinatario_email: destinoEmail, assunto: assuntoFinal, lead_id: lead_id || null, gerado_por_ia: usarIa },
+      usuarioNome: perfil?.nome || userData.user.email || 'Sistema',
     })
 
     return json({ ok: true, assunto: assuntoFinal, corpo_html: corpoHtmlFinal })
