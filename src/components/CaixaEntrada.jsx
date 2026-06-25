@@ -14,7 +14,7 @@ function pickAudioMime() {
 // Canais suportados. Por enquanto só o WhatsApp está ativo — Instagram e os
 // próximos entram aqui conforme as integrações forem ficando prontas.
 const CANAIS = [
-  { id: 'whatsapp',  label: 'WhatsApp',  Icon: IconWhatsApp, color: '#25D366', ativo: true },
+  { id: 'whatsapp',  label: 'WhatsApp (API Oficial)',  Icon: IconWhatsApp, color: '#25D366', ativo: true },
   { id: 'email',     label: 'Email',     Icon: IconMail,     color: '#3B82F6', ativo: true },
   { id: 'instagram', label: 'Instagram', Icon: IconInbox,    color: '#E1306C', ativo: false },
 ]

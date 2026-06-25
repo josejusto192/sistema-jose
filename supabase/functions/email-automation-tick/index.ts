@@ -79,7 +79,8 @@ serve(async (req) => {
           if (geracoesIa > 0) await new Promise(r => setTimeout(r, PAUSA_ENTRE_GERACOES_MS))
           geracoesIa++
           if (!cfg.ia_api_key) throw { mensagem: 'Defina a chave da API de IA em Configurações > Email.' }
-          const gerado = await gerarEmailComIA(cfg.ia_api_key, cfg.ia_modelo || 'gemini-2.0-flash', cfg.ia_diretrizes || null, step.ia_objetivo || '', lead)
+          const assuntoFixo = step.gerar_assunto_ia === false ? personalizar(step.assunto || '', lead) : null
+          const gerado = await gerarEmailComIA(cfg.ia_api_key, cfg.ia_modelo || 'gemini-2.0-flash', cfg.ia_diretrizes || null, step.ia_objetivo || '', lead, assuntoFixo)
           assunto = gerado.assunto
           corpoHtml = gerado.corpo_html
           promptIa = gerado.prompt

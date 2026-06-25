@@ -96,7 +96,7 @@ export function comRodape(html: string, remetenteNome: string, unsubLink: string
 // partir de um objetivo (prompt da campanha/passo) + diretrizes universais
 // opcionais + todos os dados do lead. Usado por email-send-ia e pelos
 // passos de IA de email-automation-tick.
-export async function gerarEmailComIA(apiKey: string, modelo: string, diretrizes: string | null, objetivo: string, lead: Record<string, unknown>) {
+export async function gerarEmailComIA(apiKey: string, modelo: string, diretrizes: string | null, objetivo: string, lead: Record<string, unknown>, assuntoFixo?: string | null) {
   const prompt = `Você é um redator especializado em emails de prospecção comercial em português do Brasil. Escreva um email natural, direto e que pareça escrito por uma pessoa real — sem HTML estilizado, frases corridas, sem exagero de emojis ou negrito.
 
 ${diretrizes ? `Diretrizes gerais da empresa (sempre seguir):\n${diretrizes}\n\n` : ''}Objetivo desta campanha:
@@ -107,7 +107,9 @@ ${JSON.stringify(lead)}
 
 Nome da pessoa para cumprimentar: ${nomeContato(lead)}
 
-Responda em JSON com exatamente os campos "assunto" (curto, sem clickbait) e "corpo_html" (corpo do email; pode usar <br> para separar parágrafos, nada de markdown ou JSON dentro do texto).`
+${assuntoFixo
+    ? `O assunto do email já está definido como "${assuntoFixo}" — não o repita na resposta. Responda em JSON com exatamente o campo "corpo_html" (corpo do email; pode usar <br> para separar parágrafos, nada de markdown ou JSON dentro do texto).`
+    : `Responda em JSON com exatamente os campos "assunto" (curto, sem clickbait) e "corpo_html" (corpo do email; pode usar <br> para separar parágrafos, nada de markdown ou JSON dentro do texto).`}`
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
@@ -132,6 +134,10 @@ Responda em JSON com exatamente os campos "assunto" (curto, sem clickbait) e "co
     parsed = JSON.parse(texto)
   } catch {
     throw { mensagem: `Gemini não retornou JSON válido. Texto recebido: ${texto.slice(0, 1500)}`, prompt }
+  }
+  if (assuntoFixo) {
+    if (!parsed?.corpo_html) throw { mensagem: `Resposta da IA sem corpo_html. Recebido: ${texto.slice(0, 1500)}`, prompt }
+    return { assunto: assuntoFixo, corpo_html: String(parsed.corpo_html), prompt }
   }
   if (!parsed?.assunto || !parsed?.corpo_html) throw { mensagem: `Resposta da IA sem assunto/corpo_html. Recebido: ${texto.slice(0, 1500)}`, prompt }
   return { assunto: String(parsed.assunto), corpo_html: String(parsed.corpo_html), prompt }

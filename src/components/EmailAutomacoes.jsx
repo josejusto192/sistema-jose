@@ -43,7 +43,7 @@ const chipStyle = (ativo) => ({
 })
 
 function novoStep() {
-  return { ordem: 0, atraso_dias: 0, usar_ia: false, assunto: '', corpo_html: '', ia_objetivo: '', responder_para: '', cc: '', cco: '', anexos: [] }
+  return { ordem: 0, atraso_dias: 0, usar_ia: false, gerar_assunto_ia: true, assunto: '', corpo_html: '', ia_objetivo: '', responder_para: '', cc: '', cco: '', anexos: [] }
 }
 
 function emailsDeLista(texto) {
@@ -52,7 +52,7 @@ function emailsDeLista(texto) {
 
 // Normaliza um step vindo do banco (cc/cco como array) pro formato editável (string separada por vírgula).
 function stepParaEdicao(s) {
-  return { ...s, cc: (s.cc || []).join(', '), cco: (s.cco || []).join(', '), anexos: s.anexos || [] }
+  return { ...s, gerar_assunto_ia: s.gerar_assunto_ia ?? true, cc: (s.cc || []).join(', '), cco: (s.cco || []).join(', '), anexos: s.anexos || [] }
 }
 
 function novoGatilho() {
@@ -159,6 +159,7 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
     if (steps.length === 0) { setErro('Adicione pelo menos um passo/email'); return }
     for (const s of steps) {
       if (s.usar_ia && !s.ia_objetivo?.trim()) { setErro('Defina o objetivo de IA em todos os passos com IA'); return }
+      if (s.usar_ia && !s.gerar_assunto_ia && !s.assunto?.trim()) { setErro('Defina o assunto nos passos em que a IA não cria o assunto'); return }
       if (!s.usar_ia && (!s.assunto?.trim() || !s.corpo_html?.trim())) { setErro('Defina assunto e corpo em todos os passos sem IA'); return }
     }
     for (const t of triggers) {
@@ -188,7 +189,10 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
       }
       const stepsPayload = steps.map((s, i) => ({
         automation_id: automationId, ordem: i + 1, atraso_dias: Number(s.atraso_dias) || 0,
-        usar_ia: s.usar_ia, assunto: s.usar_ia ? null : s.assunto.trim(), corpo_html: s.usar_ia ? null : s.corpo_html,
+        usar_ia: s.usar_ia,
+        gerar_assunto_ia: s.usar_ia ? !!s.gerar_assunto_ia : true,
+        assunto: (s.usar_ia && s.gerar_assunto_ia) ? null : s.assunto.trim(),
+        corpo_html: s.usar_ia ? null : s.corpo_html,
         ia_objetivo: s.usar_ia ? s.ia_objetivo.trim() : null,
         responder_para: s.responder_para?.trim() || null,
         cc: emailsDeLista(s.cc || ''),
@@ -363,6 +367,16 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
               </div>
               {s.usar_ia ? (
                 <div>
+                  <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" checked={s.gerar_assunto_ia} onChange={e => updateStep(i, { gerar_assunto_ia: e.target.checked })} id={`ia-assunto-step-${i}`} />
+                    <label htmlFor={`ia-assunto-step-${i}`} style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Deixar a IA criar o assunto também</label>
+                  </div>
+                  {!s.gerar_assunto_ia && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={labelStyle}>Assunto (use {'{{nome}}'}, {'{{empresa}}'})</label>
+                      <input style={inputStyle} value={s.assunto} onChange={e => updateStep(i, { assunto: e.target.value })} />
+                    </div>
+                  )}
                   <label style={labelStyle}>Objetivo deste email (a IA recebe isso + os dados do lead)</label>
                   <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} value={s.ia_objetivo} onChange={e => updateStep(i, { ia_objetivo: e.target.value })} placeholder="Ex: Se apresentar e oferecer uma consultoria jurídica gratuita..." />
                 </div>
