@@ -35,6 +35,21 @@ export const useProfile = () => useContext(AppContext).profile
 export const ThemeContext = AppContext
 
 const TASK_DUE_CHECK_KEY = 'tilim_task_due_checked'
+const VIEW_LABELS = {
+  dashboard: 'Visão geral',
+  'caixa-entrada': 'Caixa de Entrada',
+  'email-marketing': 'Email Marketing',
+  leads: 'Leads',
+  detail: 'Detalhe do lead',
+  'busca-avancada': 'Busca Avançada',
+  contratos: 'Contratos',
+  desempenho: 'Desempenho',
+  agenda: 'Agenda',
+  formularios: 'Formulários',
+  logs: 'Logs',
+  configuracoes: 'Configurações',
+  perfil: 'Meu perfil',
+}
 
 function parseHash() {
   const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard'
@@ -582,44 +597,44 @@ export default function App() {
 
   return (
     <AppContext.Provider value={contextValue}>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
+      <div className="app-shell">
 
         {/* Backdrop mobile */}
         {isMobile && sidebarOpen && (
-          <div
+          <button
+            type="button"
             onClick={() => setSidebarOpen(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 40 }}
+            className="mobile-backdrop"
+            aria-label="Fechar menu"
           />
         )}
 
         {/* Sidebar */}
         {isMobile ? (
-          <div style={{
-            position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
-            transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-            transition: 'transform 0.25s ease',
-          }}>
+          <div className={`sidebar-drawer ${sidebarOpen ? 'is-open' : 'is-closed'}`}>
             <Sidebar {...sidebarProps} />
           </div>
         ) : (
           <Sidebar {...sidebarProps} />
         )}
 
-        <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <main className="app-main">
           {/* Barra superior mobile */}
           {isMobile && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-              background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
-              position: 'sticky', top: 0, zIndex: 20, flexShrink: 0,
-            }}>
+            <div className="mobile-topbar">
               <button
+                type="button"
                 onClick={() => setSidebarOpen(o => !o)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}
+                className="mobile-menu-button"
+                aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+                aria-expanded={sidebarOpen}
               >
                 <IconMenu size={20} color="var(--text)" />
               </button>
-              <img src="/icone.svg" alt="Justo Mídias" style={{ height: 24 }} />
+              <div className="mobile-brand">
+                <img src="/icone.svg" alt="" />
+                <span>{VIEW_LABELS[view] || 'Justo CRM'}</span>
+              </div>
               <div style={{ marginLeft: 'auto' }}>
                 <NotificationBell
                   notifications={notif.notifications}
@@ -632,6 +647,7 @@ export default function App() {
             </div>
           )}
 
+          <div className={`view-frame view-${view}`}>
           {view === 'caixa-entrada' && (
             <CaixaEntrada empresas={empresas} onOpenLead={openLead} />
           )}
@@ -739,6 +755,7 @@ export default function App() {
           {view === 'configuracoes' && (
             <Configuracoes session={session} profile={profile} isSuperAdmin={isSuperAdmin} logAction={logAction} />
           )}
+          </div>
         </main>
       </div>
 

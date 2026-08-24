@@ -57,8 +57,7 @@ function StatCard({ label, value, sub, trendValue, tooltip }) {
   const [show, setShow] = useState(false)
   return (
     <div
-      className="card"
-      style={{ padding: '22px 24px', position: 'relative', transition: 'box-shadow 0.15s' }}
+      className="card stat-card"
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
@@ -70,7 +69,7 @@ function StatCard({ label, value, sub, trendValue, tooltip }) {
           </span>
         )}
       </div>
-      <div style={{ fontWeight: 700, fontSize: 28, color: 'var(--text)', lineHeight: 1.1, marginBottom: 10 }}>{value}</div>
+      <div className="stat-card-value" style={{ marginBottom: 10 }}>{value}</div>
       {trendValue != null
         ? <TrendBadge value={trendValue} />
         : <span style={{ fontSize: 12, color: 'var(--text3)' }}>{sub}</span>
@@ -99,33 +98,22 @@ function StatCard({ label, value, sub, trendValue, tooltip }) {
 function DashboardHeader({ nome, saudacao, followupCount, profile, onNewLead, isSuperAdmin }) {
   const emojis = { 'Bom dia': '👋', 'Boa tarde': '☀️', 'Boa noite': '🌙' }
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '18px 32px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
-      flexShrink: 0, position: 'sticky', top: 0, zIndex: 10,
-    }}>
+    <header className="dashboard-header">
       <div>
-        <div style={{ fontWeight: 700, fontSize: 20, color: 'var(--text)', lineHeight: 1.2 }}>
+        <div className="dashboard-greeting">
           {saudacao}, {nome}! {emojis[saudacao] || '👋'}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 3 }}>
+        <div className="dashboard-subtitle">
           {isSuperAdmin ? 'Aqui está o desempenho do seu time hoje.' : 'Aqui está o seu desempenho hoje.'}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="dashboard-actions">
         <Avatar profile={profile} size={38} />
-        <button
-          onClick={onNewLead}
-          style={{
-            background: '#F05B17', color: '#fff', border: 'none', borderRadius: 8,
-            padding: '9px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-          }}
-        >
+        <button onClick={onNewLead} className="primary-action">
           + Novo Lead
         </button>
       </div>
-    </div>
+    </header>
   )
 }
 
@@ -253,13 +241,13 @@ function AdminDashboard({ empresas, contratos, tasks = [], loading, onViewLeads,
   const tickColor  = theme === 'dark' ? '#4B5563' : '#9CA3AF'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="dashboard-shell">
       <DashboardHeader nome={nome} saudacao={saudacao} followupCount={followupCount} profile={profile} onNewLead={onNewLead} isSuperAdmin />
 
-      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div className="dashboard-content">
 
         {/* 4 stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
+        <div className="stats-grid">
           <StatCard
             label="MRR"
             value={fmtBRL(financeiro.mrr)}
@@ -593,10 +581,10 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
   const tickColor  = theme === 'dark' ? '#4B5563' : '#9CA3AF'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="dashboard-shell">
       <DashboardHeader nome={nome} saudacao={saudacao} followupCount={tasks.filter(t => !t.completed && t.due_date <= format(new Date(), 'yyyy-MM-dd')).length} profile={profile} onNewLead={onNewLead} isSuperAdmin={false} />
 
-      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div className="dashboard-content">
 
         {/* Meta mensal */}
         <div className="card" style={{ padding: '20px 24px' }}>
@@ -618,7 +606,7 @@ function VendedorDashboard({ empresas, contratos, tasks = [], loading, onOpenLea
         </div>
 
         {/* 4 KPI cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 14 }}>
+        <div className="stats-grid">
           <StatCard
             label="Meus Leads"
             value={stats.total}

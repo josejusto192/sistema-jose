@@ -1,0 +1,207 @@
+/* Shared treatment for the operational workspaces that still own their layout inline. */
+.workspace-screen {
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  flex: 1;
+  flex-direction: column;
+  background: transparent;
+}
+
+.workspace-page {
+  width: 100%;
+  max-width: 1520px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 28px var(--page-pad) 40px !important;
+  overflow: auto;
+}
+
+.workspace-toolbar {
+  position: sticky !important;
+  z-index: 10;
+  top: 0;
+  flex-shrink: 0;
+  padding: 20px var(--page-pad) 16px !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: rgba(255, 253, 250, 0.88) !important;
+  box-shadow: 0 10px 30px rgba(39, 32, 24, 0.035);
+  backdrop-filter: blur(20px);
+}
+
+[data-theme="dark"] .workspace-toolbar {
+  background: rgba(26, 27, 24, 0.9) !important;
+}
+
+.workspace-heading,
+.workspace-page h1,
+.workspace-page h2 {
+  letter-spacing: -0.025em !important;
+}
+
+.workspace-heading {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 2.5vw, 38px) !important;
+  font-weight: 520 !important;
+  line-height: 1.05;
+}
+
+.workspace-subtitle {
+  max-width: 62ch;
+  margin-top: 7px !important;
+  color: var(--text3);
+  font-size: 12px;
+}
+
+.workspace-section-card {
+  border-color: var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  background: linear-gradient(145deg, var(--surface-raised), var(--bg2)) !important;
+  box-shadow: var(--shadow);
+}
+
+.workspace-form-grid,
+.workspace-two-column,
+.workspace-profile-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.workspace-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.workspace-location-grid { grid-template-columns: minmax(0, 2fr) minmax(110px, 0.7fr) minmax(90px, 0.6fr) !important; }
+.workspace-profile-grid { grid-template-columns: 280px minmax(0, 1fr) !important; gap: 28px !important; }
+
+.workspace-action-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.workspace-primary-button {
+  min-height: 40px;
+  border-radius: 11px !important;
+  background: var(--accent) !important;
+  box-shadow: 0 8px 20px rgba(201, 77, 22, 0.18);
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+.workspace-primary-button:hover:not(:disabled) {
+  background: var(--accent-strong) !important;
+  box-shadow: 0 11px 25px rgba(201, 77, 22, 0.24);
+  transform: translateY(-1px);
+}
+
+.workspace-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px var(--page-pad) 32px !important;
+  background: transparent !important;
+}
+
+/* Agenda */
+.agenda-body {
+  display: grid !important;
+  grid-template-columns: minmax(430px, 1fr) minmax(300px, 360px);
+  gap: 20px;
+  padding: 20px var(--page-pad) 30px;
+}
+
+.agenda-calendar,
+.agenda-day-panel {
+  min-width: 0;
+  padding: 22px !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, var(--surface-raised), var(--bg2));
+  box-shadow: var(--shadow);
+}
+
+.agenda-day-panel {
+  width: auto !important;
+  max-height: calc(100dvh - 154px);
+}
+
+.agenda-divider { display: none !important; }
+
+/* Logs */
+.logs-content > .card,
+.form-list-item,
+.response-list-item {
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.form-list-item:hover,
+.response-list-item:hover {
+  border-color: rgba(239, 113, 58, 0.28) !important;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.form-editor,
+.response-view {
+  width: 100%;
+  max-width: 860px !important;
+  margin: 0 auto !important;
+}
+
+.form-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.profile-card {
+  border-radius: var(--radius-lg) !important;
+  background: linear-gradient(145deg, var(--surface-raised), var(--bg2)) !important;
+}
+
+@media (max-width: 900px) {
+  .workspace-form-grid { grid-template-columns: 1fr !important; }
+  .agenda-body { grid-template-columns: 1fr; overflow: auto !important; }
+  .agenda-day-panel { max-height: none; }
+}
+
+@media (max-width: 760px) {
+  .workspace-page {
+    padding: 18px 16px 28px !important;
+  }
+
+  .workspace-toolbar {
+    position: relative !important;
+    padding: 16px !important;
+  }
+
+  .workspace-heading { font-size: 27px !important; }
+  .workspace-content { padding: 14px 12px 24px !important; }
+  .workspace-location-grid,
+  .workspace-profile-grid { grid-template-columns: 1fr !important; }
+  .workspace-profile-grid { gap: 18px !important; }
+
+  .agenda-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px;
+    padding: 14px 12px 24px;
+  }
+
+  .agenda-calendar,
+  .agenda-day-panel { padding: 16px 14px !important; }
+
+  .form-page-header { align-items: flex-start !important; }
+  .form-page-header > div:first-of-type { min-width: 0; }
+  .form-editor-grid { grid-template-columns: 1fr !important; }
+  .form-list-item { align-items: flex-start !important; flex-direction: column !important; }
+  .form-list-actions { width: 100%; overflow-x: auto; }
+  .profile-field-grid { grid-template-columns: 1fr !important; }
+  .profile-pix-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 480px) {
+  .workspace-action-row { width: 100%; }
+  .workspace-action-row > button { flex: 1; justify-content: center; }
+  .form-page-header > button:not(:first-child) { flex: 1; justify-content: center; }
+}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 
 function InfoIcon({ size = 13 }) {
   return (
@@ -50,6 +50,7 @@ const arrowDown = {
  */
 export function InfoTooltip({ text, size = 13, width = 230, dir = 'up' }) {
   const [show, setShow] = useState(false)
+  const tooltipId = useId()
   if (!text) return null
   const above = dir === 'up'
   return (
@@ -57,10 +58,14 @@ export function InfoTooltip({ text, size = 13, width = 230, dir = 'up' }) {
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', color: 'var(--text3)', cursor: 'default', lineHeight: 1 }}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)}
+      onBlur={() => setShow(false)}
+      tabIndex={0}
+      aria-describedby={show ? tooltipId : undefined}
     >
       <InfoIcon size={size} />
       {show && (
-        <div style={{
+        <div id={tooltipId} role="tooltip" style={{
           ...tooltipBox(width),
           ...(above
             ? { bottom: 'calc(100% + 8px)', top: 'auto', left: 0 }
@@ -79,6 +84,7 @@ export function InfoTooltip({ text, size = 13, width = 230, dir = 'up' }) {
  */
 export function Tooltip({ children, text, width = 230, dir = 'up' }) {
   const [show, setShow] = useState(false)
+  const tooltipId = useId()
   if (!text) return <>{children}</>
   const above = dir === 'up'
   return (
@@ -86,10 +92,13 @@ export function Tooltip({ children, text, width = 230, dir = 'up' }) {
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
+      onFocusCapture={() => setShow(true)}
+      onBlurCapture={() => setShow(false)}
+      aria-describedby={show ? tooltipId : undefined}
     >
       {children}
       {show && (
-        <div style={{
+        <div id={tooltipId} role="tooltip" style={{
           ...tooltipBox(width),
           ...(above
             ? { bottom: 'calc(100% + 8px)', top: 'auto', left: 0 }

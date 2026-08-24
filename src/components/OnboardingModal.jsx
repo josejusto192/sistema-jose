@@ -93,51 +93,57 @@ export default function OnboardingModal({ userId, onClose }) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      className="overlay-backdrop"
+      role="presentation"
     >
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, width: '100%', maxWidth: 460, boxShadow: '0 12px 40px rgba(0,0,0,0.25)', animation: 'fadeIn 0.2s ease', overflow: 'hidden' }}>
+      <div className="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
 
         {/* Progress bar */}
-        <div style={{ height: 3, background: 'var(--border)', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${((step + 1) / STEPS.length) * 100}%`, background: 'var(--accent)', transition: 'width 0.3s ease', borderRadius: 2 }} />
+        <div className="onboarding-progress">
+          <div className="onboarding-progress-bar" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
         </div>
 
         {/* Header */}
-        <div style={{ padding: '28px 28px 0' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>{current.icon}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>{current.title}</div>
+        <div className="onboarding-header">
+          <div className="onboarding-icon" aria-hidden="true">{current.icon}</div>
+          <div id="onboarding-title" className="onboarding-title">{current.title}</div>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '0 28px 28px' }}>
+        <div className="onboarding-body">
           {current.content}
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 28px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="onboarding-footer">
           {/* Step dots */}
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div className="onboarding-dots" aria-label={`Etapa ${step + 1} de ${STEPS.length}`}>
             {STEPS.map((_, i) => (
-              <div
+              <button
                 key={i}
-                style={{ width: i === step ? 20 : 7, height: 7, borderRadius: 4, background: i === step ? 'var(--accent)' : 'var(--border)', transition: 'all 0.25s ease', cursor: 'pointer' }}
+                type="button"
+                className={`onboarding-dot${i === step ? ' is-active' : ''}`}
                 onClick={() => setStep(i)}
+                aria-label={`Ir para etapa ${i + 1}`}
+                aria-current={i === step ? 'step' : undefined}
               />
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="onboarding-actions">
             {!isLast && (
               <button
+                type="button"
                 onClick={finish}
-                style={{ padding: '7px 14px', borderRadius: 5, border: 'none', background: 'transparent', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+                className="onboarding-skip"
               >
                 Pular
               </button>
             )}
             <button
+              type="button"
               onClick={handleNext}
-              style={{ padding: '8px 22px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              className="onboarding-next"
             >
               {isLast ? 'Começar' : 'Próximo'}
             </button>
