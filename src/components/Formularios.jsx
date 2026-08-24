@@ -124,7 +124,7 @@ function CampoEditor({ campo, onChange, onRemove, index }) {
           type="checkbox"
           checked={campo.obrigatorio}
           onChange={e => onChange({ ...campo, obrigatorio: e.target.checked })}
-          style={{ accentColor: '#F05B17', width: 14, height: 14 }}
+          style={{ accentColor: 'var(--accent)', width: 14, height: 14 }}
         />
         Campo obrigatório
       </label>
@@ -180,16 +180,16 @@ function FormEditor({ form, onSave, onCancel }) {
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 760, margin: '0 auto' }}>
+    <div className="workspace-page form-editor" style={{ padding: '28px 32px', maxWidth: 760, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+      <div className="form-page-header" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
         <button
           onClick={onCancel}
           style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit' }}
         >
           ← Voltar
         </button>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+        <h2 className="workspace-heading" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
           {isNew ? 'Novo formulário' : 'Editar formulário'}
         </h2>
         <div style={{ flex: 1 }} />
@@ -208,9 +208,9 @@ function FormEditor({ form, onSave, onCancel }) {
       </div>
 
       {/* Configurações */}
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+      <div className="workspace-section-card" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 24 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Configurações</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
+        <div className="form-editor-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Título *</label>
             <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ex: Briefing de Campanha" style={inputStyle} />
@@ -280,10 +280,10 @@ function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtiv
   )
 
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+    <div className="workspace-page forms-list-page" style={{ padding: '28px 32px' }}>
+      <div className="form-page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>Formulários</h1>
+          <h1 className="workspace-heading" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>Formulários</h1>
           <div style={{ fontSize: 13, color: 'var(--text3)' }}>Crie formulários públicos para briefings, pesquisas e campanhas.</div>
         </div>
         <button onClick={onNew} style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -302,7 +302,7 @@ function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtiv
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {forms.map(f => (
-          <div key={f.id} style={{
+          <div key={f.id} className="form-list-item" style={{
             background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px',
             display: 'flex', alignItems: 'center', gap: 16,
             opacity: f.ativo ? 1 : 0.5,
@@ -312,8 +312,8 @@ function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtiv
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{f.titulo}</span>
                 <span style={{
                   fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4,
-                  background: f.ativo ? '#FEF0E8' : 'var(--bg3)',
-                  color: f.ativo ? '#F05B17' : 'var(--text3)',
+                  background: f.ativo ? 'var(--accent-soft)' : 'var(--bg3)',
+                  color: f.ativo ? 'var(--accent)' : 'var(--text3)',
                 }}>
                   {f.ativo ? 'Ativo' : 'Inativo'}
                 </span>
@@ -325,14 +325,14 @@ function FormulariosList({ forms, loading, onNew, onEdit, onDelete, onToggleAtiv
                 <span>·</span>
                 <button
                   onClick={() => onViewRespostas(f)}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: f.total_respostas > 0 ? '#F05B17' : 'var(--text3)', fontFamily: 'inherit', fontWeight: f.total_respostas > 0 ? 600 : 400 }}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: f.total_respostas > 0 ? 'var(--accent)' : 'var(--text3)', fontFamily: 'inherit', fontWeight: f.total_respostas > 0 ? 600 : 400 }}
                 >
                   {f.total_respostas} resposta{f.total_respostas !== 1 ? 's' : ''}
                 </button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <div className="form-list-actions" style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button
                 onClick={() => copyLink(f.id)}
                 title="Copiar link público"
@@ -394,8 +394,8 @@ function RespostasViewer({ form, onBack }) {
 
   if (selected) {
     return (
-      <div style={{ padding: '28px 32px', maxWidth: 760, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+      <div className="workspace-page response-view" style={{ padding: '28px 32px', maxWidth: 760, margin: '0 auto' }}>
+        <div className="form-page-header" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
           <button
             onClick={() => setSelected(null)}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit' }}
@@ -427,8 +427,8 @@ function RespostasViewer({ form, onBack }) {
   }
 
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+    <div className="workspace-page response-view" style={{ padding: '28px 32px' }}>
+      <div className="form-page-header" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button
           onClick={onBack}
           style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit' }}
@@ -459,6 +459,7 @@ function RespostasViewer({ form, onBack }) {
           <button
             key={r.id}
             onClick={() => setSelected(r)}
+            className="response-list-item"
             style={{
               display: 'flex', alignItems: 'center', gap: 16, width: '100%', textAlign: 'left',
               background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10,
@@ -466,7 +467,7 @@ function RespostasViewer({ form, onBack }) {
               transition: 'border-color 0.15s',
             }}
           >
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#FEF0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#F05B17', flexShrink: 0 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
               {respostas.length - i}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -568,12 +569,12 @@ const labelStyle = {
 }
 const btnPrimary = {
   padding: '8px 16px', borderRadius: 8, border: 'none',
-  background: '#F05B17', color: '#fff', fontSize: 13, fontWeight: 600,
+  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
   cursor: 'pointer', fontFamily: 'inherit',
 }
 const btnSmall = {
   padding: '8px 12px', borderRadius: 7, border: 'none',
-  background: '#F05B17', color: '#fff', fontSize: 12, fontWeight: 600,
+  background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600,
   cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
 }
 const btnIcon = {

@@ -417,17 +417,17 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
   const totalPages = Math.ceil(total / 20) || 0
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div className="workspace-page advanced-search-page" style={{ padding: '24px 28px' }}>
       <div style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Busca Avançada</h2>
-        <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3, margin: 0 }}>Encontre empresas via Casa dos Dados e importe como leads.</p>
+        <h2 className="workspace-heading" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Busca Avançada</h2>
+        <p className="workspace-subtitle" style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3, margin: 0 }}>Encontre empresas via Casa dos Dados e importe como leads.</p>
       </div>
 
       <form onSubmit={e => { e.preventDefault(); search(1) }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="workspace-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
           {/* ── Localização ─────────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
             <SectionTitle>Localização</SectionTitle>
             <div style={{ marginBottom: 12 }}>
               <Label>Estado (UF)</Label>
@@ -437,7 +437,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
                 ))}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+            <div className="workspace-form-grid workspace-location-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
               <div>
                 <Label>Município {form.ufs.length > 0 && `(${form.ufs.join(', ')})`}</Label>
                 <MunicipioPicker
@@ -458,7 +458,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           </div>
 
           {/* ── Busca Textual ──────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
             <SectionTitle>Busca Textual</SectionTitle>
             <Label>Palavra-chave</Label>
             <input value={form.termo} onChange={e => set('termo', e.target.value)} placeholder="Ex: restaurante, clínica, transporte..." style={inp} />
@@ -469,7 +469,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           </div>
 
           {/* ── Empresa ──────────────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
             <SectionTitle>Empresa</SectionTitle>
             <div style={{ marginBottom: 10 }}>
               <Label>Situação</Label>
@@ -494,7 +494,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           </div>
 
           {/* ── Atividade / CNAE ─────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
             <SectionTitle>Atividade (CNAE) — lista completa IBGE</SectionTitle>
             <CnaePicker value={form.cnaes} onChange={v => set('cnaes', v)} />
             {form.cnaes.length > 0 && (
@@ -505,25 +505,25 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           </div>
 
           {/* ── Abertura ─────────────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
             <SectionTitle>Data de Abertura</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="workspace-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div><Label>De</Label><input type="date" value={form.abertura_de} onChange={e => set('abertura_de', e.target.value)} style={inp} /></div>
               <div><Label>Até</Label><input type="date" value={form.abertura_ate} onChange={e => set('abertura_ate', e.target.value)} style={inp} /></div>
             </div>
           </div>
 
           {/* ── Capital Social ───────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
             <SectionTitle>Capital Social</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="workspace-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div><Label>Mínimo (R$)</Label><input type="number" value={form.capital_min} onChange={e => set('capital_min', e.target.value)} placeholder="0" style={inp} min={0} /></div>
               <div><Label>Máximo (R$)</Label><input type="number" value={form.capital_max} onChange={e => set('capital_max', e.target.value)} placeholder="ilimitado" style={inp} min={0} /></div>
             </div>
           </div>
 
           {/* ── Filtros Adicionais ───────────────────────────────────── */}
-          <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
+          <div className="workspace-section-card" style={{ background: 'var(--bg2)', borderRadius: 10, padding: 16, border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
             <SectionTitle>Filtros Adicionais</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
               <div>
@@ -576,6 +576,7 @@ export default function BuscaAvancada({ onCreateLead, existingCnpjs = [], profil
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="submit"
+              className="workspace-primary-button"
               style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
               disabled={loading}
             >

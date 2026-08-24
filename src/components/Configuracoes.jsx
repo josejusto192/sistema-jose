@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { supabase, SUPABASE_URL } from '../supabase.js'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import '../styles/admin.css'
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
 function Avatar({ profile, size = 40 }) {
   const initials = [profile?.nome, profile?.sobrenome].filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?'
-  if (profile?.foto_url) return <img src={profile.foto_url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+  const fullName = [profile?.nome, profile?.sobrenome].filter(Boolean).join(' ') || 'Usuário'
+  if (profile?.foto_url) return <img className="settings-avatar" src={profile.foto_url} alt={`Foto de ${fullName}`} style={{ width: size, height: size }} />
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.36, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+    <div className="settings-avatar settings-avatar--initials" aria-hidden="true" style={{ width: size, height: size, fontSize: size * 0.36 }}>
       {initials}
     </div>
   )
@@ -17,20 +19,20 @@ function Avatar({ profile, size = 40 }) {
 
 function Badge({ children, color, bg }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: 3, fontSize: 11, fontWeight: 600, background: bg, color }}>
+    <span className="settings-badge" style={{ background: bg, color }}>
       {children}
     </span>
   )
 }
 
 function Divider() {
-  return <div style={{ height: 1, background: 'var(--border)', margin: '20px 0' }} />
+  return <div className="settings-divider" />
 }
 
 function inp(extra = {}) {
   return {
-    width: '100%', padding: '8px 11px', borderRadius: 5,
-    border: '1px solid var(--border)', background: 'var(--bg3)',
+    width: '100%', padding: '10px 12px', borderRadius: 11,
+    border: '1px solid var(--border2)', background: 'var(--bg2)',
     color: 'var(--text)', fontSize: 13, outline: 'none',
     boxSizing: 'border-box', fontFamily: 'inherit',
     ...extra,
@@ -67,12 +69,12 @@ function InviteModal({ onClose, onInvited, defaultComissao }) {
   if (ok) {
     return (
       <div
+        className="admin-dialog-backdrop"
         onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
       >
-        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 420, padding: '36px 28px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+        <div className="admin-modal admin-modal--compact settings-success-modal" role="dialog" aria-modal="true" aria-labelledby="invite-success-title" onClick={e => e.stopPropagation()}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✉️</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Convite enviado!</div>
+          <div id="invite-success-title" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Convite enviado!</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 24 }}>
             Um e-mail foi enviado para <strong style={{ color: 'var(--text)' }}>{email}</strong> com o link de acesso ao sistema.
           </div>
@@ -88,21 +90,24 @@ function InviteModal({ onClose, onInvited, defaultComissao }) {
   }
 
   return (
-    <div
+      <div
+      className="admin-dialog-backdrop"
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
     >
       <div
+        className="admin-modal settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invite-modal-title"
         onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 480, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', animation: 'fadeIn 0.15s ease' }}
       >
         {/* Header */}
         <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Convidar vendedor</div>
+            <div id="invite-modal-title" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Convidar vendedor</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>O convite é enviado por e-mail com link de acesso</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: '4px 8px' }}>×</button>
+          <button type="button" className="admin-icon-button" onClick={onClose} aria-label="Fechar convite">×</button>
         </div>
 
         {/* Body */}
@@ -113,7 +118,7 @@ function InviteModal({ onClose, onInvited, defaultComissao }) {
             <input style={inp()} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vendedor@email.com" autoFocus />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
+          <div className="settings-form-grid">
             <div>
               <label style={lbl}>Nome</label>
               <input style={inp()} value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome" />
@@ -215,19 +220,22 @@ function UserModal({ user, currentUserId, onClose, onSaved, logAction }) {
 
   return (
     <div
+      className="admin-dialog-backdrop"
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
     >
       <div
+        className="admin-modal settings-modal settings-user-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-modal-title"
         onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', animation: 'fadeIn 0.15s ease' }}
       >
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <Avatar profile={user} size={48} />
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+              <div id="user-modal-title" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
                 {[user.nome, user.sobrenome].filter(Boolean).join(' ') || 'Sem nome'}
                 {isSelf && <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 8, fontWeight: 600 }}>você</span>}
               </div>
@@ -235,7 +243,7 @@ function UserModal({ user, currentUserId, onClose, onSaved, logAction }) {
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>Membro desde {memberSince}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: '4px 8px' }}>×</button>
+          <button type="button" className="admin-icon-button" onClick={onClose} aria-label="Fechar edição de usuário">×</button>
         </div>
 
         {/* Body */}
@@ -243,7 +251,7 @@ function UserModal({ user, currentUserId, onClose, onSaved, logAction }) {
 
           {/* Informações */}
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Informações</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px', marginBottom: 16 }}>
+          <div className="settings-form-grid" style={{ marginBottom: 16 }}>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>Nome</label>
               <input style={inp()} value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome" />
@@ -401,7 +409,7 @@ function SistemaTab({ session }) {
   const lbl = { fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <section className="settings-stack" aria-label="Sistema">
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Identidade</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, maxWidth: 400 }}>
@@ -414,7 +422,7 @@ function SistemaTab({ session }) {
 
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Regras de negócio</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 500 }}>
+        <div className="settings-form-grid" style={{ maxWidth: 500 }}>
           <div>
             <label style={lbl}>Comissão padrão (%)</label>
             <input style={inp()} type="number" min={0} max={100} step={0.5} value={comissaoPadrao} onChange={e => setComissaoPadrao(e.target.value)} />
@@ -449,7 +457,7 @@ function SistemaTab({ session }) {
         </button>
         {saved && <span style={{ fontSize: 13, color: 'var(--green)' }}>Salvo!</span>}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -563,16 +571,13 @@ function PacotesTab({ logAction }) {
   const lbl = { fontSize: 11, color: 'var(--text3)', display: 'block', marginBottom: 4 }
 
   return (
-    <div>
+    <section className="settings-section" aria-label="Serviços">
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: 'var(--text3)' }}>
+      <div className="settings-toolbar">
+        <div className="settings-count">
           {pacotes.length} serviço{pacotes.length !== 1 ? 's' : ''} cadastrado{pacotes.length !== 1 ? 's' : ''}
         </div>
-        <button
-          onClick={openNew}
-          style={{ padding: '8px 16px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-        >
+        <button type="button" className="admin-primary-action" onClick={openNew}>
           + Novo serviço
         </button>
       </div>
@@ -583,11 +588,11 @@ function PacotesTab({ logAction }) {
       ) : pacotes.length === 0 ? (
         <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Nenhum serviço cadastrado ainda.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="settings-service-list">
           {pacotes.map(p => (
             <div
               key={p.id}
-              className="card"
+              className="card settings-service-card"
               style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', opacity: p.ativo !== false ? 1 : 0.5, transition: 'box-shadow 0.12s' }}
               onClick={() => openEdit(p)}
               onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
@@ -633,19 +638,22 @@ function PacotesTab({ logAction }) {
       {/* Modal */}
       {modal !== null && (
         <div
+          className="admin-dialog-backdrop"
           onClick={closeModal}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
         >
           <div
+            className="admin-modal settings-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="service-modal-title"
             onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', animation: 'fadeIn 0.15s ease' }}
           >
             {/* Header */}
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+              <div id="service-modal-title" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
                 {isNew ? 'Novo serviço' : 'Editar serviço'}
               </div>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: '4px 8px' }}>×</button>
+              <button type="button" className="admin-icon-button" onClick={closeModal} aria-label="Fechar formulário de serviço">×</button>
             </div>
 
             {/* Body */}
@@ -682,7 +690,7 @@ function PacotesTab({ logAction }) {
               </div>
 
               {/* Tipo + Valor */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="settings-form-grid">
                 <div>
                   <label style={lbl}>Tipo</label>
                   <select style={inp({ cursor: 'pointer' })} value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
@@ -775,7 +783,7 @@ function PacotesTab({ logAction }) {
           </div>
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -847,10 +855,10 @@ function ScriptsTab({ logAction }) {
   const inputStyle = { width: '100%', padding: '8px 11px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Scripts de abordagem exibidos na tela do lead</div>
-        <button onClick={openCreate} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+    <section className="settings-section" aria-label="Scripts de abordagem">
+      <div className="settings-toolbar">
+        <div className="settings-count">Scripts de abordagem exibidos na tela do lead</div>
+        <button type="button" className="admin-primary-action" onClick={openCreate}>
           + Novo script
         </button>
       </div>
@@ -860,9 +868,9 @@ function ScriptsTab({ logAction }) {
       ) : scripts.length === 0 ? (
         <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Nenhum script cadastrado.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="settings-script-list">
           {scripts.map(s => (
-            <div key={s.id} className="card" style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
+            <div key={s.id} className="card settings-script-card" style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
               <div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
                   <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text3)' }}>{canalLabel[s.canal] || s.canal}</span>
@@ -881,10 +889,10 @@ function ScriptsTab({ logAction }) {
 
       {/* Modal */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        <div className="admin-dialog-backdrop"
           onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div style={{ background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--border)', padding: 24, width: '100%', maxWidth: 560 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 18 }}>{modal.script ? 'Editar script' : 'Novo script'}</div>
+          <div className="admin-modal admin-modal--padded settings-script-modal" role="dialog" aria-modal="true" aria-labelledby="script-modal-title">
+            <div id="script-modal-title" style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 18 }}>{modal.script ? 'Editar script' : 'Novo script'}</div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>TÍTULO</div>
               <input value={form.titulo} onChange={e => setForm(p => ({...p, titulo: e.target.value}))} placeholder="Ex: WhatsApp — Prospecção inicial" style={inputStyle} />
@@ -906,7 +914,7 @@ function ScriptsTab({ logAction }) {
           </div>
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -922,7 +930,7 @@ function ExtensaoTab() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <section className="settings-stack" aria-label="Extensão">
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Extensão de prospecção (WhatsApp Web)</div>
         <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16, maxWidth: 640 }}>
@@ -952,7 +960,7 @@ function ExtensaoTab() {
           ))}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -998,7 +1006,7 @@ function WhatsAppTab() {
   if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <section className="settings-stack settings-stack--narrow" aria-label="WhatsApp">
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>WhatsApp Cloud API (Meta)</div>
@@ -1069,7 +1077,7 @@ function WhatsAppTab() {
           4. Não é necessário configurar nada em "Edge Function Secrets" — tudo é lido direto desta tela.
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -1132,7 +1140,7 @@ function EmailTab() {
   if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <section className="settings-stack settings-stack--narrow" aria-label="Email">
       <div className="card" style={{ padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Email Marketing (Resend)</div>
@@ -1204,7 +1212,7 @@ function EmailTab() {
             <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Endereço de resposta (Reply-To — onde a resposta do lead vai cair)</div>
             <input style={inp()} value={cfg.caixa_respostas_email || ''} onChange={e => setCfg(p => ({ ...p, caixa_respostas_email: e.target.value }))} placeholder="ex: respostas@seudominio.com" />
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div className="settings-inline-grid">
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 5 }}>Servidor IMAP</div>
               <input style={inp()} value={cfg.imap_host || ''} onChange={e => setCfg(p => ({ ...p, imap_host: e.target.value }))} placeholder="ex: mail.seudominio.com" />
@@ -1294,7 +1302,7 @@ function EmailTab() {
           9. Ao criar uma campanha, marque "Gerar com IA" e descreva o objetivo — a IA escreve um email diferente para cada lead usando os dados que já temos dele.
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -1316,10 +1324,10 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
 
   if (!isSuperAdmin) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: 'var(--text3)', padding: 40 }}>
-        <div style={{ fontSize: 32 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text2)' }}>Acesso restrito</div>
-        <div style={{ fontSize: 13 }}>Esta área requer permissão de superadmin.</div>
+      <div className="admin-page settings-page settings-restricted">
+        <div className="settings-restricted__icon" aria-hidden="true">◆</div>
+        <h1>Acesso restrito</h1>
+        <p>Esta área requer permissão de superadmin.</p>
       </div>
     )
   }
@@ -1336,64 +1344,79 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
     return !q || u.nome?.toLowerCase().includes(q) || u.sobrenome?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.cargo?.toLowerCase().includes(q)
   })
 
-  const tabStyle = (id) => ({
-    padding: '7px 16px', borderRadius: 4, border: 'none',
-    background: activeTab === id ? 'var(--bg3)' : 'transparent',
-    color: activeTab === id ? 'var(--text)' : 'var(--text3)',
-    fontSize: 13, fontWeight: activeTab === id ? 600 : 400,
-    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
-  })
-
   return (
-    <div style={{ padding: '28px 32px' }}>
+    <div className="admin-page settings-page">
 
       {/* Page header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Configurações</h1>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 3 }}>Gerencie usuários, permissões e configurações do sistema</div>
-      </div>
+      <header className="admin-hero settings-hero">
+        <div className="admin-eyebrow">Central de administração</div>
+        <h1 className="admin-title">Configurações</h1>
+        <p className="admin-subtitle">Gerencie sua equipe, os serviços e as integrações que mantêm a operação funcionando.</p>
+      </header>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, background: 'var(--bg2)', borderRadius: 5, padding: 3, width: 'fit-content', border: '1px solid var(--border)' }}>
-        <button style={tabStyle('usuarios')} onClick={() => setActiveTab('usuarios')}>Usuários</button>
-        <button style={tabStyle('sistema')} onClick={() => setActiveTab('sistema')}>Sistema</button>
-        <button style={tabStyle('servicos')} onClick={() => setActiveTab('servicos')}>Serviços</button>
-        <button style={tabStyle('scripts')} onClick={() => setActiveTab('scripts')}>Scripts</button>
-        <button style={tabStyle('extensao')} onClick={() => setActiveTab('extensao')}>Extensão</button>
-        <button style={tabStyle('whatsapp')} onClick={() => setActiveTab('whatsapp')}>WhatsApp</button>
-        <button style={tabStyle('email')} onClick={() => setActiveTab('email')}>Email</button>
-      </div>
+      <nav className="settings-tabs" role="tablist" aria-label="Seções de configuração">
+        {[
+          ['usuarios', 'Equipe', 'U'],
+          ['sistema', 'Sistema', 'S'],
+          ['servicos', 'Serviços', 'P'],
+          ['scripts', 'Scripts', 'A'],
+          ['extensao', 'Extensão', 'E'],
+          ['whatsapp', 'WhatsApp', 'W'],
+          ['email', 'Email', '@'],
+        ].map(([id, label, glyph]) => (
+          <button
+            type="button"
+            key={id}
+            role="tab"
+            aria-selected={activeTab === id}
+            className={`settings-tab${activeTab === id ? ' is-active' : ''}`}
+            onClick={() => setActiveTab(id)}
+          >
+            <span className="settings-tab__glyph" aria-hidden="true">{glyph}</span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="settings-content">
 
       {/* ── Usuários ── */}
       {activeTab === 'usuarios' && (
-        <div>
+        <section className="settings-section" aria-label="Equipe">
           {/* Toolbar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
-            <input
-              style={{ ...inp({ width: 240 }), padding: '7px 11px', flex: '1 1 200px', maxWidth: 300 }}
-              placeholder="Buscar usuário..."
-              value={searchQ}
-              onChange={e => setSearchQ(e.target.value)}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+          <div className="settings-toolbar">
+            <label className="admin-search settings-search">
+              <span className="sr-only">Buscar usuário</span>
+              <span className="admin-search__icon" aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                placeholder="Buscar por nome, e-mail ou cargo"
+                value={searchQ}
+                onChange={e => setSearchQ(e.target.value)}
+              />
+              {searchQ && <button type="button" className="admin-search__clear" onClick={() => setSearchQ('')} aria-label="Limpar busca">×</button>}
+            </label>
+            <div className="settings-toolbar__actions">
+              <div className="settings-count">
                 {filtered.length} usuário{filtered.length !== 1 ? 's' : ''}
               </div>
               <button
+                type="button"
+                className="admin-primary-action"
                 onClick={() => setShowInvite(true)}
-                style={{ padding: '7px 16px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
               >
-                + Convidar vendedor
+                <span aria-hidden="true">＋</span> Convidar pessoa
               </button>
             </div>
           </div>
 
           {loading ? (
-            <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+            <div className="admin-loading-state" role="status">Carregando equipe...</div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Nenhum usuário encontrado.</div>
+            <div className="admin-empty-state"><strong>Nenhum usuário encontrado</strong><span>Tente buscar por outro nome, e-mail ou cargo.</span></div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="settings-user-list">
               {filtered.map(user => {
                 const isSelf = user.id === currentUserId
                 const isAdmin = user.role === 'superadmin'
@@ -1402,46 +1425,47 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
                 return (
                   <div
                     key={user.id}
-                    className="card"
-                    style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'box-shadow 0.12s' }}
+                    className="card settings-user-card"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Editar usuário ${fullName}`}
                     onClick={() => setSelectedUser(user)}
-                    onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
-                    onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedUser(user) } }}
                   >
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div className="settings-user-card__avatar">
                       <Avatar profile={user} size={42} />
-                      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: isAtivo ? 'var(--green)' : 'var(--border2)', border: '2px solid var(--bg2)' }} />
+                      <div className={`settings-user-card__status${isAtivo ? ' is-online' : ''}`} title={isAtivo ? 'Ativo' : 'Inativo'} />
                     </div>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{fullName}</span>
-                        {isSelf && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700, background: 'var(--bg3)', padding: '1px 6px', borderRadius: 3 }}>você</span>}
+                    <div className="settings-user-card__copy">
+                      <div className="settings-user-card__name-row">
+                        <span className="settings-user-card__name">{fullName}</span>
+                        {isSelf && <span className="settings-self-badge">você</span>}
                         <Badge color={isAdmin ? 'var(--purple)' : 'var(--text3)'} bg={isAdmin ? 'var(--purple-bg)' : 'var(--bg3)'}>
                           {isAdmin ? 'superadmin' : 'vendedor'}
                         </Badge>
                         {!isAtivo && <Badge color="var(--red)" bg="var(--red-bg)">Inativo</Badge>}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>
+                      <div className="settings-user-card__description">
                         {user.email}
                         {user.cargo ? ` · ${user.cargo}` : ''}
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                    <div className="settings-user-card__commission">
+                      <div>
                         {user.comissao_percentual ?? 10}%
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>comissão</div>
+                      <span>comissão</span>
                     </div>
 
-                    <div style={{ flexShrink: 0, color: 'var(--text3)', fontSize: 18, paddingLeft: 8 }}>›</div>
+                    <div className="settings-user-card__arrow" aria-hidden="true">›</div>
                   </div>
                 )
               })}
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* ── Sistema ── */}
@@ -1489,6 +1513,7 @@ export default function Configuracoes({ session, profile, isSuperAdmin, logActio
           }}
         />
       )}
+      </div>
     </div>
   )
 }

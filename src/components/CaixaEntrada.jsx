@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../supabase.js'
-import { IconInbox, IconWhatsApp, IconMail, IconSearch, IconCheck, IconPaperclip, IconX, IconMic, IconSquare, IconTrash } from './Icons.jsx'
+import { IconInbox, IconWhatsApp, IconMail, IconSearch, IconCheck, IconPaperclip, IconX, IconMic, IconSquare, IconTrash, IconArrowLeft, IconPlus } from './Icons.jsx'
+import '../styles/communications.css'
 
 // Ordem de preferência de formato pro MediaRecorder — só entra na lista o
 // que o navegador realmente sabe gravar (varia entre Chrome/Firefox/Safari).
@@ -66,26 +67,26 @@ function MediaBubbleContent({ m }) {
   if (m.message_type === 'image' || m.message_type === 'sticker') {
     return (
       <>
-        <a href={m.media_url} target="_blank" rel="noopener noreferrer">
-          <img src={m.media_url} alt="" style={{ maxWidth: 240, borderRadius: 8, display: 'block' }} />
+        <a className="message-media-link" href={m.media_url} target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem em uma nova aba">
+          <img className="message-media-preview" src={m.media_url} alt={m.content || 'Imagem enviada na conversa'} />
         </a>
-        {m.content && <div style={{ marginTop: 6 }}>{m.content}</div>}
+        {m.content && <div className="message-media-caption">{m.content}</div>}
       </>
     )
   }
   if (m.message_type === 'video') {
     return (
       <>
-        <video src={m.media_url} controls style={{ maxWidth: 240, borderRadius: 8, display: 'block' }} />
-        {m.content && <div style={{ marginTop: 6 }}>{m.content}</div>}
+        <video className="message-media-preview" src={m.media_url} controls aria-label="Vídeo enviado na conversa" />
+        {m.content && <div className="message-media-caption">{m.content}</div>}
       </>
     )
   }
   if (m.message_type === 'audio') {
-    return <audio src={m.media_url} controls style={{ width: 220 }} />
+    return <audio className="message-audio" src={m.media_url} controls aria-label="Áudio enviado na conversa" />
   }
   return (
-    <a href={m.media_url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 12 }}>
+    <a className="message-document-link" href={m.media_url} target="_blank" rel="noopener noreferrer">
       📎 {m.content || 'Documento'}
     </a>
   )
@@ -425,72 +426,68 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
 
   const conversaEmailAtual = conversasEmailComLead.find(c => c.thread_key === threadKeyEmail)
   const canalAtual = CANAIS.find(c => c.id === canal)
+  const temConversaAtiva = canal === 'whatsapp' ? !!sessionId : !!threadKeyEmail
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
+    <div className={`communications-inbox${temConversaAtiva ? ' has-active-thread' : ''}`}>
       {/* Coluna: canais + lista de conversas */}
-      <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg2)' }}>
-        <div style={{ padding: '18px 18px 12px' }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Caixa de Entrada</h2>
+      <aside className="inbox-master" aria-label="Lista de conversas">
+        <div className="inbox-master-heading">
+          <div>
+            <span className="inbox-eyebrow">Central de conversas</span>
+            <h2>Caixa de entrada</h2>
+          </div>
+          <span className="inbox-live-indicator" title="Atualizações em tempo real">Ao vivo</span>
         </div>
 
         {/* Abas de canal */}
-        <div style={{ display: 'flex', gap: 6, padding: '0 14px 12px' }}>
+        <div className="inbox-channel-tabs" role="tablist" aria-label="Canais de atendimento">
           {CANAIS.map(c => (
             <button
               key={c.id}
               onClick={() => c.ativo && setCanal(c.id)}
               disabled={!c.ativo}
               title={c.ativo ? c.label : `${c.label} — em breve`}
-              style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '7px 0', borderRadius: 8, border: '1px solid var(--border)',
-                background: canal === c.id ? 'var(--accent)' : 'var(--bg3)',
-                color: canal === c.id ? '#fff' : c.ativo ? 'var(--text2)' : 'var(--text3)',
-                fontSize: 12, fontWeight: 600, cursor: c.ativo ? 'pointer' : 'not-allowed',
-                opacity: c.ativo ? 1 : 0.55,
-              }}
+              className={`inbox-channel-tab${canal === c.id ? ' is-active' : ''}`}
+              role="tab"
+              aria-selected={canal === c.id}
             >
               <c.Icon size={13} color={canal === c.id ? '#fff' : c.color} />
-              {c.label}
-              {!c.ativo && <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 2 }}>(em breve)</span>}
+              <span>{c.id === 'whatsapp' ? 'WhatsApp' : c.label}</span>
+              {!c.ativo && <span className="inbox-soon-label">Em breve</span>}
             </button>
           ))}
         </div>
 
         {/* Busca */}
-        <div style={{ padding: '0 14px 12px' }}>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
+        <div className="inbox-search-wrap">
+          <div className="inbox-search">
+            <span aria-hidden="true">
               <IconSearch size={13} color="var(--text3)" />
             </span>
             <input
               value={busca}
               onChange={e => setBusca(e.target.value)}
               placeholder="Buscar conversa..."
-              style={{
-                width: '100%', padding: '8px 12px 8px 30px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--bg3)',
-                color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box',
-              }}
+              aria-label="Buscar conversa"
             />
           </div>
         </div>
 
         {/* Lista de conversas */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="inbox-thread-list" role="tabpanel">
           {canal === 'whatsapp' && (<>
           {loadingConversas && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+            <div className="inbox-loading" role="status">Carregando conversas...</div>
           )}
 
           {!loadingConversas && conversasFiltradas.length === 0 && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>
+            <div className="inbox-list-empty">
               <IconInbox size={36} color="var(--border)" />
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginTop: 12 }}>Nenhuma conversa ainda</div>
-              <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+              <strong>Nenhuma conversa ainda</strong>
+              <span>
                 As conversas do {canalAtual?.label} vão aparecer aqui automaticamente.
-              </div>
+              </span>
             </div>
           )}
 
@@ -501,28 +498,25 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
               <button
                 key={c.session_id}
                 onClick={() => openConversa(c.session_id)}
-                style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: 'left',
-                  padding: '11px 14px', background: ativa ? 'var(--bg3)' : 'transparent',
-                  border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
-                }}
+                className={`inbox-thread-item${ativa ? ' is-active' : ''}${c.nao_lidas > 0 ? ' has-unread' : ''}`}
+                aria-current={ativa ? 'true' : undefined}
               >
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+                <div className="inbox-thread-avatar" aria-hidden="true">
                   {nome.slice(0, 1).toUpperCase()}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: c.nao_lidas > 0 ? 700 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div className="inbox-thread-copy">
+                  <div className="inbox-thread-topline">
+                    <span className="inbox-thread-name">
                       {nome}
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>{formatDay(c.ultima_mensagem_em)}</span>
+                    <time>{formatDay(c.ultima_mensagem_em)}</time>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 2 }}>
-                    <span style={{ fontSize: 12, color: c.nao_lidas > 0 ? 'var(--text2)' : 'var(--text3)', fontWeight: c.nao_lidas > 0 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="inbox-thread-preview-row">
+                    <span className="inbox-thread-preview">
                       {c.ultima_direcao === 'outbound' ? 'Você: ' : ''}{previewMensagem(c)}
                     </span>
                     {c.nao_lidas > 0 && (
-                      <span style={{ flexShrink: 0, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>
+                      <span className="inbox-unread-count" aria-label={`${c.nao_lidas} mensagens não lidas`}>
                         {c.nao_lidas}
                       </span>
                     )}
@@ -534,44 +528,38 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           </>)}
 
           {canal === 'email' && (<>
-          <div style={{ padding: '10px 10px 8px' }}>
+          <div className="inbox-new-email-wrap">
             <button
               onClick={() => { setMostrarNovaMsgEmail(true); setErroNovaMsg(null) }}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-              }}
+              className="inbox-new-email"
             >
-              + Nova mensagem
+              <IconPlus size={13} color="#fff" /> Nova mensagem
             </button>
           </div>
-          <div style={{ display: 'flex', gap: 4, padding: '0 10px 8px', borderBottom: '1px solid var(--border)' }}>
+          <div className="inbox-folder-tabs" role="tablist" aria-label="Pastas de email">
             {[['inbox', 'Recebidos'], ['enviados', 'Enviados'], ['spam', 'Spam']].map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setPastaEmail(id)}
-                style={{
-                  fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                  fontFamily: 'inherit', background: pastaEmail === id ? 'var(--accent)' : 'var(--bg3)',
-                  color: pastaEmail === id ? '#fff' : 'var(--text2)',
-                }}
+                className={pastaEmail === id ? 'is-active' : ''}
+                role="tab"
+                aria-selected={pastaEmail === id}
               >
                 {label}
               </button>
             ))}
           </div>
           {loadingConversasEmail && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+            <div className="inbox-loading" role="status">Carregando conversas...</div>
           )}
 
           {!loadingConversasEmail && conversasEmailFiltradas.length === 0 && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>
+            <div className="inbox-list-empty">
               <IconMail size={36} color="var(--border)" />
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginTop: 12 }}>Nenhuma conversa ainda</div>
-              <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+              <strong>Nenhuma conversa ainda</strong>
+              <span>
                 Emails enviados e respostas dos leads vão aparecer aqui automaticamente.
-              </div>
+              </span>
             </div>
           )}
 
@@ -582,28 +570,25 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
               <button
                 key={c.thread_key}
                 onClick={() => openConversaEmail(c.thread_key)}
-                style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: 'left',
-                  padding: '11px 14px', background: ativa ? 'var(--bg3)' : 'transparent',
-                  border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit',
-                }}
+                className={`inbox-thread-item${ativa ? ' is-active' : ''}${c.nao_lidas > 0 ? ' has-unread' : ''}`}
+                aria-current={ativa ? 'true' : undefined}
               >
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+                <div className="inbox-thread-avatar is-email" aria-hidden="true">
                   {nome.slice(0, 1).toUpperCase()}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: c.nao_lidas > 0 ? 700 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div className="inbox-thread-copy">
+                  <div className="inbox-thread-topline">
+                    <span className="inbox-thread-name">
                       {nome}
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>{formatDay(c.ultima_mensagem_em)}</span>
+                    <time>{formatDay(c.ultima_mensagem_em)}</time>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 2 }}>
-                    <span style={{ fontSize: 12, color: c.nao_lidas > 0 ? 'var(--text2)' : 'var(--text3)', fontWeight: c.nao_lidas > 0 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="inbox-thread-preview-row">
+                    <span className="inbox-thread-preview">
                       {c.ultima_direcao === 'outbound' ? 'Você: ' : ''}{(c.ultima_mensagem || '').replace(/<[^>]+>/g, '').slice(0, 80)}
                     </span>
                     {c.nao_lidas > 0 && (
-                      <span style={{ flexShrink: 0, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>
+                      <span className="inbox-unread-count" aria-label={`${c.nao_lidas} mensagens não lidas`}>
                         {c.nao_lidas}
                       </span>
                     )}
@@ -614,59 +599,60 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           })}
           </>)}
         </div>
-      </div>
+      </aside>
 
       {/* Painel da conversa selecionada */}
       {canal === 'whatsapp' && (<>
       {!sessionId && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-          <div style={{ textAlign: 'center', maxWidth: 360, padding: 24 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+        <div className="inbox-empty-detail">
+          <div className="inbox-empty-detail-card">
+            <div className="inbox-empty-icon is-whatsapp">
               <IconWhatsApp size={26} color="#25D366" />
             </div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Caixa de Entrada do WhatsApp</div>
-            <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
+            <strong>Suas conversas, em um só lugar</strong>
+            <p>
               Selecione uma conversa à esquerda para ver as mensagens e responder direto por aqui.
-            </div>
+            </p>
           </div>
         </div>
       )}
 
       {sessionId && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', minWidth: 0 }}>
+        <section className="inbox-detail" aria-label="Conversa do WhatsApp">
           {/* Header da conversa */}
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+          <header className="inbox-detail-header">
+            <button className="inbox-mobile-back" onClick={() => setSessionId(null)} aria-label="Voltar para a lista de conversas">
+              <IconArrowLeft size={18} />
+            </button>
+            <div className="inbox-detail-avatar" aria-hidden="true">
+              {(conversaAtual?.lead?.nome_fantasia || conversaAtual?.lead?.razao_social || sessionId).slice(0, 1).toUpperCase()}
+            </div>
+            <div className="inbox-detail-identity">
+              <strong>
                 {conversaAtual?.lead?.nome_fantasia || conversaAtual?.lead?.razao_social || sessionId}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{sessionId}</div>
+              </strong>
+              <span><i /> WhatsApp · {sessionId}</span>
             </div>
             {conversaAtual?.lead && (
               <button
                 onClick={() => onOpenLead?.(conversaAtual.lead)}
-                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                className="inbox-view-lead"
               >
                 Ver lead
               </button>
             )}
-          </div>
+          </header>
 
           {/* Mensagens */}
-          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {loadingMsgs && <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando mensagens...</div>}
+          <div ref={scrollRef} className="inbox-messages" aria-live="polite">
+            {loadingMsgs && <div className="inbox-loading" role="status">Carregando mensagens...</div>}
             {!loadingMsgs && mensagens.map(m => {
               const out = m.direction === 'outbound'
               return (
-                <div key={m.id} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
-                  <div style={{
-                    maxWidth: '70%', padding: '8px 12px', borderRadius: 12,
-                    background: out ? 'var(--accent)' : 'var(--bg3)',
-                    color: out ? '#fff' : 'var(--text)',
-                    fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  }}>
+                <div key={m.id} className={`inbox-message-row ${out ? 'is-outbound' : 'is-inbound'}`}>
+                  <div className="inbox-message-bubble">
                     <MediaBubbleContent m={m} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, opacity: 0.7, justifyContent: 'flex-end' }}>
+                    <div className="inbox-message-meta">
                       {formatTime(m.created_at)}
                       {out && m.whatsapp_status === 'read' && <IconCheck size={10} color={out ? '#fff' : 'var(--text3)'} />}
                     </div>
@@ -677,60 +663,55 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           </div>
 
           {/* Composição */}
-          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <footer className="inbox-composer">
             {erroEnvio && (
-              <div style={{ marginBottom: 8, fontSize: 12, color: '#DC2626' }}>{erroEnvio}</div>
+              <div className="inbox-error" role="alert">{erroEnvio}</div>
             )}
             {arquivo && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '6px 10px', borderRadius: 8, background: 'var(--bg3)', fontSize: 12, color: 'var(--text2)', width: 'fit-content' }}>
+              <div className="inbox-attachment-chip">
                 <IconPaperclip size={12} color="var(--text3)" />
-                {arquivo.name}
-                <button onClick={() => { setArquivo(null); if (fileInputRef.current) fileInputRef.current.value = '' }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 }}>
+                <span>{arquivo.name}</span>
+                <button onClick={() => { setArquivo(null); if (fileInputRef.current) fileInputRef.current.value = '' }} aria-label="Remover anexo">
                   <IconX size={12} color="var(--text3)" />
                 </button>
               </div>
             )}
             {gravando ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--bg3)' }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#DC2626', flexShrink: 0, animation: 'pulse 1.1s infinite' }} />
-                <span style={{ fontSize: 13, color: 'var(--text2)', flex: 1 }}>
+              <div className="inbox-recording">
+                <span className="inbox-recording-dot" />
+                <span>
                   Gravando... {String(Math.floor(tempoGravacao / 60)).padStart(2, '0')}:{String(tempoGravacao % 60).padStart(2, '0')}
                 </span>
-                <button onClick={() => pararGravacao(true)} title="Cancelar" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button className="inbox-tool-button" onClick={() => pararGravacao(true)} title="Cancelar" aria-label="Cancelar gravação">
                   <IconTrash size={14} />
                 </button>
-                <button onClick={() => pararGravacao(false)} title="Concluir gravação" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button className="inbox-tool-button is-primary" onClick={() => pararGravacao(false)} title="Concluir gravação" aria-label="Concluir gravação">
                   <IconSquare size={13} />
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="inbox-compose-row">
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*,video/*,audio/*,application/pdf"
                   style={{ display: 'none' }}
                   onChange={e => setArquivo(e.target.files?.[0] || null)}
+                  aria-label="Selecionar arquivo para anexar"
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   title="Anexar arquivo"
-                  style={{
-                    width: 38, flexShrink: 0, borderRadius: 10, border: '1px solid var(--border)',
-                    background: 'var(--bg3)', color: 'var(--text2)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
+                  className="inbox-tool-button"
+                  aria-label="Anexar arquivo"
                 >
                   <IconPaperclip size={15} />
                 </button>
                 <button
                   onClick={iniciarGravacao}
                   title="Gravar áudio"
-                  style={{
-                    width: 38, flexShrink: 0, borderRadius: 10, border: '1px solid var(--border)',
-                    background: 'var(--bg3)', color: 'var(--text2)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
+                  className="inbox-tool-button"
+                  aria-label="Gravar áudio"
                 >
                   <IconMic size={15} />
                 </button>
@@ -740,82 +721,75 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
                   placeholder={arquivo ? 'Adicionar legenda (opcional)...' : 'Digite uma mensagem...'}
                   rows={1}
-                  style={{
-                    flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
-                    background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none',
-                    resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', maxHeight: 120,
-                  }}
+                  aria-label="Mensagem do WhatsApp"
                 />
                 <button
                   onClick={enviar}
                   disabled={(!texto.trim() && !arquivo) || enviando}
-                  style={{
-                    padding: '0 18px', borderRadius: 10, border: 'none',
-                    background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-                    cursor: (!texto.trim() && !arquivo) || enviando ? 'default' : 'pointer',
-                    opacity: (!texto.trim() && !arquivo) || enviando ? 0.6 : 1,
-                  }}
+                  className="inbox-send-button"
+                  aria-label="Enviar mensagem"
                 >
                   {enviando ? 'Enviando...' : 'Enviar'}
                 </button>
               </div>
             )}
-          </div>
-        </div>
+          </footer>
+        </section>
       )}
       </>)}
 
       {canal === 'email' && (<>
       {!threadKeyEmail && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-          <div style={{ textAlign: 'center', maxWidth: 360, padding: 24 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+        <div className="inbox-empty-detail">
+          <div className="inbox-empty-detail-card">
+            <div className="inbox-empty-icon is-email">
               <IconMail size={26} color="#3B82F6" />
             </div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Caixa de Entrada de Email</div>
-            <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.6 }}>
+            <strong>Email com contexto, sem perder o fio</strong>
+            <p>
               Selecione uma conversa à esquerda para ver as mensagens e responder direto por aqui.
-            </div>
+            </p>
           </div>
         </div>
       )}
 
       {threadKeyEmail && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', minWidth: 0 }}>
+        <section className="inbox-detail" aria-label="Conversa por email">
           {/* Header da conversa */}
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+          <header className="inbox-detail-header">
+            <button className="inbox-mobile-back" onClick={() => setThreadKeyEmail(null)} aria-label="Voltar para a lista de conversas">
+              <IconArrowLeft size={18} />
+            </button>
+            <div className="inbox-detail-avatar is-email" aria-hidden="true">
+              {(conversaEmailAtual?.lead?.nome_fantasia || conversaEmailAtual?.lead?.razao_social || conversaEmailAtual?.contato_nome || conversaEmailAtual?.contato_email || threadKeyEmail).slice(0, 1).toUpperCase()}
+            </div>
+            <div className="inbox-detail-identity">
+              <strong>
                 {conversaEmailAtual?.lead?.nome_fantasia || conversaEmailAtual?.lead?.razao_social || conversaEmailAtual?.lead?.email || conversaEmailAtual?.contato_nome || conversaEmailAtual?.contato_email || threadKeyEmail}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text3)' }}>{conversaEmailAtual?.lead?.email || conversaEmailAtual?.contato_email}</div>
+              </strong>
+              <span>Email · {conversaEmailAtual?.lead?.email || conversaEmailAtual?.contato_email}</span>
             </div>
             {conversaEmailAtual?.lead && (
               <button
                 onClick={() => onOpenLead?.(conversaEmailAtual.lead)}
-                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                className="inbox-view-lead"
               >
                 Ver lead
               </button>
             )}
-          </div>
+          </header>
 
           {/* Mensagens */}
-          <div ref={scrollEmailRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {loadingMsgsEmail && <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando mensagens...</div>}
+          <div ref={scrollEmailRef} className="inbox-messages" aria-live="polite">
+            {loadingMsgsEmail && <div className="inbox-loading" role="status">Carregando mensagens...</div>}
             {!loadingMsgsEmail && mensagensEmail.map(m => {
               const out = m.direction === 'outbound'
               return (
-                <div key={m.id} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
-                  <div style={{
-                    maxWidth: '70%', padding: '8px 12px', borderRadius: 12,
-                    background: out ? 'var(--accent)' : 'var(--bg3)',
-                    color: out ? '#fff' : 'var(--text)',
-                    fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
-                  }}>
-                    {m.assunto && <div style={{ fontWeight: 700, marginBottom: 4 }}>{m.assunto}</div>}
-                    <div dangerouslySetInnerHTML={{ __html: m.corpo_html || (m.corpo_texto || '').replace(/\n/g, '<br>') }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 10, opacity: 0.7, justifyContent: 'flex-end' }}>
+                <div key={m.id} className={`inbox-message-row ${out ? 'is-outbound' : 'is-inbound'}`}>
+                  <div className="inbox-message-bubble is-email">
+                    {m.assunto && <div className="inbox-email-subject">{m.assunto}</div>}
+                    <div className="inbox-email-body" dangerouslySetInnerHTML={{ __html: m.corpo_html || (m.corpo_texto || '').replace(/\n/g, '<br>') }} />
+                    <div className="inbox-message-meta">
                       {formatTime(m.created_at)}
                     </div>
                   </div>
@@ -825,94 +799,86 @@ export default function CaixaEntrada({ empresas = [], onOpenLead }) {
           </div>
 
           {/* Composição */}
-          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <footer className="inbox-composer">
             {erroEnvioEmail && (
-              <div style={{ marginBottom: 8, fontSize: 12, color: '#DC2626' }}>{erroEnvioEmail}</div>
+              <div className="inbox-error" role="alert">{erroEnvioEmail}</div>
             )}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="inbox-compose-row is-email">
               <textarea
                 value={textoEmail}
                 onChange={e => setTextoEmail(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarEmail() } }}
                 placeholder="Digite a resposta..."
                 rows={1}
-                style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
-                  background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none',
-                  resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', maxHeight: 120,
-                }}
+                aria-label="Resposta por email"
               />
               <button
                 onClick={enviarEmail}
                 disabled={!textoEmail.trim() || enviandoEmail}
-                style={{
-                  padding: '0 18px', borderRadius: 10, border: 'none',
-                  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-                  cursor: (!textoEmail.trim() || enviandoEmail) ? 'default' : 'pointer',
-                  opacity: (!textoEmail.trim() || enviandoEmail) ? 0.6 : 1,
-                }}
+                className="inbox-send-button"
+                aria-label="Enviar resposta por email"
               >
                 {enviandoEmail ? 'Enviando...' : 'Enviar'}
               </button>
             </div>
-          </div>
-        </div>
+          </footer>
+        </section>
       )}
       </>)}
 
       {mostrarNovaMsgEmail && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ background: 'var(--bg)', borderRadius: 12, width: 480, maxWidth: '90vw', padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Nova mensagem</div>
-            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.5 }}>
-              Envia um email do zero pra qualquer endereço, mesmo que nunca tenha trocado mensagem antes (útil pra prospecção manual).
+        <div className="new-email-backdrop">
+          <div className="new-email-dialog" role="dialog" aria-modal="true" aria-labelledby="new-email-title" aria-describedby="new-email-description">
+            <div className="new-email-heading">
+              <div>
+                <span>Compor email</span>
+                <h3 id="new-email-title">Nova mensagem</h3>
+              </div>
+              <button onClick={() => setMostrarNovaMsgEmail(false)} aria-label="Fechar nova mensagem">
+                <IconX size={16} />
+              </button>
             </div>
+            <p id="new-email-description" className="new-email-description">
+              Envia um email do zero pra qualquer endereço, mesmo que nunca tenha trocado mensagem antes (útil pra prospecção manual).
+            </p>
             {erroNovaMsg && (
-              <div style={{ marginBottom: 10, fontSize: 12, color: '#DC2626' }}>{erroNovaMsg}</div>
+              <div className="inbox-error" role="alert">{erroNovaMsg}</div>
             )}
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Para</label>
+            <label className="new-email-label" htmlFor="new-email-to">Para</label>
             <input
+              id="new-email-to"
               type="email"
               value={novaMsgPara}
               onChange={e => setNovaMsgPara(e.target.value)}
               placeholder="email@exemplo.com"
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }}
             />
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Assunto</label>
+            <label className="new-email-label" htmlFor="new-email-subject">Assunto</label>
             <input
+              id="new-email-subject"
               type="text"
               value={novaMsgAssunto}
               onChange={e => setNovaMsgAssunto(e.target.value)}
               placeholder="Assunto do email"
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' }}
             />
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Mensagem</label>
+            <label className="new-email-label" htmlFor="new-email-body">Mensagem</label>
             <textarea
+              id="new-email-body"
               value={novaMsgTexto}
               onChange={e => setNovaMsgTexto(e.target.value)}
               placeholder="Digite a mensagem..."
               rows={6}
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 14, fontFamily: 'inherit' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div className="new-email-actions">
               <button
                 onClick={() => setMostrarNovaMsgEmail(false)}
-                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                className="new-email-cancel"
               >
                 Cancelar
               </button>
               <button
                 onClick={enviarNovaMensagemEmail}
                 disabled={!novaMsgPara.trim() || !novaMsgAssunto.trim() || !novaMsgTexto.trim() || enviandoNovaMsg}
-                style={{
-                  padding: '8px 16px', borderRadius: 8, border: 'none', fontFamily: 'inherit',
-                  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-                  cursor: (!novaMsgPara.trim() || !novaMsgAssunto.trim() || !novaMsgTexto.trim() || enviandoNovaMsg) ? 'default' : 'pointer',
-                  opacity: (!novaMsgPara.trim() || !novaMsgAssunto.trim() || !novaMsgTexto.trim() || enviandoNovaMsg) ? 0.6 : 1,
-                }}
+                className="new-email-submit"
               >
                 {enviandoNovaMsg ? 'Enviando...' : 'Enviar'}
               </button>

@@ -174,7 +174,7 @@ function TaskModal({ task, empresas, userId, onSave, onClose }) {
             <button
               type="submit"
               disabled={saving}
-              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#F05B17', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
             >
               {saving ? 'Salvando…' : 'Salvar'}
             </button>
@@ -313,21 +313,21 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="workspace-screen agenda-screen" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{
+      <div className="workspace-toolbar" style={{
         padding: isMobile ? '14px 16px 12px' : '20px 32px 16px',
         borderBottom: '1px solid var(--border)', background: 'var(--bg2)',
         position: 'sticky', top: 0, zIndex: 10, flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', color: 'var(--text)', margin: 0 }}>Agenda</h1>
+          <h1 className="workspace-heading" style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', color: 'var(--text)', margin: 0 }}>Agenda</h1>
           {todayCount > 0 && (
             <span style={{ fontSize: 12, background: '#EF4444', color: '#fff', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>
               {todayCount} hoje
             </span>
           )}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="workspace-action-row" style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               onClick={() => { setCurrentMonth(new Date()); setSelectedDay(new Date()) }}
               style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}
@@ -336,7 +336,8 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
             </button>
             <button
               onClick={() => setModal({ task: null })}
-              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#F05B17', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              className="workspace-primary-button"
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
             >
               <IconPlus size={14} color="#fff" /> Nova tarefa
             </button>
@@ -345,10 +346,10 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: 0 }}>
+      <div className="agenda-body" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: 0 }}>
 
         {/* Calendar */}
-        <div style={{ flex: isMobile ? 'none' : '1 1 0', padding: isMobile ? '12px 12px 0' : '20px 0 20px 32px', minWidth: 0 }}>
+        <div className="agenda-calendar" style={{ flex: isMobile ? 'none' : '1 1 0', padding: isMobile ? '12px 12px 0' : '20px 0 20px 32px', minWidth: 0 }}>
           {/* Month nav */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <button
@@ -394,18 +395,18 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
                     cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: isSelected
-                      ? '#F05B17'
+                      ? 'var(--accent)'
                       : isTodayDay
                         ? (theme === 'dark' ? '#052E16' : '#ECFDF5')
                         : 'transparent',
-                    border: isTodayDay && !isSelected ? '1px solid #F05B1760' : '1px solid transparent',
+                    border: isTodayDay && !isSelected ? '1px solid rgba(201, 77, 22, 0.4)' : '1px solid transparent',
                     transition: 'background 0.1s',
                     opacity: isCurrentMonth ? 1 : 0.3,
                   }}
                   onMouseEnter={el => { if (!isSelected) el.currentTarget.style.background = 'var(--bg3)' }}
                   onMouseLeave={el => {
                     el.currentTarget.style.background = isSelected
-                      ? '#F05B17'
+                      ? 'var(--accent)'
                       : isTodayDay
                         ? (theme === 'dark' ? '#052E16' : '#ECFDF5')
                         : 'transparent'
@@ -413,7 +414,7 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
                 >
                   <span style={{
                     fontSize: 13, fontWeight: isTodayDay || isSelected ? 700 : 400,
-                    color: isSelected ? '#fff' : isTodayDay ? '#F05B17' : 'var(--text)',
+                    color: isSelected ? '#fff' : isTodayDay ? 'var(--accent)' : 'var(--text)',
                     lineHeight: 1,
                   }}>
                     {format(day, 'd')}
@@ -448,10 +449,10 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
         </div>
 
         {/* Divider */}
-        {!isMobile && <div style={{ width: 1, background: 'var(--border)', margin: '20px 0', flexShrink: 0 }} />}
+        {!isMobile && <div className="agenda-divider" style={{ width: 1, background: 'var(--border)', margin: '20px 0', flexShrink: 0 }} />}
 
         {/* Day panel */}
-        <div style={{
+        <div className="agenda-day-panel" style={{
           width: isMobile ? '100%' : 340, flexShrink: 0,
           padding: isMobile ? '16px 12px' : '20px 24px 20px 20px',
           display: 'flex', flexDirection: 'column', gap: 10,
@@ -464,7 +465,7 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
                 {format(selectedDay, "EEEE, d 'de' MMMM", { locale: ptBR })}
               </div>
               {isToday(selectedDay) && (
-                <div style={{ fontSize: 11, color: '#F05B17', fontWeight: 600, marginTop: 1 }}>Hoje</div>
+                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginTop: 1 }}>Hoje</div>
               )}
             </div>
             <button
@@ -488,7 +489,8 @@ export default function Agenda({ tasks, empresas, userId, profiles = [], onSave,
               <div style={{ marginTop: 12 }}>
                 <button
                   onClick={() => openNew(selectedDay)}
-                  style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: '#F05B17', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  className="workspace-primary-button"
+                  style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                 >
                   + Adicionar
                 </button>

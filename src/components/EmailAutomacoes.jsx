@@ -7,6 +7,7 @@ import { IconPlus, IconTrash, IconArrowLeft, IconCheck, IconZap, IconFilter, Ico
 import CnaeFilter from './CnaeFilter.jsx'
 import SeletorDestinatarios from './SeletorDestinatarios.jsx'
 import { useDialog } from './Dialog.jsx'
+import '../styles/communications.css'
 
 const ORIGENS = [
   { value: 'manual',         label: 'Manual (app)' },
@@ -67,14 +68,14 @@ const pillNumberStyle = {
 // Um "nó" do fluxo: bolinha colorida com ícone + linha vertical conectando ao próximo nó.
 function FlowNode({ icon, color, isLast, children }) {
   return (
-    <div style={{ display: 'flex', gap: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ width: 34, height: 34, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+    <div className="email-flow-node">
+      <div className="email-flow-rail">
+        <div className="email-flow-icon" style={{ background: color }}>
           {icon}
         </div>
-        {!isLast && <div style={{ flex: 1, width: 2, background: 'var(--border)', minHeight: 18 }} />}
+        {!isLast && <div className="email-flow-line" />}
       </div>
-      <div style={{ flex: 1, paddingBottom: 18, minWidth: 0 }}>
+      <div className="email-flow-content">
         {children}
       </div>
     </div>
@@ -83,7 +84,7 @@ function FlowNode({ icon, color, isLast, children }) {
 
 function FlowCard({ color, children }) {
   return (
-    <div className="card" style={{ padding: 16, borderLeft: `3px solid ${color}` }}>
+    <div className="card email-flow-card" style={{ borderLeftColor: color }}>
       {children}
     </div>
   )
@@ -224,18 +225,22 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
   }
 
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <button onClick={onCancel} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit' }}>
+    <div className="email-automation-page email-automation-form">
+      <button onClick={onCancel} className="email-back-button">
         <IconArrowLeft size={14} color="var(--text2)" /> Voltar
       </button>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 16px' }}>{automacao ? 'Editar campanha' : 'Nova campanha'}</h2>
+      <div className="email-form-heading">
+        <span>Construtor de jornada</span>
+        <h2>{automacao ? 'Editar campanha' : 'Nova campanha'}</h2>
+        <p>Defina quem entra, quando a sequência começa e quais mensagens cada lead recebe.</p>
+      </div>
 
-      {erro && <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f8d7da', color: '#c0392b', fontSize: 13, marginBottom: 16 }}>{erro}</div>}
+      {erro && <div className="email-form-error" role="alert">{erro}</div>}
 
-      <div className="card" style={{ padding: 18, marginBottom: 24 }}>
+      <div className="card email-form-basics">
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Nome da campanha</label>
-          <input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Boas-vindas leads Casa dos Dados" />
+          <label style={labelStyle} htmlFor="automation-name">Nome da campanha</label>
+          <input id="automation-name" style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Boas-vindas leads Casa dos Dados" />
         </div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -254,20 +259,20 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Quando (qualquer um dos gatilhos abaixo dispara)</div>
           <FlowCard color="#F59E0B">
             {triggers.map((t, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: i === triggers.length - 1 ? 0 : 8 }}>
-                <select style={{ ...inputStyle, width: 'auto', flex: '0 0 240px' }} value={t.tipo} onChange={e => updateTrigger(i, { tipo: e.target.value, valor: null })}>
+              <div key={i} className="email-trigger-row" style={{ marginBottom: i === triggers.length - 1 ? 0 : 8 }}>
+                <select aria-label={`Tipo do gatilho ${i + 1}`} style={{ ...inputStyle, width: 'auto', flex: '0 0 240px' }} value={t.tipo} onChange={e => updateTrigger(i, { tipo: e.target.value, valor: null })}>
                   {TIPOS_GATILHO.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
                 </select>
                 {t.tipo === 'status_mudou' && (
-                  <select style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })}>
+                  <select aria-label={`Status do gatilho ${i + 1}`} style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })}>
                     <option value="">Selecione o status...</option>
                     {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 )}
                 {(t.tipo === 'tag_adicionada' || t.tipo === 'tag_removida') && (
-                  <input style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })} placeholder="Nome da tag" list="tags-disponiveis-automacao" />
+                  <input aria-label={`Tag do gatilho ${i + 1}`} style={{ ...inputStyle, width: 'auto', flex: '0 0 180px' }} value={t.valor || ''} onChange={e => updateTrigger(i, { valor: e.target.value })} placeholder="Nome da tag" list="tags-disponiveis-automacao" />
                 )}
-                <button onClick={() => removeTrigger(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                <button onClick={() => removeTrigger(i)} className="email-icon-button" aria-label={`Remover gatilho ${i + 1}`}>
                   <IconTrash size={14} color="var(--text3)" />
                 </button>
               </div>
@@ -289,7 +294,7 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
         <FlowNode icon={<IconFilter size={14} color="#fff" />} color="#8B5CF6">
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Para quem</div>
           <FlowCard color="#8B5CF6">
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+            <div className="email-mode-tabs">
               <span onClick={() => setPublicoModo('segmento')} style={chipStyle(publicoModo === 'segmento')}>Segmento (filtros)</span>
               <span onClick={() => setPublicoModo('manual')} style={chipStyle(publicoModo === 'manual')}>Leads específicos</span>
             </div>
@@ -407,7 +412,7 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
                     <label style={labelStyle}>Responder para (reply-to)</label>
                     <input style={inputStyle} value={s.responder_para} onChange={e => updateStep(i, { responder_para: e.target.value })} placeholder="ex: vendas@seudominio.com" />
                   </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div className="email-form-columns">
                     <div style={{ flex: 1 }}>
                       <label style={labelStyle}>Cc (separados por vírgula)</label>
                       <input style={inputStyle} value={s.cc} onChange={e => updateStep(i, { cc: e.target.value })} placeholder="ex: copia@seudominio.com" />
@@ -421,10 +426,10 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
                     <label style={labelStyle}>Anexos (link do arquivo)</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {(s.anexos || []).map((a, j) => (
-                        <div key={j} style={{ display: 'flex', gap: 8 }}>
+                        <div key={j} className="email-attachment-row">
                           <input style={{ ...inputStyle, flex: 1 }} value={a.filename} onChange={e => atualizarAnexoStep(i, j, 'filename', e.target.value)} placeholder="nome-do-arquivo.pdf" />
                           <input style={{ ...inputStyle, flex: 2 }} value={a.url} onChange={e => atualizarAnexoStep(i, j, 'url', e.target.value)} placeholder="https://..." />
-                          <button type="button" onClick={() => removerAnexoStep(i, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px', display: 'flex' }}>
+                          <button type="button" onClick={() => removerAnexoStep(i, j)} className="email-icon-button" aria-label={`Remover anexo ${j + 1}`}>
                             <IconTrash size={14} color="var(--text3)" />
                           </button>
                         </div>
@@ -451,11 +456,11 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
         </FlowNode>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-        <button onClick={salvar} disabled={salvando} style={{ padding: '10px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1, fontFamily: 'inherit' }}>
+      <div className="email-form-actions">
+        <button onClick={salvar} disabled={salvando} className="email-primary-button">
           {salvando ? 'Salvando...' : 'Salvar campanha'}
         </button>
-        <button onClick={onCancel} style={{ padding: '10px 18px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+        <button onClick={onCancel} className="email-secondary-button">Cancelar</button>
       </div>
     </div>
   )
@@ -492,7 +497,7 @@ function ProgressoResumo({ envios }) {
   else if (enviados === total) { texto = 'Sequência concluída'; cor = '#10B981' }
   else if (enviados > 0) { cor = '#10B981' }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className="email-progress-summary">
       <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--bg3)', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: total ? `${(enviados / total) * 100}%` : 0, background: falhou ? '#EF4444' : '#10B981', borderRadius: 3 }} />
       </div>
@@ -505,9 +510,9 @@ function ProgressoResumo({ envios }) {
 // com rótulo de status explícito embaixo de cada uma (não dá pra confundir enviado x pendente).
 function EnvioStepper({ envios, detalheAberto, onToggleDetalhe }) {
   return (
-    <div>
+    <div className="email-send-stepper">
       <div style={{ marginBottom: 10 }}><ProgressoResumo envios={envios} /></div>
-      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <div className="email-send-stepper-track">
         {envios.map((e, i) => {
           const status = statusVisual(e)
           const conf = ENVIO_DOT_CONFIG[status] || ENVIO_DOT_CONFIG.pendente
@@ -689,17 +694,18 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
     }
   }
 
-  if (loading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+  if (loading) return <div className="email-page-loading" role="status">Carregando campanha...</div>
 
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit' }}>
+    <div className="email-automation-page email-automation-detail">
+      <button onClick={onBack} className="email-back-button">
         <IconArrowLeft size={14} color="var(--text2)" /> Voltar
       </button>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+      <div className="email-detail-heading">
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>{automacao.nome}</h2>
-          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>{enrollments.length} lead(s) matriculado(s)</div>
+          <span>Desempenho da campanha</span>
+          <h2>{automacao.nome}</h2>
+          <p>{enrollments.length} lead(s) matriculado(s)</p>
         </div>
         {falhas.length > 0 && (
           <button
@@ -719,7 +725,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
           <MetricasResumo metrics={metrics} />
           {funilEtapas.length > 0 && <FunilEtapas etapas={funilEtapas} />}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 12px' }}>
+          <div className="email-enrollment-toolbar">
             <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: 0, flex: 1 }}>Leads matriculados ({enrollmentsFiltrados.length})</h3>
             <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}>
               <option value="todos">Todos os status</option>
@@ -732,6 +738,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
               value={busca}
               onChange={e => setBusca(e.target.value)}
               placeholder="Buscar lead..."
+              aria-label="Buscar lead matriculado"
               style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', width: 180 }}
             />
           </div>
@@ -744,8 +751,8 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
                 const lead = leadById.get(en.lead_id)
                 const meusEnvios = envios.filter(e => e.enrollment_id === en.id).sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for))
                 return (
-                  <div key={en.id} className="card" style={{ padding: '14px 18px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div key={en.id} className="card email-enrollment-card">
+                    <div className="email-enrollment-card-heading">
                       {lead ? (
                         <button
                           onClick={() => onOpenLead?.(lead)}
@@ -805,12 +812,12 @@ function MetricasResumo({ metrics: m }) {
     { label: 'Rejeitados', valor: m.rejeitados, sub: `${m.taxaRejeicao}% dos enviados · bounce/spam`, cor: '#B91C1C' },
   ]
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 20 }}>
+    <div className="email-metrics-grid">
       {cards.map(c => (
-        <div key={c.label} className="card" style={{ padding: '12px 14px' }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{c.label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: c.cor }}>{c.valor}</div>
-          {c.sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{c.sub}</div>}
+        <div key={c.label} className="card email-metric-card">
+          <span>{c.label}</span>
+          <strong style={{ color: c.cor }}>{c.valor}</strong>
+          {c.sub && <small>{c.sub}</small>}
         </div>
       ))}
     </div>
@@ -822,8 +829,8 @@ function MetricasResumo({ metrics: m }) {
 // perde gente, em vez de só uma contagem geral da campanha.
 function FunilEtapas({ etapas }) {
   return (
-    <div className="card" style={{ padding: '14px 18px', marginBottom: 8 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Funil por email da sequência</div>
+    <div className="card email-funnel-card">
+      <div className="email-card-title">Funil por email da sequência</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {etapas.map(et => {
           const base = et.total || 1
@@ -906,12 +913,17 @@ function EmailMetricasChart({ chartData, automacoes, chartFiltro, onChangeFiltro
   const tickColor = theme === 'dark' ? '#4B5563' : '#9CA3AF'
 
   return (
-    <div className="card" style={{ padding: '20px 20px 8px', marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>Volume de emails (últimos 15 dias)</div>
+    <div className="card email-chart-card">
+      <div className="email-chart-heading">
+        <div>
+          <span>Atividade recente</span>
+          <strong>Volume de emails</strong>
+          <small>Últimos 15 dias</small>
+        </div>
         <select
           value={chartFiltro}
           onChange={e => onChangeFiltro(e.target.value)}
+          aria-label="Filtrar gráfico por campanha"
           style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit' }}
         >
           <option value="todas">Todas as campanhas</option>
@@ -1098,20 +1110,23 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
   }
 
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <IconMail size={20} color="var(--text)" />
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Email Marketing</h1>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, marginTop: 12 }}>
-        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Dispare agora pros leads que já existem e/ou deixe rodando automaticamente pra leads novos.</div>
+    <div className="email-automation-page email-automation-list">
+      <header className="email-automation-hero">
+        <div className="email-automation-hero-icon" aria-hidden="true">
+          <IconMail size={21} color="var(--accent)" />
+        </div>
+        <div className="email-automation-hero-copy">
+          <span>Relacionamento em escala</span>
+          <h1>Email Marketing</h1>
+          <p>Crie jornadas automáticas para novos leads ou comece uma sequência com a sua base atual.</p>
+        </div>
         <button
           onClick={() => { setEditando(null); setShowForm(true) }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          className="email-primary-button email-new-campaign"
         >
           <IconPlus size={14} color="#fff" /> Nova campanha
         </button>
-      </div>
+      </header>
 
       {!loading && automacoes.length > 0 && (
         <EmailMetricasChart
@@ -1123,31 +1138,45 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
       )}
 
       {loading ? (
-        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
+        <div className="email-page-loading" role="status">Carregando campanhas...</div>
       ) : automacoes.length === 0 ? (
-        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text3)' }}>Nenhuma campanha criada ainda.</div>
+        <div className="card email-empty-state">
+          <div className="email-empty-icon"><IconMail size={24} color="var(--accent)" /></div>
+          <strong>Comece sua primeira jornada</strong>
+          <span>Nenhuma campanha criada ainda.</span>
+          <button onClick={() => { setEditando(null); setShowForm(true) }} className="email-primary-button">
+            <IconPlus size={14} color="#fff" /> Criar campanha
+          </button>
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="email-campaign-list">
           {automacoes.map(a => (
-            <div key={a.id} className="card" onClick={() => setDetalhe(a)} style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{a.nome}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: a.ativo ? '#d4edda' : 'var(--bg3)', color: a.ativo ? '#1e7e34' : 'var(--text3)' }}>
+            <article key={a.id} className="card email-campaign-card" onClick={() => setDetalhe(a)}>
+              <div className="email-campaign-accent" aria-hidden="true"><IconZap size={15} color="var(--accent)" /></div>
+              <div className="email-campaign-content">
+                <div className="email-campaign-title-row">
+                  <button
+                    type="button"
+                    className="email-campaign-open"
+                    onClick={e => { e.stopPropagation(); setDetalhe(a) }}
+                  >
+                    {a.nome}
+                  </button>
+                  <span className={`email-status-pill ${a.ativo ? 'is-active' : 'is-paused'}`}>
                     {a.ativo ? 'Ativa' : 'Pausada'}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
+                <div className="email-campaign-trigger">
                   Quando: {a.triggers.length ? a.triggers.map(gatilhoLabel).join(' OU ') : 'Sem gatilho automático (só via "Iniciar agora")'}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
+                <div className="email-campaign-meta">
                   {a.steps.length} email(s) na sequência
                   {a.leads_manual?.length ? ` · ${a.leads_manual.length} lead(s) específico(s)` : ''}
                   {a.origem_filtro?.length ? ` · origem: ${a.origem_filtro.join(', ')}` : ''}
                   {a.segmento_tags?.length ? ` · tags: ${a.segmento_tags.join(', ')}` : ''}
                   {a.cnae_filtro?.length ? ` · segmento: ${a.cnae_filtro.join(', ')}` : ''}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+                <div className="email-campaign-stats">
                   <span style={{ fontSize: 11, color: 'var(--text3)' }}>
                     {a.counts.total} matriculado(s) · {a.counts.ativos} em andamento
                   </span>
@@ -1166,26 +1195,26 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
+              <div className="email-campaign-actions" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={() => iniciarAgora(a)}
                   disabled={matriculando === a.id}
                   title="Matricular agora os leads existentes que batem com o filtro"
-                  style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--accent)', background: 'none', color: 'var(--accent)', fontSize: 12, cursor: matriculando === a.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: matriculando === a.id ? 0.6 : 1 }}
+                  className="email-outline-button is-accent"
                 >
                   {matriculando === a.id ? 'Matriculando...' : 'Iniciar agora'}
                 </button>
-                <button onClick={() => toggleAtivo(a)} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => toggleAtivo(a)} className="email-outline-button">
                   {a.ativo ? 'Pausar' : 'Ativar'}
                 </button>
-                <button onClick={() => { setEditando(a); setShowForm(true) }} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => { setEditando(a); setShowForm(true) }} className="email-outline-button">
                   Editar
                 </button>
-                <button onClick={() => excluir(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' }}>
+                <button onClick={() => excluir(a)} className="email-icon-button is-danger" aria-label={`Excluir campanha ${a.nome}`}>
                   <IconTrash size={14} color="var(--text3)" />
                 </button>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}

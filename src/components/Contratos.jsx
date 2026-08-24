@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { PACOTES as PACOTES_FALLBACK, CONTRATO_STATUS, leadName } from '../constants.js'
 import { useTheme, useIsSuperAdmin } from '../App.jsx'
-import { useIsMobile } from '../hooks/useIsMobile.js'
 import { format, addMonths, addBusinessDays, parseISO } from 'date-fns'
 import { supabase } from '../supabase.js'
 import Briefing from './Briefing.jsx'
 import { IconSearch, IconInbox, IconLink, IconX } from './Icons.jsx'
 import { InfoTooltip } from './Tooltip.jsx'
+import '../styles/admin.css'
 
 function parseDate(str) {
   if (!str) return null
@@ -63,7 +63,6 @@ function fmt(n) {
 export default function Contratos({ contratos, empresas, onSave, onDelete, pendingContrato, onClearPending, selectedContrato, onSelectContrato }) {
   const theme = useTheme()
   const isSuperAdmin = useIsSuperAdmin()
-  const isMobile = useIsMobile()
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -326,85 +325,103 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
   const isED = isPontual(form.pacote)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="admin-page contracts-page">
       {/* Header */}
-      <div style={{ padding: '20px 32px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <header className="admin-hero contracts-hero">
+        <div className="admin-hero__topline">
           <div>
-            <h1 style={{ fontWeight: 700, fontSize: 20, color: 'var(--text)' }}>Contratos</h1>
-            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Gestão de clientes e receita</div>
+            <div className="admin-eyebrow">Receita &amp; relacionamento</div>
+            <h1 className="admin-title">Contratos</h1>
+            <p className="admin-subtitle">Acompanhe a carteira, os próximos recebimentos e a saúde dos clientes.</p>
           </div>
           {isSuperAdmin && (
             <button
+              type="button"
+              className="admin-primary-action"
               onClick={openNew}
-              style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
             >
-              + Novo contrato
+              <span aria-hidden="true">＋</span> Novo contrato
             </button>
           )}
         </div>
 
         {/* Métricas */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+        <div className="contract-metrics" role="region" aria-label="Resumo financeiro">
           {[
             { label: 'MRR', value: `R$ ${fmt(metrics.mrr)}`, sub: 'recorrente mensal', color: 'var(--green)', tooltip: 'Receita Recorrente Mensal.\nSoma do valor mensal de todos os contratos recorrentes ativos.\nNão inclui serviços pontuais como Estrutura Digital.' },
             { label: 'ARR projetado', value: `R$ ${fmt(metrics.arr)}`, sub: 'MRR × 12', color: 'var(--cyan)', tooltip: 'Receita Anual Recorrente projetada.\nCalculado como MRR × 12 meses.\nAssume que os contratos ativos serão mantidos.' },
             { label: 'Contratos ativos', value: metrics.totalAtivos, sub: `ticket médio R$ ${fmt(metrics.ticketMedio)}`, color: 'var(--purple)', tooltip: 'Número de contratos com status Ativo.\nTicket médio = receita total ÷ nº de contratos ativos.' },
             { label: 'Churn rate', value: `${metrics.churnRate}%`, sub: `${metrics.cancelados} de ${metrics.cancelados + metrics.totalAtivos} contratos`, color: metrics.churnRate > 0 ? 'var(--red)' : 'var(--text3)', tooltip: 'Percentual de contratos cancelados em relação ao total.\nCálculo: cancelados ÷ (ativos + cancelados).\nMeta: manter abaixo de 5%.' },
           ].map((m, i) => (
-            <div key={i} className="card" style={{ padding: '12px 16px', borderLeft: `3px solid ${m.color}` }}>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <article key={i} className="card contract-metric" style={{ '--metric-color': m.color }}>
+              <div className="contract-metric__label">
                 {m.label}
                 {m.tooltip && <InfoTooltip text={m.tooltip} width={220} dir="down" />}
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: m.color, lineHeight: 1 }}>{m.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{m.sub}</div>
-            </div>
+              <div className="contract-metric__value">{m.value}</div>
+              <div className="contract-metric__sub">{m.sub}</div>
+            </article>
           ))}
         </div>
 
-        {/* Busca */}
-        <div style={{ position: 'relative', marginBottom: 12 }}>
-          <input
-            type="text"
-            placeholder="Buscar por nome, CNPJ, e-mail..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
-          />
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', display: 'flex' }}><IconSearch size={15} color="var(--text3)" /></span>
-        </div>
+        <div className="contract-controls">
+          {/* Busca */}
+          <label className="admin-search">
+            <span className="sr-only">Buscar contratos</span>
+            <span className="admin-search__icon" aria-hidden="true"><IconSearch size={17} color="var(--text3)" /></span>
+            <input
+              type="search"
+              placeholder="Buscar cliente, CNPJ ou e-mail"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button type="button" className="admin-search__clear" onClick={() => setSearch('')} aria-label="Limpar busca">×</button>
+            )}
+          </label>
 
-        {/* Filtros */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {['todos', 'ativo', 'aguardando_pagamento', 'concluido', 'cancelado'].map(s => {
-            const cfg = CONTRATO_STATUS[s]
-            const active = filterStatus === s
-            return (
-              <button key={s} onClick={() => setFilterStatus(s)} style={{
-                padding: '4px 12px', borderRadius: 20, border: '1px solid',
-                fontSize: 12, cursor: 'pointer', fontWeight: active ? 500 : 400,
-                background: active && cfg ? (theme === 'dark' ? cfg.darkBg : cfg.bg) : (active ? 'var(--bg4)' : 'transparent'),
-                color: active && cfg ? (theme === 'dark' ? cfg.darkColor : cfg.color) : (active ? 'var(--text)' : 'var(--text3)'),
-                borderColor: active && cfg ? `${cfg.dot}60` : 'var(--border)',
-              }}>
-                {cfg?.label || 'Todos'}
-              </button>
-            )
-          })}
+          {/* Filtros */}
+          <div className="admin-filter-row" role="group" aria-label="Filtrar contratos por status">
+            {['todos', 'ativo', 'aguardando_pagamento', 'concluido', 'cancelado'].map(s => {
+              const cfg = CONTRATO_STATUS[s]
+              const active = filterStatus === s
+              return (
+                <button
+                  type="button"
+                  key={s}
+                  className={`admin-filter-chip${active ? ' is-active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => setFilterStatus(s)}
+                  style={active && cfg ? { '--chip-color': cfg.dot, '--chip-bg': theme === 'dark' ? cfg.darkBg : cfg.bg, '--chip-text': theme === 'dark' ? cfg.darkColor : cfg.color } : undefined}
+                >
+                  {cfg?.label || 'Todos'}
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Lista */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 32px', background: 'var(--bg)' }}>
+      <div className="admin-content contracts-content">
+        <div className="admin-section-heading">
+          <div>
+            <span className="admin-section-heading__label">Carteira</span>
+            <strong>{filtered.length} {filtered.length === 1 ? 'contrato' : 'contratos'}</strong>
+          </div>
+          {(search || filterStatus !== 'todos') && <span className="admin-section-heading__hint">Resultado filtrado</span>}
+        </div>
         {filtered.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
-            <div style={{ marginBottom: 10, opacity: 0.3 }}><IconInbox size={32} color="var(--text3)" /></div>
-            <div style={{ fontSize: 14 }}>Nenhum contrato encontrado</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Clique em "Novo contrato" para adicionar</div>
+          <div className="admin-empty-state">
+            <div className="admin-empty-state__icon"><IconInbox size={28} color="var(--accent)" /></div>
+            <strong>Nenhum contrato encontrado</strong>
+            <span>{search || filterStatus !== 'todos' ? 'Tente ajustar a busca ou os filtros.' : 'Crie o primeiro contrato para começar a acompanhar sua receita.'}</span>
+            {(search || filterStatus !== 'todos') && (
+              <button type="button" className="admin-secondary-action" onClick={() => { setSearch(''); setFilterStatus('todos') }}>Limpar filtros</button>
+            )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="contract-list">
             {filtered.map(c => {
               const pacote = getPacote(c.pacote)
               const statusCfg = CONTRATO_STATUS[c.status] || CONTRATO_STATUS.ativo
@@ -416,22 +433,25 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 : null
 
               return (
-                <div
+                <article
                   key={c.id}
-                  className="card"
+                  className="card contract-card"
                   onClick={() => { onSelectContrato(c.id); setDetailTab('dados') }}
-                  style={{ padding: '16px 20px', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, transition: 'box-shadow 0.15s' }}
-                  onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
-                  onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow)'}
                 >
-                  <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', minWidth: 0 }}>
+                  <div className="contract-card__main">
                     {/* Avatar */}
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'var(--text2)', flexShrink: 0 }}>
+                    <div className="contract-card__avatar" aria-hidden="true">
                       {(c.cliente_nome || '?')[0].toUpperCase()}
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>{c.cliente_nome}</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div className="contract-card__copy">
+                      <button
+                        type="button"
+                        className="contract-card__name contract-card__open"
+                        onClick={e => { e.stopPropagation(); onSelectContrato(c.id); setDetailTab('dados') }}
+                      >
+                        {c.cliente_nome}
+                      </button>
+                      <div className="contract-card__meta">
                         <span className="badge" style={{ ...pacoteStyle, fontSize: 11 }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot || pacote?.cor }} />
                           {pacote?.label || pacote?.nome || c.pacote}
@@ -441,7 +461,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                           {statusCfg.label}
                         </span>
                         {c.cliente_cnpj && (
-                          <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--font-mono)' }}>
+                          <span className="contract-card__cnpj">
                             {c.cliente_cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')}
                           </span>
                         )}
@@ -449,13 +469,13 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                           const emp = empresas.find(e => e.id === c.empresa_id)
                           if (!emp) return null
                           return (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--accent)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
+                            <span className="contract-card__tag contract-card__tag--accent">
                               <IconLink size={11} color="var(--accent)" /> {emp.municipio}/{emp.uf}
                             </span>
                           )
                         })()}
                         {c.vendedor_nome && (
-                          <span style={{ fontSize: 11, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg3)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 20 }}>
+                          <span className="contract-card__tag">
                             {c.vendedor_nome}
                           </span>
                         )}
@@ -483,11 +503,11 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                       </div>
                       {/* Progresso pagamento (Estrutura Digital) */}
                       {isED && (
-                        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ flex: 1, height: 4, background: 'var(--bg3)', borderRadius: 4, maxWidth: 160 }}>
-                            <div style={{ height: '100%', width: `${progresso}%`, background: progresso === 100 ? 'var(--green)' : 'var(--accent)', borderRadius: 4, transition: 'width 0.3s' }} />
+                        <div className="contract-progress">
+                          <div className="contract-progress__track" aria-hidden="true">
+                            <div className="contract-progress__value" style={{ width: `${progresso}%`, background: progresso === 100 ? 'var(--green)' : 'var(--accent)' }} />
                           </div>
-                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                          <span>
                             {progresso === 100 ? 'Pago integralmente' : progresso === 50 ? '50% pago' : 'Aguardando sinal'}
                           </span>
                         </div>
@@ -496,10 +516,10 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                   </div>
 
                   {/* Valor + info */}
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
+                  <div className="contract-card__value-block">
+                    <div className="contract-card__value">
                       R$ {fmt(isED ? c.valor_total : c.valor_mensal)}
-                      {!isED && <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text3)' }}>/mês</span>}
+                      {!isED && <span>/mês</span>}
                     </div>
                     {isED && c.data_entrega_prevista && (
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
@@ -517,7 +537,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                       </div>
                     )}
                   </div>
-                </div>
+                </article>
               )
             })}
           </div>
@@ -537,25 +557,22 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
 
         return (
           <div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'flex-end', zIndex: 100 }}
+            className="admin-dialog-backdrop admin-dialog-backdrop--side"
             onClick={e => e.target === e.currentTarget && onSelectContrato(null)}
           >
             <div
-              className="card"
-              style={{
-                width: '100%', maxWidth: isMobile ? '100%' : 560,
-                height: isMobile ? '92dvh' : '100vh',
-                overflow: 'hidden', display: 'flex', flexDirection: 'column',
-                background: 'var(--bg2)', borderRadius: isMobile ? '16px 16px 0 0' : 0,
-                borderLeft: isMobile ? 'none' : '1px solid var(--border)',
-              }}
+              className="admin-side-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="contract-detail-title"
             >
               {/* Detail header */}
-              <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{c.cliente_nome}</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div className="admin-panel-header">
+                <div className="admin-panel-header__topline">
+                  <div className="admin-panel-header__copy">
+                    <div className="admin-eyebrow">Visão do contrato</div>
+                    <h2 id="contract-detail-title">{c.cliente_nome}</h2>
+                    <div className="admin-panel-header__badges">
                       <span className="badge" style={{ ...pacoteStyle, fontSize: 11 }}>
                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: pacote?.dot || pacote?.cor }} />
                         {pacote?.label || pacote?.nome || c.pacote}
@@ -566,33 +583,31 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                       </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
+                  <div className="admin-panel-header__actions">
                     {isSuperAdmin && (
                       <button
+                        type="button"
+                        className="admin-primary-action admin-primary-action--compact"
                         onClick={() => openEdit(c)}
-                        style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
                       >
                         Editar
                       </button>
                     )}
-                    <button onClick={() => onSelectContrato(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', display: 'flex', padding: 4 }}>
+                    <button type="button" className="admin-icon-button" onClick={() => onSelectContrato(null)} aria-label="Fechar detalhes do contrato">
                       <IconX size={18} color="var(--text3)" />
                     </button>
                   </div>
                 </div>
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: 0 }}>
+                <div className="admin-panel-tabs" role="tablist" aria-label="Seções do contrato">
                   {['dados', 'briefing'].map(tab => (
                     <button
+                      type="button"
                       key={tab}
+                      role="tab"
+                      aria-selected={detailTab === tab}
+                      className={detailTab === tab ? 'is-active' : ''}
                       onClick={() => setDetailTab(tab)}
-                      style={{
-                        padding: '8px 18px', fontSize: 13, fontWeight: detailTab === tab ? 600 : 400,
-                        border: 'none', background: 'transparent', cursor: 'pointer',
-                        color: detailTab === tab ? 'var(--accent)' : 'var(--text3)',
-                        borderBottom: detailTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
-                        marginBottom: -1, transition: 'all 0.1s',
-                      }}
                     >
                       {tab === 'dados' ? 'Dados' : 'Briefing'}
                     </button>
@@ -601,17 +616,17 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               </div>
 
               {/* Detail content */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+              <div className="admin-panel-body">
                 {detailTab === 'dados' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div className="contract-detail-stack">
                     {/* Value */}
-                    <div className="card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--accent)' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                    <div className="contract-detail-value">
+                      <div className="contract-detail-value__label">
                         {isEDc ? 'Valor total' : 'Valor mensal'}
                       </div>
-                      <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
+                      <div className="contract-detail-value__number">
                         R$ {fmtBRL(isEDc ? c.valor_total : c.valor_mensal)}
-                        {!isEDc && <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)' }}>/mês</span>}
+                        {!isEDc && <span>/mês</span>}
                       </div>
                       {c.total_recebido > 0 && (
                         <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
@@ -621,7 +636,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                     </div>
 
                     {/* Dates grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="contract-date-grid">
                       {[
                         { label: 'Assinatura', val: c.data_assinatura },
                         { label: 'Início', val: c.data_inicio },
@@ -630,25 +645,25 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                         !isEDc && { label: 'Próx. faturamento', val: c.proximo_faturamento },
                         c.data_cancelamento && { label: 'Cancelamento', val: c.data_cancelamento },
                       ].filter(Boolean).map(({ label, val }) => val ? (
-                        <div key={label} style={{ padding: '10px 14px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                        <div key={label} className="contract-date-item">
+                          <div>{label}</div>
+                          <strong>
                             {(() => { try { return format(parseDate(val), 'dd/MM/yyyy') } catch { return val } })()}
-                          </div>
+                          </strong>
                         </div>
                       ) : null)}
                     </div>
 
                     {/* Estrutura Digital payment */}
                     {isEDc && (
-                      <div style={{ padding: '12px 16px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagamento</div>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      <div className="contract-detail-section">
+                        <div className="contract-detail-section__title">Pagamento</div>
+                        <div className="contract-payment-steps">
+                          <div className="contract-payment-step">
                             <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.pagamento_sinal ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
                             <span style={{ color: c.pagamento_sinal ? 'var(--green)' : 'var(--text3)' }}>Sinal (50%)</span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                          <div className="contract-payment-step">
                             <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.pagamento_final ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
                             <span style={{ color: c.pagamento_final ? 'var(--green)' : 'var(--text3)' }}>Saldo (50%)</span>
                           </div>
@@ -742,18 +757,19 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
       {/* Modal */}
       {modal && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 100, padding: isMobile ? 0 : 20 }}
+          className="admin-dialog-backdrop"
           onClick={e => e.target === e.currentTarget && setModal(null)}
         >
-          <div className="card" style={{ width: '100%', maxWidth: isMobile ? '100%' : 580, maxHeight: isMobile ? '92dvh' : '90vh', overflow: 'auto', padding: isMobile ? '20px 18px' : '24px 28px', background: 'var(--bg2)', borderRadius: isMobile ? '16px 16px 0 0' : 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>
-                {modal === 'new' ? 'Novo contrato' : 'Editar contrato'}
-              </h2>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', display: 'flex', padding: 4 }}><IconX size={18} color="var(--text3)" /></button>
+          <div className="admin-modal contract-form-modal" role="dialog" aria-modal="true" aria-labelledby="contract-form-title">
+            <div className="admin-modal__header">
+              <div>
+                <div className="admin-eyebrow">{modal === 'new' ? 'Nova oportunidade' : 'Atualização cadastral'}</div>
+                <h2 id="contract-form-title">{modal === 'new' ? 'Novo contrato' : 'Editar contrato'}</h2>
+              </div>
+              <button type="button" className="admin-icon-button" onClick={() => setModal(null)} aria-label="Fechar formulário"><IconX size={18} color="var(--text3)" /></button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="admin-modal__body contract-form">
               {/* Vincular lead */}
               <FormField label="Vincular a um lead (opcional)">
                 <select value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)} style={selectStyle}>
@@ -764,7 +780,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 </select>
               </FormField>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="admin-form-grid">
                 <FormField label="Nome do cliente *" error={fieldErrors.cliente_nome}>
                   <input value={form.cliente_nome} onChange={e => set('cliente_nome', e.target.value)} placeholder="Nome ou razão social" style={errStyle(inputStyle, fieldErrors.cliente_nome)} />
                 </FormField>
@@ -783,7 +799,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
 
               {/* Pacote */}
               <FormField label="Serviço / Pacote">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="package-picker" role="radiogroup" aria-label="Serviço ou pacote">
                   {(pacotesList.length > 0 ? pacotesList : Object.values(PACOTES_FALLBACK).map((p, i) => ({ ...p, codigo: Object.keys(PACOTES_FALLBACK)[i], nome: p.label }))).map(pkg => {
                     const codigo = pkg.codigo || pkg.key
                     const active = form.pacote === codigo
@@ -793,17 +809,17 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                     return (
                       <div
                         key={codigo}
+                        className={`package-option${active ? ' is-active' : ''}`}
+                        role="radio"
+                        aria-checked={active}
+                        tabIndex={0}
                         onClick={() => set('pacote', codigo)}
-                        style={{
-                          padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
-                          border: `2px solid ${active ? cor : 'var(--border)'}`,
-                          background: active ? cor + (theme === 'dark' ? '22' : '12') : 'var(--bg3)',
-                          transition: 'all 0.15s',
-                        }}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); set('pacote', codigo) } }}
+                        style={{ '--package-color': cor, '--package-tint': active ? cor + (theme === 'dark' ? '22' : '12') : 'var(--bg3)' }}
                       >
-                        <div style={{ fontWeight: 600, fontSize: 13, color: active ? cor : 'var(--text)' }}>{pkg.nome || pkg.label}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{pkg.descricao}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: active ? cor : 'var(--text2)', marginTop: 6 }}>
+                        <div className="package-option__name">{pkg.nome || pkg.label}</div>
+                        <div className="package-option__description">{pkg.descricao}</div>
+                        <div className="package-option__price">
                           R$ {Number(pkg.valor).toLocaleString('pt-BR')}{!pontual ? '/mês' : ''}
                         </div>
                       </div>
@@ -812,7 +828,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 </div>
               </FormField>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="admin-form-grid">
                 <FormField label={isED ? 'Valor total (R$) *' : 'Valor mensal (R$) *'} error={fieldErrors.valor_total || fieldErrors.valor_mensal}>
                   <input
                     type="number"
@@ -840,7 +856,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               {isED && (
                 <>
                   <Divider label="Estrutura Digital" />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="admin-form-grid">
                     <FormField label="Entrega prevista">
                       <input type="date" value={form.data_entrega_prevista} onChange={e => set('data_entrega_prevista', e.target.value)} style={inputStyle} />
                     </FormField>
@@ -848,7 +864,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                       <input type="date" value={form.data_entrega_real} onChange={e => set('data_entrega_real', e.target.value)} style={inputStyle} />
                     </FormField>
                   </div>
-                  <div style={{ display: 'flex', gap: 16 }}>
+                  <div className="admin-check-row">
                     <CheckField label="Sinal pago (50% — R$ 998,50)" checked={form.pagamento_sinal} onChange={v => set('pagamento_sinal', v)} />
                     <CheckField label="Saldo pago (50% — R$ 998,50)" checked={form.pagamento_final} onChange={v => set('pagamento_final', v)} />
                   </div>
@@ -859,7 +875,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               {!isED && (
                 <>
                   <Divider label="Gestão de Tráfego" />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="admin-form-grid">
                     <FormField label="Duração mínima (meses)">
                       <input type="number" min={3} value={form.duracao_meses} onChange={e => set('duracao_meses', e.target.value)} style={inputStyle} />
                     </FormField>
@@ -869,7 +885,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                   </div>
                   <CheckField label="Renovação automática após período mínimo" checked={form.renovacao_automatica} onChange={v => set('renovacao_automatica', v)} />
                   {form.status === 'cancelado' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="admin-form-grid">
                       <FormField label="Data de cancelamento">
                         <input type="date" value={form.data_cancelamento} onChange={e => set('data_cancelamento', e.target.value)} style={inputStyle} />
                       </FormField>
@@ -889,7 +905,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
               <Divider label="Comissão do vendedor" />
 
               {isSuperAdmin ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="admin-form-grid">
                   <FormField label="Vendedor responsável">
                     <select
                       value={form.vendedor_id}
@@ -949,7 +965,7 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                 const vendPerfil = profiles.find(p => p.id === form.vendedor_id)
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="admin-form-grid">
                       <FormField label="Status da comissão">
                         <select value={form.comissao_status} onChange={e => {
                           set('comissao_status', e.target.value)
@@ -1047,13 +1063,13 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
 
             {/* Banner de erro da API */}
             {saveError && (
-              <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--red-bg)', border: '1px solid var(--red)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+              <div className="admin-alert admin-alert--error" role="alert">
                 ⚠️ {saveError}
               </div>
             )}
 
             {/* Ações */}
-            <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'space-between' }}>
+            <div className="admin-modal__footer">
               <div>
                 {isSuperAdmin && modal !== 'new' && (
                   confirmDelete === modal.id ? (
@@ -1063,17 +1079,17 @@ export default function Contratos({ contratos, empresas, onSave, onDelete, pendi
                       <button onClick={() => setConfirmDelete(null)} style={{ padding: '6px 12px', background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Não</button>
                     </div>
                   ) : (
-                    <button onClick={() => setConfirmDelete(modal.id)} style={{ padding: '8px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--red)', fontSize: 13, cursor: 'pointer' }}>
+                    <button type="button" className="admin-danger-action" onClick={() => setConfirmDelete(modal.id)}>
                       Excluir
                     </button>
                   )
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setModal(null)} style={{ padding: '8px 16px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}>
+              <div className="admin-modal__footer-actions">
+                <button type="button" className="admin-secondary-action" onClick={() => setModal(null)}>
                   Cancelar
                 </button>
-                <button onClick={handleSave} disabled={saving || !form.cliente_nome.trim()} style={{ padding: '8px 20px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                <button type="button" className="admin-primary-action" onClick={handleSave} disabled={saving || !form.cliente_nome.trim()}>
                   {saving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
@@ -1099,29 +1115,39 @@ function errStyle(base, error) {
 }
 
 function FormField({ label, error, children }) {
+  const fieldId = React.useId()
+  const isNativeControl = React.isValidElement(children) && ['input', 'select', 'textarea'].includes(children.type)
+  const control = isNativeControl
+    ? React.cloneElement(children, {
+        id: children.props.id || fieldId,
+        'aria-invalid': error ? 'true' : undefined,
+        'aria-describedby': error ? `${fieldId}-error` : undefined,
+      })
+    : children
+
   return (
-    <div>
-      <label style={{ fontSize: 12, color: error ? 'var(--red)' : 'var(--text3)', display: 'block', marginBottom: 5 }}>{label}</label>
-      {children}
-      {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{error}</div>}
+    <div className={`admin-field${error ? ' has-error' : ''}`}>
+      <label className="admin-field__label" htmlFor={isNativeControl ? (children.props.id || fieldId) : undefined}>{label}</label>
+      {control}
+      {error && <div id={`${fieldId}-error`} className="admin-field__error" role="alert">{error}</div>}
     </div>
   )
 }
 
 function CheckField({ label, checked, onChange }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text2)' }}>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
-      {label}
+    <label className="admin-check">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      <span>{label}</span>
     </label>
   )
 }
 
 function Divider({ label }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      {label && <span style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap', fontWeight: 500 }}>{label}</span>}
-      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    <div className="admin-divider">
+      {label && <span>{label}</span>}
+      <div />
     </div>
   )
 }

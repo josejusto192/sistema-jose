@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox, IconList, IconKanban, IconX, IconDownload } from './Icons.jsx'
 import { exportLeads } from '../lib/exportLeads.js'
 import CnaeFilter from './CnaeFilter.jsx'
+import '../styles/sales.css'
 
 const PER_PAGE = 20
 
@@ -52,6 +53,15 @@ function SortHeader({ label, col, sortField, sortDir, onSort, style: extraStyle 
   return (
     <th
       onClick={() => onSort(col)}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSort(col)
+        }
+      }}
+      className={active ? 'is-active' : ''}
+      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      tabIndex={0}
       style={{
         padding: '6px 12px', textAlign: 'left', fontSize: 11, color: active ? 'var(--accent)' : 'var(--text3)',
         fontWeight: active ? 600 : 500, letterSpacing: 0.3, cursor: 'pointer', userSelect: 'none',
@@ -88,50 +98,41 @@ function tagColor(tag) {
 function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, isSuperAdmin, tasks }) {
   const atencao = hasOverdueTask(e.id, tasks)
   return (
-    <div
+    <article
+      className={`sales-kanban-card${isDragging ? ' is-dragging' : ''}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={() => onOpen(e)}
-      style={{
-        background: 'var(--bg2)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        padding: '10px 10px',
-        cursor: 'grab',
-        opacity: isDragging ? 0.4 : 1,
-        transition: 'box-shadow 0.12s, transform 0.12s, opacity 0.12s',
-        userSelect: 'none',
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen(e)
+        }
       }}
-      onMouseEnter={el => {
-        el.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.15)'
-        el.currentTarget.style.transform = 'translateY(-1px)'
-      }}
-      onMouseLeave={el => {
-        el.currentTarget.style.boxShadow = 'none'
-        el.currentTarget.style.transform = 'none'
-      }}
+      tabIndex={0}
+      aria-label={`Abrir lead ${leadName(e)}`}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+      <div className="sales-kanban-card__title-row">
         {atencao && (
-          <div
+          <span
+            className="sales-attention-dot"
             title="Precisa de atenção"
-            style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', flexShrink: 0, marginTop: 3 }}
           />
         )}
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', lineHeight: 1.35, flex: 1 }}>
+        <div className="sales-kanban-card__name">
           {leadName(e)}
         </div>
       </div>
 
       {e.municipio && (
-        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+        <div className="sales-kanban-card__location">
           {e.municipio}{e.uf ? `, ${e.uf}` : ''}
         </div>
       )}
 
       {e.tags && e.tags.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 6 }}>
+        <div className="sales-tag-row">
           {e.tags.slice(0, 2).map(tag => {
             const tc = tagColor(tag)
             return (
@@ -147,11 +148,11 @@ function KanbanCard({ empresa: e, onOpen, onDragStart, onDragEnd, isDragging, is
       )}
 
       {isSuperAdmin && e.vendedor_nome && (
-        <div style={{ marginTop: 6 }}>
-          <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 500 }}>{e.vendedor_nome}</span>
+        <div className="sales-kanban-card__owner">
+          <span>{e.vendedor_nome}</span>
         </div>
       )}
-    </div>
+    </article>
   )
 }
 
@@ -184,11 +185,7 @@ function KanbanView({ leads, tasks, onOpenLead, onUpdateEmpresa, isSuperAdmin, i
   }
 
   return (
-    <div style={{
-      display: 'flex', gap: 10, padding: isMobile ? '12px 16px 16px' : '14px 32px 20px',
-      overflowX: 'auto', overflowY: 'hidden',
-      flex: 1, alignItems: 'stretch', minHeight: 0,
-    }}>
+    <div className={`sales-kanban-board${isMobile ? ' is-mobile' : ''}`} aria-label="Funil de vendas">
       {KANBAN_STATUSES.map(status => {
         const cfg = STATUS_CONFIG[status]
         const columnLeads = leads.filter(e => e.status_prospeccao === status)
@@ -197,46 +194,26 @@ function KanbanView({ leads, tasks, onOpenLead, onUpdateEmpresa, isSuperAdmin, i
         return (
           <div
             key={status}
+            className={`sales-kanban-column${isOver ? ' is-over' : ''}`}
             onDragOver={e => e.preventDefault()}
             onDragEnter={() => handleDragEnter(status)}
             onDragLeave={() => handleDragLeave(status)}
             onDrop={() => handleDrop(status)}
-            style={{
-              width: 210, flexShrink: 0,
-              display: 'flex', flexDirection: 'column',
-              background: isOver ? 'var(--bg3)' : 'var(--bg)',
-              border: `1px solid ${isOver ? cfg.dot : 'var(--border)'}`,
-              borderRadius: 10,
-              transition: 'border-color 0.15s, background 0.15s',
-              overflow: 'hidden',
-            }}
+            style={{ '--status-color': cfg.dot }}
           >
             {/* Column header */}
-            <div style={{
-              padding: '9px 12px 8px',
-              borderBottom: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              flexShrink: 0, background: 'var(--bg2)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>{cfg.label}</span>
+            <div className="sales-kanban-column__header">
+              <div className="sales-kanban-column__heading">
+                <span className="sales-kanban-column__dot" style={{ background: cfg.dot }} />
+                <span>{cfg.label}</span>
               </div>
-              <span style={{
-                fontSize: 10, color: 'var(--text3)',
-                background: 'var(--bg3)', border: '1px solid var(--border)',
-                padding: '1px 6px', borderRadius: 8, fontWeight: 500,
-              }}>
+              <span className="sales-kanban-column__count">
                 {columnLeads.length}
               </span>
             </div>
 
             {/* Cards */}
-            <div style={{
-              flex: 1, overflowY: 'auto',
-              padding: '8px 7px',
-              display: 'flex', flexDirection: 'column', gap: 6,
-            }}>
+            <div className="sales-kanban-column__body">
               {columnLeads.map(e => (
                 <KanbanCard
                   key={e.id}
@@ -250,12 +227,7 @@ function KanbanView({ leads, tasks, onOpenLead, onUpdateEmpresa, isSuperAdmin, i
                 />
               ))}
               {columnLeads.length === 0 && (
-                <div style={{
-                  padding: '16px 8px', textAlign: 'center',
-                  color: 'var(--text3)', fontSize: 11,
-                  border: `1px dashed ${isOver ? cfg.dot : 'var(--border)'}`,
-                  borderRadius: 8, opacity: 0.6, transition: 'border-color 0.15s',
-                }}>
+                <div className="sales-kanban-empty">
                   Solte aqui
                 </div>
               )}
@@ -295,37 +267,27 @@ function BulkBar({ count, onClear, onStatusChange, onAssign, onDelete, vendedore
   }
 
   return (
-    <div style={{
-      position: 'sticky', bottom: 0, zIndex: 30,
-      background: 'var(--bg2)', borderTop: '1px solid var(--border)',
-      padding: '10px 32px',
-      display: 'flex', alignItems: 'center', gap: 10,
-      boxShadow: '0 -4px 16px rgba(0,0,0,0.12)',
-      animation: 'fadeIn 0.15s ease',
-    }}>
+    <div className="sales-bulk-bar" role="region" aria-label="Ações para leads selecionados">
       {/* Count + clear */}
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+      <span className="sales-bulk-bar__count">
         {count} selecionado{count !== 1 ? 's' : ''}
       </span>
       <button
         onClick={onClear}
-        style={{ fontSize: 11, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+        className="sales-bulk-bar__clear"
       >
-        limpar
+        Limpar
       </button>
 
-      <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+      <div className="sales-bulk-bar__divider" />
 
       {/* Mudar status */}
       <select
         disabled={busy}
         defaultValue=""
+        aria-label="Mudar status dos leads selecionados"
         onChange={e => { handleStatus(e.target.value); e.target.value = '' }}
-        style={{
-          padding: '6px 10px', borderRadius: 7, border: '1px solid var(--border)',
-          background: 'var(--bg3)', color: 'var(--text)', fontSize: 12,
-          cursor: 'pointer', outline: 'none', opacity: busy ? 0.5 : 1,
-        }}
+        className="sales-bulk-bar__select"
       >
         <option value="" disabled>Mudar status…</option>
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
@@ -338,12 +300,9 @@ function BulkBar({ count, onClear, onStatusChange, onAssign, onDelete, vendedore
         <select
           disabled={busy}
           defaultValue=""
+          aria-label="Atribuir os leads selecionados a um vendedor"
           onChange={e => { handleAssign(e.target.value); e.target.value = '' }}
-          style={{
-            padding: '6px 10px', borderRadius: 7, border: '1px solid var(--border)',
-            background: 'var(--bg3)', color: 'var(--text)', fontSize: 12,
-            cursor: 'pointer', outline: 'none', opacity: busy ? 0.5 : 1,
-          }}
+          className="sales-bulk-bar__select"
         >
           <option value="" disabled>Atribuir a…</option>
           {vendedores.map(v => (
@@ -352,11 +311,11 @@ function BulkBar({ count, onClear, onStatusChange, onAssign, onDelete, vendedore
         </select>
       )}
 
-      <div style={{ flex: 1 }} />
+      <div className="sales-bulk-bar__spacer" />
 
       {/* Excluir */}
       {confirmDelete ? (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div className="sales-bulk-bar__confirm">
           <span style={{ fontSize: 12, color: '#EF4444', fontWeight: 500 }}>Excluir {count} lead{count !== 1 ? 's' : ''}?</span>
           <button
             onClick={handleDelete}
@@ -461,41 +420,35 @@ function NewLeadModal({ onClose, onSave }) {
   const isEmpresa = tipo === 'empresa'
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 16,
-    }}
+    <div
+      className="sales-modal-backdrop"
+      role="presentation"
     onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{
-        background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--border)',
-        width: '100%', maxWidth: 540,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-      }}>
+      <div className="sales-modal sales-new-lead-modal" role="dialog" aria-modal="true" aria-labelledby="new-lead-title">
         {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
-        }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Novo Lead</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
+        <div className="sales-modal__header">
+          <div>
+            <div className="sales-modal__eyebrow">Cadastro rápido</div>
+            <h2 id="new-lead-title" className="sales-modal__title">Novo lead</h2>
+          </div>
+          <button type="button" onClick={onClose} className="sales-icon-button" aria-label="Fechar cadastro de lead">
             <IconX size={18} color="var(--text3)" />
           </button>
         </div>
 
         {/* Body — scrollable */}
-        <form onSubmit={handleSubmit} style={{ padding: '18px 20px', overflowY: 'auto', flex: 1 }}>
+        <form onSubmit={handleSubmit} className="sales-modal__body">
 
           {/* Tipo selector */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div className="sales-segmented-control" aria-label="Tipo de lead">
             {[{ value: 'empresa', label: '🏢 Empresa' }, { value: 'pessoa', label: '👤 Pessoa' }].map(opt => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setTipo(opt.value)}
+                className={tipo === opt.value ? 'is-active' : ''}
+                aria-pressed={tipo === opt.value}
                 style={{
                   flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid',
                   fontSize: 13, fontWeight: 500, cursor: 'pointer',
@@ -510,19 +463,19 @@ function NewLeadModal({ onClose, onSave }) {
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+          <div className="sales-form-grid">
 
             {/* Campos empresa */}
             {isEmpresa && <>
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div className="is-full">
                 <label style={labelStyle}>Nome fantasia</label>
                 <input style={inputStyle} placeholder="Ex: Padaria do João" value={form.nome_fantasia} onChange={e => set('nome_fantasia', e.target.value)} autoFocus />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div className="is-full">
                 <label style={labelStyle}>Razão social</label>
                 <input style={inputStyle} placeholder="Ex: João Silva Alimentos ME" value={form.razao_social} onChange={e => set('razao_social', e.target.value)} />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div className="is-full">
                 <label style={labelStyle}>CNPJ</label>
                 <input style={inputStyle} placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e => set('cnpj', e.target.value)} />
               </div>
@@ -559,9 +512,9 @@ function NewLeadModal({ onClose, onSave }) {
             </div>
 
             {/* Presença online */}
-            <div style={{ gridColumn: '1 / -1', paddingTop: 4, borderTop: '1px solid var(--border)', marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 12, letterSpacing: 0.5 }}>PRESENÇA ONLINE</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+            <div className="sales-form-section is-full">
+              <div className="sales-form-section__title">Presença online</div>
+              <div className="sales-form-grid sales-form-grid--compact">
                 <div>
                   <label style={labelStyle}>Instagram</label>
                   <input style={inputStyle} placeholder="https://instagram.com/..." value={form.instagram_url} onChange={e => set('instagram_url', e.target.value)} />
@@ -601,7 +554,7 @@ function NewLeadModal({ onClose, onSave }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+          <div className="sales-modal__footer">
             <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 13, cursor: 'pointer' }}>
               Cancelar
             </button>
@@ -789,118 +742,93 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const statusTabs = ['todos', ...Object.keys(STATUS_CONFIG)]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="sales-shell">
       {/* Toolbar */}
-      <div style={{ padding: isMobile ? '12px 16px 10px' : '20px 32px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', color: 'var(--text)' }}>Leads</h1>
-          <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 20 }}>
-            {empresas.length} / {totalCount}
-          </span>
-          {followupCount > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#FFFBEB', color: '#B45309', border: '1px solid #F59E0B60', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>
-              <IconClock size={12} color="#B45309" /> {followupCount} precisam de atenção
-            </span>
-          )}
-
-          {/* Exportar */}
-          <div style={{ position: 'relative', marginLeft: 'auto' }}>
-            <button
-              onClick={() => setShowExportMenu(s => !s)}
-              title={selectedIds.length > 0 ? `Exportar ${selectedIds.length} selecionado(s)` : 'Exportar leads filtrados'}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)',
-                background: 'var(--bg3)', color: 'var(--text2)',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-            >
-              <IconDownload size={14} color="var(--text2)" /> Exportar
-            </button>
-            {showExportMenu && (
-              <>
-                <div onClick={() => setShowExportMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 19 }} />
-                <div style={{
-                  position: 'absolute', top: '110%', right: 0, zIndex: 20,
-                  background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 160, overflow: 'hidden',
-                }}>
-                  <button onClick={() => handleExport('xlsx')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', border: 'none', background: 'none', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Excel (.xlsx)
-                  </button>
-                  <button onClick={() => handleExport('csv')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', border: 'none', background: 'none', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    CSV
-                  </button>
-                </div>
-              </>
-            )}
+      <header className="sales-toolbar">
+        <div className="sales-heading-row">
+          <div className="sales-heading-copy">
+            <span className="sales-eyebrow">Pipeline comercial</span>
+            <div className="sales-title-row">
+              <h1>Leads</h1>
+              <span className="sales-count" aria-label={`${empresas.length} de ${totalCount} leads exibidos`}>
+                {empresas.length} <span>/ {totalCount}</span>
+              </span>
+              {followupCount > 0 && (
+                <span className="sales-attention-pill">
+                  <IconClock size={12} color="currentColor" /> {followupCount} precisam de atenção
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Novo Lead */}
-          <button
-            onClick={() => setNewLeadOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 8, border: 'none',
-              background: 'var(--accent)', color: '#fff',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            + Novo Lead
-          </button>
+          <div className="sales-heading-actions">
+            {/* Exportar */}
+            <div className="sales-export">
+              <button
+                onClick={() => setShowExportMenu(s => !s)}
+                title={selectedIds.length > 0 ? `Exportar ${selectedIds.length} selecionado(s)` : 'Exportar leads filtrados'}
+                className="sales-action sales-action--secondary"
+                aria-haspopup="menu"
+                aria-expanded={showExportMenu}
+              >
+                <IconDownload size={14} color="currentColor" /> <span>Exportar</span>
+              </button>
+              {showExportMenu && (
+                <>
+                  <div onClick={() => setShowExportMenu(false)} className="sales-menu-scrim" />
+                  <div className="sales-export-menu" role="menu">
+                    <button onClick={() => handleExport('xlsx')} role="menuitem">Excel <span>.xlsx</span></button>
+                    <button onClick={() => handleExport('csv')} role="menuitem">CSV <span>.csv</span></button>
+                  </div>
+                </>
+              )}
+            </div>
 
-          {/* View toggle — só desktop */}
-          {!isMobile && <div style={{ display: 'flex', gap: 2, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 7, padding: 3 }}>
-            <button
-              onClick={() => handleViewMode('list')}
-              title="Visualização em lista"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 28, height: 28, borderRadius: 5, border: 'none',
-                background: viewMode === 'list' ? 'var(--bg2)' : 'transparent',
-                color: viewMode === 'list' ? 'var(--text)' : 'var(--text3)',
-                cursor: 'pointer', transition: 'background 0.12s, color 0.12s',
-                boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              }}
-            >
-              <IconList size={14} color={viewMode === 'list' ? 'var(--text)' : 'var(--text3)'} />
+            {/* Novo Lead */}
+            <button onClick={() => setNewLeadOpen(true)} className="sales-action sales-action--primary">
+              <span aria-hidden="true">+</span> Novo lead
             </button>
-            <button
-              onClick={() => handleViewMode('kanban')}
-              title="Visualização Kanban"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 28, height: 28, borderRadius: 5, border: 'none',
-                background: viewMode === 'kanban' ? 'var(--bg2)' : 'transparent',
-                color: viewMode === 'kanban' ? 'var(--text)' : 'var(--text3)',
-                cursor: 'pointer', transition: 'background 0.12s, color 0.12s',
-                boxShadow: viewMode === 'kanban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              }}
-            >
-              <IconKanban size={14} color={viewMode === 'kanban' ? 'var(--text)' : 'var(--text3)'} />
-            </button>
-          </div>}
+
+            {/* View toggle — só desktop */}
+            {!isMobile && <div className="sales-view-toggle" aria-label="Modo de visualização">
+              <button
+                onClick={() => handleViewMode('list')}
+                title="Visualização em lista"
+                className={viewMode === 'list' ? 'is-active' : ''}
+                aria-pressed={viewMode === 'list'}
+              >
+                <IconList size={15} color="currentColor" />
+              </button>
+              <button
+                onClick={() => handleViewMode('kanban')}
+                title="Visualização Kanban"
+                className={viewMode === 'kanban' ? 'is-active' : ''}
+                aria-pressed={viewMode === 'kanban'}
+              >
+                <IconKanban size={15} color="currentColor" />
+              </button>
+            </div>}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: viewMode === 'kanban' ? 0 : 12 }}>
-          <div style={{ position: 'relative', flex: 1 }}>
+        <div className={`sales-filter-row${viewMode === 'kanban' ? ' is-kanban' : ''}`}>
+          <div className="sales-search">
             <input
               ref={searchInputRef}
               type="text"
               placeholder="Buscar por nome, CNPJ, cidade, segmento... (/ para focar)"
+              aria-label="Buscar leads"
               value={localSearch}
               onChange={e => handleSearchChange(e.target.value)}
-              style={{ width: '100%', padding: '8px 32px 8px 36px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }}
             />
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', display: 'flex' }}><IconSearch size={15} color="var(--text3)" /></span>
+            <span className="sales-search__icon" aria-hidden="true"><IconSearch size={16} color="currentColor" /></span>
             {localSearch && (
               <button
                 onClick={clearSearch}
-                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', display: 'flex', padding: 2 }}
+                className="sales-search__clear"
+                aria-label="Limpar busca"
               >
-                <IconX size={14} color="var(--text3)" />
+                <IconX size={14} color="currentColor" />
               </button>
             )}
           </div>
@@ -908,7 +836,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              style={{ padding: '8px 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+              className="sales-filter-select"
+              aria-label="Filtrar por status"
             >
               <option value="todos">Todos os status</option>
               {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
@@ -920,7 +849,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             <select
               value={tagFilter || ''}
               onChange={e => setTagFilter(e.target.value)}
-              style={{ padding: '8px 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+              className="sales-filter-select"
+              aria-label="Filtrar por etiqueta"
             >
               <option value="">Todas as etiquetas</option>
               {allTags.map(tag => (
@@ -935,7 +865,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             <select
               value={vendorFilter}
               onChange={e => setVendorFilter(e.target.value)}
-              style={{ padding: '8px 12px', background: vendorFilter ? 'var(--accent)' : 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: vendorFilter ? '#fff' : 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+              className={`sales-filter-select${vendorFilter ? ' is-active' : ''}`}
+              aria-label="Filtrar por vendedor"
             >
               <option value="">Todos os vendedores</option>
               <option value="__unassigned__">Não atribuídos</option>
@@ -947,15 +878,15 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
         </div>
 
         {/* Filtros salvos */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        <div className="sales-saved-filters">
           {savedFilters.map((f, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
-              <span onClick={() => handleLoadFilter(f)} style={{ cursor: 'pointer' }}>🔖 {f.name}</span>
-              <button type="button" onClick={() => handleDeleteFilter(i)} style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: '0 2px', lineHeight: 1, fontSize: 14, display: 'flex' }}>×</button>
+            <span key={i} className="sales-saved-filter">
+              <button type="button" onClick={() => handleLoadFilter(f)} className="sales-saved-filter__load">{f.name}</button>
+              <button type="button" onClick={() => handleDeleteFilter(i)} className="sales-saved-filter__delete" aria-label={`Excluir filtro ${f.name}`}>×</button>
             </span>
           ))}
           {showSaveInput ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span className="sales-save-filter-form">
               <input
                 autoFocus
                 value={saveFilterName}
@@ -968,15 +899,15 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               <button type="button" onClick={() => setShowSaveInput(false)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 12, cursor: 'pointer' }}>✕</button>
             </span>
           ) : (
-            <button type="button" onClick={() => setShowSaveInput(true)} style={{ padding: '3px 10px', borderRadius: 20, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text3)', fontSize: 12, cursor: 'pointer' }}>
-              + Salvar filtro atual
+            <button type="button" onClick={() => setShowSaveInput(true)} className="sales-save-filter-button">
+              <span aria-hidden="true">+</span> Salvar filtro
             </button>
           )}
         </div>
 
         {/* Status tabs — só na view de lista */}
         {viewMode === 'list' && (
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          <div className="sales-status-tabs" aria-label="Filtrar por etapa do funil">
             {statusTabs.map(s => {
               const cfg = STATUS_CONFIG[s]
               const isActive = statusFilter === s
@@ -984,6 +915,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
+                  className={isActive ? 'is-active' : ''}
+                  aria-pressed={isActive}
                   style={{
                     padding: '3px 10px', borderRadius: 20, border: '1px solid',
                     fontSize: 11, cursor: 'pointer', fontWeight: isActive ? 500 : 400,
@@ -1000,6 +933,8 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             {/* Tab follow-up especial */}
             <button
               onClick={() => setStatusFilter('followup')}
+              className={statusFilter === 'followup' ? 'is-active is-attention' : 'is-attention'}
+              aria-pressed={statusFilter === 'followup'}
               style={{
                 padding: '3px 10px', borderRadius: 20, border: '1px solid',
                 fontSize: 11, cursor: 'pointer', fontWeight: statusFilter === 'followup' ? 500 : 400,
@@ -1015,10 +950,10 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             </button>
           </div>
         )}
-      </div>
+      </header>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="sales-content">
         {viewMode === 'kanban' ? (
           loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
@@ -1033,17 +968,109 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             />
           )
         ) : (
-          <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '0 0 16px' : '0 32px 16px', background: 'var(--bg)' }}>
+          <div className="sales-list-scroller">
             {loading ? (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13, animation: 'pulse 1.5s infinite' }}>Carregando...</div>
+              <div className="sales-state sales-state--loading">Carregando leads...</div>
             ) : sorted.length === 0 ? (
-              <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)' }}>
-                <div style={{ marginBottom: 10, opacity: 0.3 }}><IconInbox size={32} color="var(--text3)" /></div>
-                <div style={{ fontSize: 14 }}>Nenhum lead encontrado</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>Ajuste os filtros ou aguarde novos registros</div>
+              <div className="sales-state">
+                <div className="sales-state__icon"><IconInbox size={27} color="currentColor" /></div>
+                <div className="sales-state__title">Nenhum lead encontrado</div>
+                <div className="sales-state__copy">Ajuste os filtros ou aguarde novos registros</div>
+              </div>
+            ) : isMobile ? (
+              <div className="sales-mobile-list">
+                <label className="sales-mobile-select-all">
+                  <span>
+                    <input
+                      type="checkbox"
+                      checked={allPageSelected}
+                      ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected }}
+                      onChange={toggleSelectAll}
+                    />
+                    Selecionar página
+                  </span>
+                  <strong>{pageItems.length} leads</strong>
+                </label>
+                {pageItems.map((e, i) => {
+                  const atencao = hasOverdueTask(e.id, tasks)
+                  const isSelected = selectedIds.includes(e.id)
+                  return (
+                    <article
+                      key={e.id}
+                      className={`sales-mobile-card${isSelected ? ' is-selected' : ''}`}
+                      onClick={() => onOpenLead(e)}
+                      onKeyDown={event => {
+                        if (event.target !== event.currentTarget) return
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          onOpenLead(e)
+                        }
+                      }}
+                      tabIndex={0}
+                      style={{ '--enter-delay': `${Math.min(i, 10) * 28}ms` }}
+                    >
+                      <div className="sales-mobile-card__header">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(e.id)}
+                          onClick={event => event.stopPropagation()}
+                          aria-label={`Selecionar ${leadName(e)}`}
+                        />
+                        <div className="sales-mobile-card__identity">
+                          <div className="sales-mobile-card__name">
+                            {atencao && <span className="sales-attention-dot" title="Tem tarefa atrasada" />}
+                            <span>{leadName(e)}</span>
+                          </div>
+                          <div className="sales-mobile-card__meta">
+                            {e.tipo === 'pessoa' ? 'Pessoa' : e.eh_mei ? 'MEI' : e.porte_descricao || 'Empresa'}
+                            {(e.municipio || e.uf) && ` · ${[e.municipio, e.uf].filter(Boolean).join(', ')}`}
+                          </div>
+                        </div>
+                        <StatusBadge status={e.status_prospeccao} />
+                      </div>
+
+                      {e.cnae_principal_descricao && (
+                        <p className="sales-mobile-card__segment">{e.cnae_principal_descricao}</p>
+                      )}
+
+                      {e.tags && e.tags.length > 0 && (
+                        <div className="sales-tag-row">
+                          {e.tags.slice(0, 3).map(tag => {
+                            const tc = tagColor(tag)
+                            return <span key={tag} style={{ background: tc.bg, color: tc.color }}>{tag}</span>
+                          })}
+                          {e.tags.length > 3 && <span className="is-more">+{e.tags.length - 3}</span>}
+                        </div>
+                      )}
+
+                      {isSuperAdmin && e.vendedor_nome && (
+                        <div className="sales-mobile-card__owner">Responsável · <strong>{e.vendedor_nome}</strong></div>
+                      )}
+
+                      <div className="sales-mobile-card__footer">
+                        <div className="sales-mobile-card__contacts">
+                          {e.email && <span title={e.email}><IconMail size={14} color="currentColor" /> E-mail</span>}
+                          {e.telefone && <span title={e.telefone}><IconPhone size={14} color="currentColor" /> Telefone</span>}
+                          {e.cnpj && <span className="is-mono">{e.cnpj}</span>}
+                        </div>
+                        <select
+                          value={e.status_prospeccao || 'novo'}
+                          onChange={event => handleStatusChange(e, event.target.value, event)}
+                          onClick={event => event.stopPropagation()}
+                          aria-label={`Alterar status de ${leadName(e)}`}
+                        >
+                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                            <option key={key} value={key}>{cfg.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
             ) : (
-              <table style={{ width: '100%', minWidth: 700, borderCollapse: 'separate', borderSpacing: '0 3px', marginTop: 14 }}>
+              <table className="sales-table">
                 <thead>
                   <tr>
                     <th style={{ padding: '6px 10px 6px 16px', width: 36 }}>
@@ -1052,6 +1079,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                         checked={allPageSelected}
                         ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected }}
                         onChange={toggleSelectAll}
+                        aria-label="Selecionar todos os leads desta página"
                         style={{ cursor: 'pointer', width: 14, height: 14, accentColor: 'var(--accent)' }}
                       />
                     </th>
@@ -1073,9 +1101,16 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                       <tr
                         key={e.id}
                         onClick={() => onOpenLead(e)}
+                        onKeyDown={event => {
+                          if (event.target !== event.currentTarget) return
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            onOpenLead(e)
+                          }
+                        }}
+                        tabIndex={0}
+                        className={isSelected ? 'is-selected' : ''}
                         style={{ cursor: 'pointer', animation: `fadeIn 0.2s ease ${Math.min(i, 15) * 0.02}s both`, opacity: isSelected ? 0.92 : 1 }}
-                        onMouseEnter={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = 'var(--bg3)')}
-                        onMouseLeave={el => el.currentTarget.querySelectorAll('td').forEach(td => td.style.background = isSelected ? 'var(--bg3)' : 'var(--bg2)')}
                       >
                         <td
                           onClick={ev => { ev.stopPropagation(); toggleSelect(e.id) }}
@@ -1086,6 +1121,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                             checked={isSelected}
                             onChange={() => toggleSelect(e.id)}
                             onClick={ev => ev.stopPropagation()}
+                            aria-label={`Selecionar ${leadName(e)}`}
                             style={{ cursor: 'pointer', width: 14, height: 14, accentColor: 'var(--accent)' }}
                           />
                         </td>
@@ -1160,6 +1196,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
                             value={e.status_prospeccao || 'novo'}
                             onChange={ev => handleStatusChange(e, ev.target.value, ev)}
                             onClick={ev => ev.stopPropagation()}
+                            aria-label={`Alterar status de ${leadName(e)}`}
                             style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)', fontSize: 11, padding: '3px 6px', cursor: 'pointer', outline: 'none' }}
                           >
                             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
@@ -1203,17 +1240,17 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
 
       {/* Paginação — só na view de lista */}
       {viewMode === 'list' && !loading && sorted.length > PER_PAGE && (
-        <div style={{ padding: isMobile ? '10px 16px' : '12px 32px', borderTop: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+        <nav className="sales-pagination" aria-label="Paginação de leads">
+          <span className="sales-pagination__summary">
             {((safePage - 1) * PER_PAGE) + 1}–{Math.min(safePage * PER_PAGE, sorted.length)} de {sorted.length} leads
           </span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div className="sales-pagination__controls">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={safePage === 1}
-              style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, cursor: safePage === 1 ? 'not-allowed' : 'pointer', opacity: safePage === 1 ? 0.4 : 1 }}
+              className="sales-pagination__direction"
             >
-              ← Anterior
+              <span aria-hidden="true">←</span> Anterior
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
@@ -1224,11 +1261,13 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
               }, [])
               .map((p, i) =>
                 p === '...'
-                  ? <span key={`e${i}`} style={{ fontSize: 12, color: 'var(--text3)', padding: '0 4px' }}>…</span>
+                  ? <span key={`e${i}`} className="sales-pagination__ellipsis">…</span>
                   : (
                     <button
                       key={p}
                       onClick={() => setPage(p)}
+                      className={`sales-pagination__page${safePage === p ? ' is-active' : ''}`}
+                      aria-current={safePage === p ? 'page' : undefined}
                       style={{
                         padding: '5px 10px', borderRadius: 6, border: '1px solid',
                         fontSize: 12, cursor: 'pointer', minWidth: 34,
@@ -1246,12 +1285,12 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={safePage === totalPages}
-              style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, cursor: safePage === totalPages ? 'not-allowed' : 'pointer', opacity: safePage === totalPages ? 0.4 : 1 }}
+              className="sales-pagination__direction"
             >
-              Próxima →
+              Próxima <span aria-hidden="true">→</span>
             </button>
           </div>
-        </div>
+        </nav>
       )}
     </div>
   )

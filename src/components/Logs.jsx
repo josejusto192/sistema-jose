@@ -262,14 +262,14 @@ export default function Logs({ isSuperAdmin }) {
   const inputStyle = { padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer' }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="workspace-screen logs-screen" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* Toolbar */}
-      <div style={{ padding: isMobile ? '12px 16px 10px' : '20px 32px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10, flexShrink: 0 }}>
+      <div className="workspace-toolbar" style={{ padding: isMobile ? '12px 16px 10px' : '20px 32px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10, flexShrink: 0 }}>
 
         {/* Title + stats */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-          <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', color: 'var(--text)' }}>Logs</h1>
+          <h1 className="workspace-heading" style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', color: 'var(--text)' }}>Logs</h1>
           <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 20 }}>
             {totalCount} registros
           </span>
@@ -349,7 +349,7 @@ export default function Logs({ isSuperAdmin }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', padding: isMobile ? '12px 12px 16px' : '14px 32px 20px' }}>
+      <div className="workspace-content logs-content" style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', padding: isMobile ? '12px 12px 16px' : '14px 32px 20px' }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Carregando...</div>
         ) : logs.length === 0 ? (

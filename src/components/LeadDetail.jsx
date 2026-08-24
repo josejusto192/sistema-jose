@@ -8,6 +8,7 @@ import { IconMail, IconPhone, IconCamera, IconFileText, IconWhatsApp, IconCheck,
 import { TASK_TYPES } from './Agenda.jsx'
 import { consultarCnpj, mapCnpjToLead, API_KEY } from '../lib/casaDados.js'
 import { useDialog } from './Dialog.jsx'
+import '../styles/sales.css'
 
 function parseDate(str) {
   if (!str) return null
@@ -17,19 +18,19 @@ function parseDate(str) {
 function Field({ label, value, mono }) {
   if (!value) return null
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)' }}>{value}</div>
+    <div className="lead-field">
+      <div className="lead-field__label">{label}</div>
+      <div className={`lead-field__value${mono ? ' is-mono' : ''}`}>{value}</div>
     </div>
   )
 }
 
 function Section({ title, children }) {
   return (
-    <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>{title}</div>
+    <section className="card lead-section">
+      <h2 className="lead-section__title">{title}</h2>
       {children}
-    </div>
+    </section>
   )
 }
 
@@ -299,21 +300,22 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className={`lead-detail-shell${isMobile ? ' is-mobile' : ''}`}>
       {/* Header */}
-      <div style={{ padding: isMobile ? '12px 16px' : '18px 32px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', zIndex: 10, flexShrink: 0 }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          ← Voltar para leads
+      <header className="lead-detail-header">
+        <button onClick={onBack} className="lead-detail-back">
+          <span aria-hidden="true">←</span> Voltar para leads
         </button>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>
+        <div className="lead-detail-header__main">
+          <div className="lead-detail-identity">
+            <span className="sales-eyebrow">Ficha comercial</span>
+            <h1>
               {nomeDisplay}
             </h1>
             {lead.tipo !== 'pessoa' && lead.nome_fantasia && lead.razao_social && (
-              <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 2 }}>{lead.razao_social}</div>
+              <div className="lead-detail-legal-name">{lead.razao_social}</div>
             )}
-            <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
+            <div className="lead-detail-badges">
               <span className="badge" style={badgeStyle}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot }} />
                 {cfg.label}
@@ -327,11 +329,11 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
               {lead.tipo !== 'pessoa' && lead.matriz_filial && <span className="badge" style={{ background: 'var(--bg3)', color: 'var(--text3)', border: '1px solid var(--border)' }}>{lead.matriz_filial}</span>}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div className="lead-detail-actions">
             {status === 'fechou' && onCreateContrato && (
               <button
                 onClick={() => onCreateContrato(lead)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                className="lead-detail-action is-primary"
               >
                 <IconFileText size={14} color="#fff" /> Criar contrato
               </button>
@@ -341,6 +343,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 onClick={handleCnpjLookup}
                 disabled={cnpjLookup.loading}
                 title={cnpjLookup.error || 'Atualizar dados via Casa dos Dados'}
+                className={`lead-detail-action${cnpjLookup.error ? ' has-error' : ''}`}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: `1px solid ${cnpjLookup.error ? '#ef4444' : 'var(--border)'}`, borderRadius: 8, color: cnpjLookup.error ? '#ef4444' : 'var(--text2)', fontSize: 12, cursor: cnpjLookup.loading ? 'not-allowed' : 'pointer', opacity: cnpjLookup.loading ? 0.6 : 1 }}
               >
                 <IconSearch size={13} color={cnpjLookup.error ? '#ef4444' : 'var(--text3)'} />
@@ -348,27 +351,27 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
               </button>
             )}
             {lead.telefone && (
-              <a href={telefoneLink} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 8, color: 'var(--green)', fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>
+              <a href={telefoneLink} target="_blank" rel="noreferrer" className="lead-detail-action is-whatsapp">
                 <IconWhatsApp size={14} color="var(--green)" /> WhatsApp
               </a>
             )}
             {lead.email && (
-              <button onClick={abrirModalEmail} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}>
+              <button onClick={abrirModalEmail} className="lead-detail-action">
                 <IconMail size={14} color="var(--text2)" /> E-mail
               </button>
             )}
           </div>
         </div>
-      </div>
+      </header>
 
 
       {/* Content */}
-      <div style={{ padding: isMobile ? '12px 16px' : '20px 32px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap: 16, flex: 1, background: 'var(--bg)', overflow: 'auto' }}>
+      <div className="lead-detail-layout">
         {/* Coluna esquerda */}
-        <div>
+        <div className="lead-detail-main">
           {lead.tipo !== 'pessoa' && (
             <Section title="Dados cadastrais">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+              <div className="lead-field-grid">
                 <Field label="CNPJ" value={cnpjFormatado} mono />
                 <Field label="CNPJ Raiz" value={lead.cnpj_raiz} mono />
                 <Field label="Natureza jurídica" value={lead.natureza_juridica_descricao} />
@@ -382,7 +385,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           )}
           {lead.tipo === 'pessoa' && (
             <Section title="Dados">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+              <div className="lead-field-grid">
                 <Field label="Nome" value={lead.nome} />
                 <Field label="Sobrenome" value={lead.sobrenome} />
                 <Field label="Captado em" value={lead.criado_em ? format(new Date(lead.criado_em), "dd/MM/yyyy 'às' HH:mm") : null} />
@@ -409,7 +412,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           )}
 
           <Section title="Localização">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+            <div className="lead-field-grid">
               <Field label="Logradouro" value={[lead.tipo_logradouro, lead.logradouro, lead.numero].filter(Boolean).join(' ')} />
               <Field label="Bairro" value={lead.bairro} />
               <Field label="Município" value={lead.municipio} />
@@ -425,7 +428,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           </Section>
 
           <Section title="Contato">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+            <div className="lead-field-grid">
               <Field label="E-mail" value={lead.email} />
               {lead.tipo !== 'pessoa' && <Field label="Válido" value={lead.email_valido != null ? (lead.email_valido ? 'Sim' : 'Não') : null} />}
               <Field label="Telefone" value={lead.telefone} mono />
@@ -434,9 +437,9 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           </Section>
 
           {/* Presença online */}
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Presença online</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', marginBottom: 12 }}>
+          <section className="card lead-section">
+            <h2 className="lead-section__title">Presença online</h2>
+            <div className="lead-social-grid">
               {[
                 { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/...' },
                 { key: 'linkedin_url',  label: 'LinkedIn',  placeholder: 'https://linkedin.com/...' },
@@ -450,6 +453,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                       value={socialForm[key]}
                       onChange={e => setSocialForm(prev => ({ ...prev, [key]: e.target.value }))}
                       placeholder={placeholder}
+                      aria-label={label}
                       style={{ flex: 1, padding: '6px 9px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, outline: 'none' }}
                     />
                     {socialForm[key] && (
@@ -462,11 +466,12 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
             <button
               onClick={saveSocial}
               disabled={socialSaving}
+              className="lead-inline-action"
               style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: socialSaved ? 'var(--green-bg)' : 'var(--accent)', color: socialSaved ? 'var(--green)' : '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', opacity: socialSaving ? 0.6 : 1, transition: 'background 0.2s' }}
             >
               {socialSaved ? '✓ Salvo' : socialSaving ? 'Salvando...' : 'Salvar links'}
             </button>
-          </div>
+          </section>
 
           {lead.tipo !== 'pessoa' && lead.quadro_societario?.length > 0 && (
             <Section title={`Quadro societário (${lead.quadro_societario.length})`}>
@@ -487,9 +492,11 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           )}
 
           {/* Scripts de abordagem */}
-          <div className="card" style={{ marginBottom: 12, overflow: 'hidden' }}>
+          <section className="card lead-section lead-scripts">
             <button
               onClick={() => setScriptsOpen(o => !o)}
+              className="lead-scripts__toggle"
+              aria-expanded={scriptsOpen}
               style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left' }}
             >
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Scripts de abordagem</span>
@@ -532,13 +539,19 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
 
         {/* Coluna direita — CRM */}
-        <div>
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>CRM</div>
+        <aside className="lead-crm-rail" aria-label="Gestão do relacionamento">
+          <section className="card lead-rail-card lead-crm-card">
+            <div className="lead-rail-card__heading">
+              <div>
+                <span className="sales-eyebrow">Próxima ação</span>
+                <h2>CRM</h2>
+              </div>
+              <span className="lead-crm-card__status-dot" style={{ background: cfg.dot }} />
+            </div>
 
             {/* Responsável */}
             <div style={{ marginBottom: 12 }}>
@@ -547,6 +560,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 <select
                   value={vendedorId}
                   onChange={e => assignVendedor(e.target.value)}
+                  aria-label="Responsável pelo lead"
                   style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: vendedorId ? 'var(--text)' : 'var(--text3)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="">— Não atribuído —</option>
@@ -565,7 +579,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Status</label>
-              <select value={status} onChange={e => setStatus(e.target.value)} style={{ width: '100%', padding: '8px 10px', background: badgeStyle.background, border: `1px solid ${cfg.dot}40`, borderRadius: 8, color: badgeStyle.color, fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+              <select value={status} onChange={e => setStatus(e.target.value)} aria-label="Status do lead" style={{ width: '100%', padding: '8px 10px', background: badgeStyle.background, border: `1px solid ${cfg.dot}40`, borderRadius: 8, color: badgeStyle.color, fontSize: 13, outline: 'none', cursor: 'pointer' }}>
                 {Object.entries(STATUS_CONFIG).map(([key, c]) => (
                   <option key={key} value={key} style={{ background: 'var(--bg2)', color: 'var(--text)' }}>{c.label}</option>
                 ))}
@@ -574,7 +588,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Canal de contato</label>
-              <select value={canal} onChange={e => setCanal(e.target.value)} style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none' }}>
+              <select value={canal} onChange={e => setCanal(e.target.value)} aria-label="Canal de contato" style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none' }}>
                 <option value="">Selecionar canal</option>
                 {Object.entries(CANAL_CONFIG).map(([key, c]) => (
                   <option key={key} value={key}>{c.icon} {c.label}</option>
@@ -608,6 +622,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                         <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', background: 'var(--bg3)', borderRadius: 8, opacity: t.completed ? 0.55 : 1 }}>
                           <button
                             onClick={() => onToggleTask(t)}
+                            aria-label={t.completed ? `Reabrir tarefa ${t.title}` : `Concluir tarefa ${t.title}`}
                             style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${t.completed ? cfg.dot : 'var(--border)'}`, background: t.completed ? cfg.dot : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}
                           >
                             {t.completed && <IconCheck size={9} color="#fff" />}
@@ -621,8 +636,8 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                             {t.notes && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{t.notes}</div>}
                           </div>
                           <div style={{ display: 'flex', gap: 2 }}>
-                            <button onClick={() => setTaskModal({ task: t })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text3)', display: 'flex' }}><IconEdit size={11} color="var(--text3)" /></button>
-                            <button onClick={() => onDeleteTask(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text3)', display: 'flex' }}><IconTrash size={11} color="var(--text3)" /></button>
+                            <button onClick={() => setTaskModal({ task: t })} aria-label={`Editar tarefa ${t.title}`} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text3)', display: 'flex' }}><IconEdit size={11} color="var(--text3)" /></button>
+                            <button onClick={() => onDeleteTask(t.id)} aria-label={`Excluir tarefa ${t.title}`} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text3)', display: 'flex' }}><IconTrash size={11} color="var(--text3)" /></button>
                           </div>
                         </div>
                       )
@@ -635,6 +650,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 6 }}>Observações</label>
               <textarea value={obs} onChange={e => setObs(e.target.value)} rows={4} placeholder="Notas sobre este lead..."
+                aria-label="Observações do lead"
                 style={{ width: '100%', padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', fontSize: 13, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
             </div>
 
@@ -650,10 +666,10 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 Contatado em {format(new Date(lead.data_envio), 'dd/MM/yyyy')}
               </div>
             )}
-          </div>
+          </section>
 
           {/* Contratos */}
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+          <div className="card lead-rail-card" style={{ padding: '16px 18px', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                 Contratos {contratos.length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>({contratos.length})</span>}
@@ -718,7 +734,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           </div>
 
           {/* Etiquetas */}
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+          <div className="card lead-rail-card" style={{ padding: '16px 18px', marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Etiquetas</div>
 
             {tags.length > 0 && (
@@ -730,6 +746,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                       {tag}
                       <button
                         onClick={() => removeTag(tag)}
+                        aria-label={`Remover etiqueta ${tag}`}
                         style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: tc.color, lineHeight: 1 }}
                       >
                         <IconX size={10} color={tc.color} />
@@ -747,10 +764,12 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
                 onChange={e => setTagInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addTag()}
                 placeholder="Nova etiqueta..."
+                aria-label="Nova etiqueta"
                 style={{ flex: 1, padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }}
               />
               <button
                 onClick={addTag}
+                aria-label="Adicionar etiqueta"
                 style={{ padding: '6px 12px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
               >
                 +
@@ -759,7 +778,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           </div>
 
           {/* Histórico de status */}
-          <div className="card" style={{ padding: '16px 18px', marginBottom: 12 }}>
+          <div className="card lead-rail-card" style={{ padding: '16px 18px', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
               <IconHistory size={14} color="var(--text3)" /> Histórico de status
             </div>
@@ -820,7 +839,7 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
           </div>
 
           {/* Notas */}
-          <div className="card" style={{ padding: '16px 18px' }}>
+          <div className="card lead-rail-card" style={{ padding: '16px 18px' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>Histórico / Notas</div>
 
             {notas.length === 0 && (
@@ -840,28 +859,34 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
 
             <div style={{ display: 'flex', gap: 6 }}>
               <input type="text" value={nota} onChange={e => setNota(e.target.value)} onKeyDown={e => e.key === 'Enter' && addNota()} placeholder="Adicionar nota..."
+                aria-label="Adicionar nota ao histórico"
                 style={{ flex: 1, padding: '7px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none' }} />
-              <button onClick={addNota} style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>+</button>
+              <button onClick={addNota} aria-label="Salvar nota" style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>+</button>
             </div>
           </div>
-        </div>
+        </aside>
       </div>
 
       {/* Task modal */}
       {taskModal !== null && onSaveTask && (
         <div
           onClick={() => setTaskModal(null)}
+          className="sales-modal-backdrop"
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
         >
           <div
             onClick={e => e.stopPropagation()}
+            className="sales-modal sales-task-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="task-modal-title"
             style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 420, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+              <h3 id="task-modal-title" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
                 {taskModal.task?.id ? 'Editar tarefa' : 'Nova tarefa'}
               </h3>
-              <button onClick={() => setTaskModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+              <button type="button" onClick={() => setTaskModal(null)} className="sales-icon-button" aria-label="Fechar tarefa">
                 <IconX size={17} color="var(--text3)" />
               </button>
             </div>
@@ -950,12 +975,12 @@ export default function LeadDetail({ lead, onBack, onUpdate, onCreateContrato, t
       )}
 
       {emailModal && (
-        <div style={{
+        <div className="sales-modal-backdrop" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ background: 'var(--bg)', borderRadius: 12, width: 520, maxWidth: '90vw', padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Enviar email para {lead.email}</div>
+          <div className="sales-modal sales-email-modal" role="dialog" aria-modal="true" aria-labelledby="email-modal-title" style={{ background: 'var(--bg)', borderRadius: 12, width: 520, maxWidth: '90vw', padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }}>
+            <div id="email-modal-title" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Enviar email para {lead.email}</div>
             <div style={{ display: 'flex', gap: 4, marginBottom: 14, marginTop: 10 }}>
               {[['texto', 'Texto'], ['html', 'HTML'], ['ia', 'Gerar com IA']].map(([id, label]) => (
                 <button key={id} onClick={() => trocarModoEmail(id)}

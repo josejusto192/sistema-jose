@@ -633,7 +633,7 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: isMobile ? '16px' : '24px 28px' }}>
+    <div className="workspace-page performance-page" style={{ padding: isMobile ? '16px' : '24px 28px' }}>
 
       {/* Header */}
       <div style={{
@@ -641,10 +641,10 @@ export default function Desempenho({ session, profile, contratos = [], empresas 
         flexWrap: 'wrap', gap: 12, marginBottom: 28,
       }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+          <h1 className="workspace-heading" style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
             {isSuperAdmin ? 'Equipe' : 'Meu Desempenho'}
           </h1>
-          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text3)' }}>
+          <p className="workspace-subtitle" style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text3)' }}>
             {isSuperAdmin ? 'Desempenho e métricas da equipe de vendas' : 'Acompanhe suas métricas de prospecção'}
           </p>
         </div>
