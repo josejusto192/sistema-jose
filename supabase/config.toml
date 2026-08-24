@@ -1,0 +1,5 @@
+[functions.email-automation-tick]
+verify_jwt = false
+
+[functions.email-imap-sync]
+verify_jwt = false

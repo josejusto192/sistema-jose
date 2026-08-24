@@ -51,6 +51,125 @@ function emailsDeLista(texto) {
   return texto.split(',').map(s => s.trim()).filter(Boolean)
 }
 
+const AUTOMATION_QUEUE_GRACE_MS = 3 * 60 * 1000
+const AUTOMATION_POLL_MS = 8 * 1000
+const AUTOMATION_RUN_STALE_MS = 3 * 60 * 1000
+const RUN_IN_PROGRESS = new Set(['queued', 'running'])
+const AUTOMATION_ENVIO_DETAIL_COLUMNS = [
+  'id', 'automation_id', 'step_id', 'enrollment_id', 'lead_id', 'email', 'status',
+  'scheduled_for', 'enviado_em', 'erro', 'resend_id', 'assunto_gerado', 'corpo_gerado',
+  'prompt_ia', 'aberto_em', 'clicado_em', 'descadastrado_em', 'entregue_em', 'bounced_em',
+  'bounce_motivo', 'reclamado_em', 'tentativas', 'ultima_tentativa_em', 'processando_em', 'created_at',
+].join(', ')
+
+function mensagemErro(error) {
+  return error?.message || String(error || 'Erro desconhecido')
+}
+
+function runsTableUnavailable(error) {
+  const message = mensagemErro(error)
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || /email_automation_runs/i.test(message) && /(does not exist|schema cache|could not find|não existe)/i.test(message)
+}
+
+// "Iniciar agora" tem duas responsabilidades independentes: garantir que os
+// leads existentes estejam matriculados e acordar o worker. A segunda chamada
+// acontece mesmo quando ninguém novo foi matriculado (ou se a matrícula falhar),
+// porque a campanha pode já ter envios pendentes esperando processamento.
+async function matricularESolicitarExecucao(automationId, trigger = 'manual') {
+  let matriculados = null
+  let matriculaError = null
+  let runId = null
+  let requestError = null
+
+  try {
+    const matriculaResult = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: automationId })
+    if (matriculaResult.error) matriculaError = matriculaResult.error
+    else matriculados = Number(matriculaResult.data) || 0
+  } catch (error) {
+    matriculaError = error
+  }
+
+  try {
+    const requestResult = await supabase.rpc('fn_request_email_automation_tick', {
+      p_automation_id: automationId,
+      p_trigger: trigger,
+    })
+    if (requestResult.error) requestError = requestResult.error
+    else runId = requestResult.data || null
+  } catch (error) {
+    requestError = error
+  }
+
+  return { matriculados, matriculaError, runId, requestError }
+}
+
+function resumoFila(envios, now = Date.now()) {
+  const resumo = { pendentes: 0, futuros: 0, prontos: 0, vencidos: 0, processando: 0, confirmacaoPendente: 0, falhas: 0, enviados: 0 }
+  for (const envio of envios || []) {
+    if (envio.status === 'enviado') resumo.enviados++
+    else if (envio.status === 'falhou') resumo.falhas++
+    else if (envio.status === 'processando') resumo.processando++
+    else if (envio.status === 'confirmacao_pendente') resumo.confirmacaoPendente++
+    else if (envio.status === 'pendente') {
+      resumo.pendentes++
+      const scheduledAt = new Date(envio.scheduled_for).getTime()
+      if (Number.isNaN(scheduledAt) || scheduledAt <= now - AUTOMATION_QUEUE_GRACE_MS) resumo.vencidos++
+      else if (scheduledAt > now) resumo.futuros++
+      else resumo.prontos++
+    }
+  }
+  return resumo
+}
+
+function dataRun(run) {
+  return run?.finished_at || run?.started_at || run?.queued_at || run?.created_at || null
+}
+
+function runEstaAntigo(run, now = Date.now()) {
+  if (!RUN_IN_PROGRESS.has(run?.status)) return false
+  const timestamp = new Date(dataRun(run)).getTime()
+  return Number.isNaN(timestamp) || timestamp <= now - AUTOMATION_RUN_STALE_MS
+}
+
+function runSemEnviosVencidos(run) {
+  return run?.status === 'skipped' && (
+    run?.error_code === 'NO_DUE_SENDS'
+    || (!run?.error_code && /nenhum envio pendente e vencido/i.test(run?.error_message || ''))
+  )
+}
+
+function formatarDataHora(value) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function orientacaoRun(run) {
+  const raw = `${run?.error_code || ''} ${run?.error_message || ''}`.toLowerCase()
+  if (/confirmation.pending|confirmação pendente|confirmacao pendente|idempot/.test(raw)) {
+    return 'Confirme o destinatário no painel do Resend antes de reenviar. Isso evita que a mesma pessoa receba o email duas vezes.'
+  }
+  if (/config|api.?key|remetente|resend/.test(raw)) {
+    return 'Revise Configurações › Email: mantenha o Resend ativo, com chave e remetente válidos; depois tente novamente.'
+  }
+  if (/jwt|401|auth|deploy|function|cron/.test(raw)) {
+    return 'Verifique a publicação do worker de email e o agendamento no Supabase; depois solicite uma nova execução.'
+  }
+  return 'Corrija o erro informado e solicite uma nova execução. Os leads já matriculados não serão duplicados.'
+}
+
+async function fetchAutomationRuns(automationId = null, limit = 80) {
+  let query = supabase.from('email_automation_runs').select('*').order('queued_at', { ascending: false }).limit(limit)
+  if (automationId) query = query.eq('automation_id', automationId)
+  const { data, error } = await query
+  if (error && runsTableUnavailable(error)) return { rows: [], available: false, error: null }
+  if (error) return { rows: [], available: true, error }
+  return { rows: data || [], available: true, error: null }
+}
+
 // Normaliza um step vindo do banco (cc/cco como array) pro formato editável (string separada por vírgula).
 function stepParaEdicao(s) {
   return { ...s, gerar_assunto_ia: s.gerar_assunto_ia ?? true, cc: (s.cc || []).join(', '), cco: (s.cco || []).join(', '), anexos: s.anexos || [] }
@@ -209,14 +328,12 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
         const { error: triggersError } = await supabase.from('email_automation_triggers').insert(triggersPayload)
         if (triggersError) throw triggersError
       }
-      let matriculados = null
+      let inicioResultado = null
       if (iniciarAgora) {
-        const { data: count, error: rpcError } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: automationId })
-        if (rpcError) throw rpcError
-        matriculados = count
+        inicioResultado = await matricularESolicitarExecucao(automationId, 'campaign_created')
       }
       logAction?.(ehNova ? 'criar' : 'atualizar', 'email_automations', automationId, { nome: payload.nome, ativo: payload.ativo, steps: stepsPayload.length })
-      onSaved(matriculados)
+      onSaved(inicioResultado)
     } catch (e) {
       setErro(e.message || 'Erro ao salvar campanha')
     } finally {
@@ -468,6 +585,8 @@ function AutomacaoForm({ automacao, empresas, tagsDisponiveis, cnaesDisponiveis,
 
 const ENVIO_DOT_CONFIG = {
   enviado:   { bg: '#10B981', icon: <IconCheck size={11} color="#fff" />, label: 'Enviado',   textColor: '#10B981' },
+  processando: { bg: '#2563EB', icon: <IconZap size={11} color="#fff" />, label: 'Processando', textColor: '#2563EB' },
+  confirmacao_pendente: { bg: '#D97706', icon: <IconClock size={11} color="#fff" />, label: 'Confirmar no Resend', textColor: '#D97706' },
   falhou:    { bg: '#EF4444', icon: <IconX size={11} color="#fff" />,    label: 'Falhou',     textColor: '#EF4444' },
   cancelado: { bg: '#9CA3AF', icon: <IconX size={11} color="#fff" />,    label: 'Cancelado',  textColor: 'var(--text3)' },
   pendente:  { bg: 'var(--bg3)', icon: <IconClock size={10} color="var(--text3)" />, label: 'Agendado', textColor: 'var(--text3)' },
@@ -488,7 +607,7 @@ function statusVisual(e) {
 function ProgressoResumo({ envios }) {
   const total = envios.length
   const enviados = envios.filter(e => e.status === 'enviado').length
-  const falhou = envios.some(e => e.status === 'falhou')
+  const falhou = envios.some(e => e.status === 'falhou' || e.status === 'confirmacao_pendente')
   const cancelado = envios.every(e => e.status === 'cancelado')
   let texto = `${enviados} de ${total} email(s) enviado(s)`
   let cor = 'var(--text3)'
@@ -548,7 +667,7 @@ function EnvioStepper({ envios, detalheAberto, onToggleDetalhe }) {
         if (!e) return null
         return (
           <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}>
-            {(e.bounced_em || e.reclamado_em || (e.status === 'falhou' && e.erro)) && (
+            {(e.bounced_em || e.reclamado_em || (['falhou', 'confirmacao_pendente'].includes(e.status) && e.erro)) && (
               <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#EF4444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto' }}>
                 {e.bounced_em
                   ? `Bounce: ${e.bounce_motivo || 'endereço rejeitou o email (provavelmente inválido).'}`
@@ -589,31 +708,178 @@ function EnvioStepper({ envios, detalheAberto, onToggleDetalhe }) {
   )
 }
 
+function CampaignHealthBanner({ queue, run, runsAvailable = true, runsError, onAction, actionBusy = false, compact = false }) {
+  const staleRun = runEstaAntigo(run)
+  const running = RUN_IN_PROGRESS.has(run?.status) && !staleRun
+  const lastRunAt = formatarDataHora(dataRun(run))
+  let tone = 'healthy'
+  let title = 'Operação em dia'
+  let description = queue.pendentes
+    ? `${queue.futuros} envio(s) programado(s) para o futuro e ${queue.prontos} entrando na janela de processamento.`
+    : queue.processando
+      ? `${queue.processando} email(s) estão sendo processados pelo worker.`
+      : 'Não há emails esperando processamento nesta campanha.'
+  let advice = null
+  let showAction = false
+
+  if (runsError) {
+    tone = 'danger'
+    title = 'Não foi possível ler a saúde do envio'
+    description = mensagemErro(runsError)
+    advice = 'Atualize a tela e, se persistir, verifique a conexão com o Supabase.'
+    showAction = queue.pendentes > 0
+  } else if (queue.confirmacaoPendente > 0) {
+    tone = 'danger'
+    title = 'Confirmação necessária antes de reenviar'
+    description = `${queue.confirmacaoPendente} email(s) podem ter sido aceitos pelo Resend, mas o sistema não conseguiu confirmar o resultado localmente.`
+    advice = 'Confira esses destinatários no painel do Resend. Não use “Tentar novamente” até saber se o provedor já aceitou os envios.'
+    showAction = false
+  } else if (!runsAvailable) {
+    tone = queue.vencidos ? 'warning' : 'neutral'
+    title = 'Diagnóstico detalhado indisponível'
+    description = queue.vencidos
+      ? `${queue.vencidos} envio(s) já passaram do horário, mas o histórico do worker ainda não está disponível.`
+      : 'A campanha continua funcionando, mas a atualização de observabilidade do worker ainda não foi aplicada.'
+    advice = queue.vencidos ? 'Solicite o processamento novamente enquanto o diagnóstico é habilitado.' : null
+    showAction = queue.pendentes > 0
+  } else if (staleRun) {
+    tone = 'danger'
+    title = 'O worker não respondeu'
+    description = `A execução permanece como “${run.status === 'running' ? 'em andamento' : 'na fila'}” há mais de 3 min, sem conclusão registrada.`
+    advice = 'Solicite uma nova execução. Se continuar assim, verifique a Edge Function e o cron no Supabase.'
+    showAction = true
+  } else if (running) {
+    tone = 'working'
+    title = run.status === 'running' ? 'Envios sendo processados' : 'Processamento solicitado'
+    description = compact
+      ? `A execução está ${run.status === 'running' ? 'em andamento' : 'na fila do worker'}. Qualquer atraso será sinalizado automaticamente.`
+      : `A execução está ${run.status === 'running' ? 'em andamento' : 'na fila do worker'}. Esta tela será atualizada automaticamente.`
+  } else if (run?.status === 'failed') {
+    tone = 'danger'
+    title = 'O worker encontrou um erro global'
+    description = run.error_message || 'A execução terminou antes de processar a fila.'
+    advice = orientacaoRun(run)
+    showAction = true
+  } else if (run?.status === 'partial') {
+    tone = 'warning'
+    title = 'Execução concluída parcialmente'
+    description = `${run.enviados || 0} enviado(s), ${run.falhas || 0} falha(s) e ${queue.pendentes} ainda pendente(s).`
+    advice = run.error_message || 'Abra os detalhes das falhas, corrija a causa e tente novamente.'
+    showAction = queue.pendentes > 0 || (run.falhas || 0) > 0
+  } else if (runSemEnviosVencidos(run) && queue.vencidos === 0) {
+    tone = 'healthy'
+    title = 'Fila conferida'
+    description = queue.futuros
+      ? `Nenhum email venceu ainda; ${queue.futuros} envio(s) seguem agendado(s) para o futuro.`
+      : 'O worker conferiu a campanha e não encontrou emails prontos para envio.'
+  } else if (run?.status === 'skipped' && !runSemEnviosVencidos(run)) {
+    tone = 'warning'
+    title = 'Execução não processada'
+    description = run.error_message || 'O worker ignorou esta execução porque um requisito não estava pronto.'
+    advice = orientacaoRun(run)
+    showAction = true
+  } else if (queue.vencidos > 0) {
+    tone = 'danger'
+    title = 'Fila de envio atrasada'
+    description = `${queue.vencidos} email(s) passaram da janela esperada sem confirmação de processamento.`
+    advice = run
+      ? 'Solicite uma nova execução. Se a fila continuar parada, verifique Configurações › Email e o worker no Supabase.'
+      : 'Ainda não há execução registrada. Solicite o processamento agora.'
+    showAction = true
+  } else if (!run && queue.pendentes > 0) {
+    tone = 'warning'
+    title = 'Aguardando a primeira execução'
+    description = `${queue.pendentes} email(s) estão na fila; ainda não há retorno do worker.`
+    advice = 'Solicite o processamento para iniciar a campanha agora.'
+    showAction = true
+  } else if (run?.status === 'success') {
+    title = queue.pendentes ? 'Worker saudável' : 'Última execução concluída'
+    description = queue.pendentes
+      ? `${queue.futuros} envio(s) estão agendado(s) para uma data futura.`
+      : `${run.enviados || 0} envio(s) aceito(s) na última execução, sem erro global.`
+  }
+
+  return (
+    <div className={`email-campaign-health is-${tone}${compact ? ' is-compact' : ''}`} role={tone === 'danger' ? 'alert' : 'status'}>
+      <div className="email-campaign-health__signal" aria-hidden="true">
+        {tone === 'healthy' ? <IconCheck size={13} /> : tone === 'danger' ? <IconX size={13} /> : <IconClock size={13} />}
+      </div>
+      <div className="email-campaign-health__copy">
+        <div className="email-campaign-health__title-row">
+          <strong>{title}</strong>
+          {lastRunAt && <span>Última execução: {lastRunAt}</span>}
+        </div>
+        <p>{description}</p>
+        {advice && <small>{advice}</small>}
+      </div>
+      {showAction && onAction && (
+        <button
+          type="button"
+          className="email-health-action"
+          disabled={actionBusy}
+          onClick={event => { event.stopPropagation(); onAction() }}
+        >
+          {actionBusy ? 'Solicitando...' : 'Processar agora'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /* ─── Detalhe (matrículas/envios) ─────────────────────────────────────────── */
-function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
-  const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
+function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead, onRequestNow, requestBusy = false }) {
+  const { confirmDialog, notifyError, notifySuccess } = useDialog()
   const [enrollments, setEnrollments] = useState([])
   const [envios, setEnvios] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [latestRun, setLatestRun] = useState(null)
+  const [runsAvailable, setRunsAvailable] = useState(true)
+  const [runsError, setRunsError] = useState(null)
   const [retrying, setRetrying] = useState(false)
+  const [queueClock, setQueueClock] = useState(() => Date.now())
   const [detalheAberto, setDetalheAberto] = useState(null) // id do envio cujos detalhes estão expandidos
-  const leadById = useState(() => new Map(empresas.map(e => [e.id, e])))[0]
+  const leadById = useMemo(() => new Map(empresas.map(e => [e.id, e])), [empresas])
 
-  const carregar = useCallback(async () => {
-    setLoading(true)
-    const [en, ev] = await Promise.all([
-      fetchAllRows('email_automation_enrollments', '*', ['automation_id', automacao.id]),
-      fetchAllRows('email_automation_envios', '*', ['automation_id', automacao.id]),
-    ])
-    en.sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at))
-    setEnrollments(en)
-    setEnvios(ev)
-    setLoading(false)
+  const carregar = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
+    try {
+      const [en, ev, runsResult] = await Promise.all([
+        fetchAllRows('email_automation_enrollments', '*', ['automation_id', automacao.id]),
+        fetchAllRows('email_automation_envios', AUTOMATION_ENVIO_DETAIL_COLUMNS, ['automation_id', automacao.id]),
+        fetchAutomationRuns(automacao.id, 8),
+      ])
+      en.sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at))
+      setEnrollments(en)
+      setEnvios(ev)
+      setRunsAvailable(runsResult.available)
+      setRunsError(runsResult.error)
+      setLatestRun(runsResult.rows[0] || null)
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(mensagemErro(error))
+    } finally {
+      if (!silent) setLoading(false)
+    }
   }, [automacao.id])
 
   useEffect(() => { carregar() }, [carregar])
 
   const falhas = envios.filter(e => e.status === 'falhou')
+  const queue = useMemo(() => resumoFila(envios, queueClock), [envios, queueClock])
+
+  useEffect(() => {
+    if (!queue.pendentes && !queue.processando && !RUN_IN_PROGRESS.has(latestRun?.status)) return undefined
+    const timer = window.setInterval(() => setQueueClock(Date.now()), 30 * 1000)
+    return () => window.clearInterval(timer)
+  }, [latestRun?.status, queue.pendentes, queue.processando])
+
+  useEffect(() => {
+    const shouldPoll = queue.prontos > 0 || queue.processando > 0 || RUN_IN_PROGRESS.has(latestRun?.status)
+    if (!shouldPoll) return undefined
+    const timer = window.setInterval(() => carregar({ silent: true }), AUTOMATION_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [carregar, latestRun?.status, queue.prontos, queue.processando])
 
   const metrics = useMemo(() => {
     const total = enrollments.length
@@ -622,13 +888,15 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
     const concluidos = enrollments.filter(e => e.status === 'concluido').length
     const cancelados = enrollments.filter(e => e.status === 'cancelado').length
     const enviados = envios.filter(e => e.status === 'enviado').length
+    const processando = envios.filter(e => e.status === 'processando').length
+    const confirmacaoPendente = envios.filter(e => e.status === 'confirmacao_pendente').length
     const entregues = envios.filter(e => e.entregue_em).length
     const abertos = envios.filter(e => e.aberto_em).length
     const clicados = envios.filter(e => e.clicado_em).length
     const rejeitados = envios.filter(e => e.bounced_em || e.reclamado_em).length
     const pct = (n, d) => d ? Math.round((n / d) * 100) : 0
     return {
-      total, ativos, pausados, concluidos, cancelados, enviados, entregues, abertos, clicados, rejeitados,
+      total, ativos, pausados, concluidos, cancelados, enviados, processando, confirmacaoPendente, entregues, abertos, clicados, rejeitados,
       taxaAbertura: pct(abertos, enviados), taxaClique: pct(clicados, enviados), taxaRejeicao: pct(rejeitados, enviados),
     }
   }, [enrollments, envios])
@@ -643,6 +911,8 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
         usar_ia: step.usar_ia,
         total: desteStep.length,
         enviados: desteStep.filter(e => e.status === 'enviado').length,
+        processando: desteStep.filter(e => e.status === 'processando').length,
+        confirmacaoPendente: desteStep.filter(e => e.status === 'confirmacao_pendente').length,
         abertos: desteStep.filter(e => e.aberto_em).length,
         clicados: desteStep.filter(e => e.clicado_em).length,
         falhas: desteStep.filter(e => e.status === 'falhou').length,
@@ -669,7 +939,7 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
   async function tentarNovamente() {
     if (!falhas.length) return
     const ok = await confirmDialog(
-      `Isso vai marcar os ${falhas.length} email(s) que falharam para serem enviados novamente na próxima execução automática (em até 10 min). Útil depois de resolver um problema de crédito/cota da IA ou do provedor de email. Continuar?`,
+      `Isso vai recolocar os ${falhas.length} email(s) na fila e solicitar uma execução agora. O processamento normalmente começa imediatamente e pode levar até 2 min. Continuar?`,
       { title: 'Tentar novamente', confirmLabel: 'Tentar novamente' }
     )
     if (!ok) return
@@ -678,15 +948,32 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
       const agora = new Date().toISOString()
       const idsEnvios = falhas.map(e => e.id)
       const { error } = await supabase.from('email_automation_envios')
-        .update({ status: 'pendente', erro: null, scheduled_for: agora })
+        .update({
+          status: 'pendente',
+          erro: null,
+          scheduled_for: agora,
+          processando_em: null,
+          provider_scheduled_at: null,
+          provider_payload: null,
+          provider_idempotency_key: null,
+        })
         .in('id', idsEnvios)
       if (error) throw error
       // Se a falha foi a última pendência do lead, o worker já marcou a matrícula
       // como "concluído" — reabre essas matrículas para o reenvio não ser ignorado.
       const idsEnrollments = [...new Set(falhas.map(e => e.enrollment_id))]
-      await supabase.from('email_automation_enrollments').update({ status: 'ativo' }).in('id', idsEnrollments).eq('status', 'concluido')
-      notifySuccess(`${falhas.length} email(s) marcado(s) para tentar novamente.`)
-      await carregar()
+      const { error: enrollmentError } = await supabase.from('email_automation_enrollments').update({ status: 'ativo' }).in('id', idsEnrollments).eq('status', 'concluido')
+      if (enrollmentError) throw enrollmentError
+      const { error: requestError } = await supabase.rpc('fn_request_email_automation_tick', {
+        p_automation_id: automacao.id,
+        p_trigger: 'retry_failed',
+      })
+      if (requestError) {
+        notifyError(`${falhas.length} email(s) voltaram para a fila, mas não foi possível solicitar o processamento: ${mensagemErro(requestError)}`)
+      } else {
+        notifySuccess(`${falhas.length} email(s) voltaram para a fila. Processamento solicitado; acompanhe aqui nos próximos 2 min.`)
+      }
+      await carregar({ silent: true })
     } catch (e) {
       notifyError('Erro ao tentar novamente: ' + (e.message || e))
     } finally {
@@ -717,6 +1004,25 @@ function AutomacaoDetalhe({ automacao, empresas, onBack, onOpenLead }) {
           </button>
         )}
       </div>
+
+      {loadError && (
+        <div className="email-operations-alert is-danger" role="alert">
+          <div><strong>Não foi possível atualizar esta campanha.</strong><span>{loadError}</span></div>
+          <button type="button" onClick={() => carregar()}>Tentar novamente</button>
+        </div>
+      )}
+
+      <CampaignHealthBanner
+        queue={queue}
+        run={latestRun}
+        runsAvailable={runsAvailable}
+        runsError={runsError}
+        onAction={async () => {
+          await onRequestNow?.()
+          await carregar({ silent: true })
+        }}
+        actionBusy={requestBusy}
+      />
 
       {enrollments.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Nenhum lead matriculado ainda. Leads novos que baterem com o filtro entram automaticamente.</div>
@@ -806,6 +1112,8 @@ function MetricasResumo({ metrics: m }) {
     { label: 'Matriculados', valor: m.total, cor: 'var(--text)' },
     { label: 'Em andamento', valor: m.ativos, cor: '#92740c' },
     { label: 'Concluídos', valor: m.concluidos, cor: '#1e7e34' },
+    { label: 'Processando', valor: m.processando, cor: '#2563EB' },
+    ...(m.confirmacaoPendente ? [{ label: 'Confirmar no Resend', valor: m.confirmacaoPendente, cor: '#D97706' }] : []),
     { label: 'Enviados', valor: m.enviados, cor: 'var(--text)' },
     { label: 'Abertos', valor: m.abertos, sub: `${m.taxaAbertura}% dos enviados`, cor: '#2563EB' },
     { label: 'Clicados', valor: m.clicados, sub: `${m.taxaClique}% dos enviados`, cor: '#7C3AED' },
@@ -836,6 +1144,8 @@ function FunilEtapas({ etapas }) {
           const base = et.total || 1
           const segmentos = [
             { label: 'Enviado', valor: et.enviados, cor: '#10B981' },
+            { label: 'Processando', valor: et.processando, cor: '#2563EB' },
+            { label: 'Confirmar', valor: et.confirmacaoPendente, cor: '#D97706' },
             { label: 'Aberto', valor: et.abertos, cor: '#2563EB' },
             { label: 'Clicado', valor: et.clicados, cor: '#7C3AED' },
             { label: 'Falhou', valor: et.falhas, cor: '#EF4444' },
@@ -845,7 +1155,7 @@ function FunilEtapas({ etapas }) {
             <div key={et.ordem}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Email {et.ordem}{et.usar_ia ? ' (IA)' : ''}</span>
-                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{et.total} agendado(s)</span>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{et.total} na sequência</span>
               </div>
               <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--bg3)', marginBottom: 6 }}>
                 {segmentos.filter(s => s.valor > 0).map(s => (
@@ -880,7 +1190,8 @@ async function fetchAllRows(table, columns, eqFilter) {
     let query = supabase.from(table).select(columns).range(from, from + pageSize - 1)
     if (eqFilter) query = query.eq(eqFilter[0], eqFilter[1])
     const { data, error } = await query
-    if (error || !data?.length) break
+    if (error) throw new Error(`Erro ao carregar ${table}: ${error.message}`)
+    if (!data?.length) break
     all.push(...data)
     if (data.length < pageSize) break
     from += pageSize
@@ -966,14 +1277,18 @@ function EmailMetricasChart({ chartData, automacoes, chartFiltro, onChangeFiltro
 }
 
 export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }) {
-  const { confirmDialog, notify, notifyError, notifySuccess } = useDialog()
+  const { confirmDialog, notifyError, notifySuccess } = useDialog()
   const [automacoes, setAutomacoes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [runsAvailable, setRunsAvailable] = useState(true)
+  const [runsError, setRunsError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState(null)
   const [detalhe, setDetalhe] = useState(null)
   const [todosEnvios, setTodosEnvios] = useState([])
   const [chartFiltro, setChartFiltro] = useState('todas')
+  const [queueClock, setQueueClock] = useState(() => Date.now())
 
   const tagsDisponiveis = useMemo(() => {
     const set = new Set()
@@ -987,42 +1302,88 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
     return Array.from(set).sort()
   }, [empresas])
 
-  const fetchAutomacoes = useCallback(async () => {
-    setLoading(true)
-    const { data: autos } = await supabase.from('email_automations').select('*').order('created_at', { ascending: false })
-    const { data: steps } = await supabase.from('email_automation_steps').select('*').order('ordem', { ascending: true })
-    const { data: triggers } = await supabase.from('email_automation_triggers').select('*')
-    const enrollCounts = await fetchAllRows('email_automation_enrollments', 'automation_id, status')
-    const envioCounts = await fetchAllRows('email_automation_envios', 'automation_id, status, enviado_em, entregue_em, bounced_em, reclamado_em, aberto_em')
-    setTodosEnvios(envioCounts || [])
-    const stepsByAuto = {}
-    ;(steps || []).forEach(s => { (stepsByAuto[s.automation_id] = stepsByAuto[s.automation_id] || []).push(s) })
-    const triggersByAuto = {}
-    ;(triggers || []).forEach(t => { (triggersByAuto[t.automation_id] = triggersByAuto[t.automation_id] || []).push(t) })
-    const countsByAuto = {}
-    ;(enrollCounts || []).forEach(e => {
-      const c = countsByAuto[e.automation_id] || (countsByAuto[e.automation_id] = { total: 0, ativos: 0 })
-      c.total++
-      if (e.status === 'ativo') c.ativos++
-    })
-    const envioCountsByAuto = {}
-    ;(envioCounts || []).forEach(e => {
-      const c = envioCountsByAuto[e.automation_id] || (envioCountsByAuto[e.automation_id] = { enviados: 0, pendentes: 0, falhas: 0 })
-      if (e.status === 'enviado') c.enviados++
-      else if (e.status === 'pendente') c.pendentes++
-      else if (e.status === 'falhou') c.falhas++
-    })
-    setAutomacoes((autos || []).map(a => ({
-      ...a,
-      steps: stepsByAuto[a.id] || [],
-      triggers: triggersByAuto[a.id] || [],
-      counts: countsByAuto[a.id] || { total: 0, ativos: 0 },
-      envioCounts: envioCountsByAuto[a.id] || { enviados: 0, pendentes: 0, falhas: 0 },
-    })))
-    setLoading(false)
+  const fetchAutomacoes = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
+    try {
+      const [autosResult, stepsResult, triggersResult, enrollCounts, envioCounts, runsResult] = await Promise.all([
+        supabase.from('email_automations').select('*').order('created_at', { ascending: false }),
+        supabase.from('email_automation_steps').select('*').order('ordem', { ascending: true }),
+        supabase.from('email_automation_triggers').select('*'),
+        fetchAllRows('email_automation_enrollments', 'automation_id, status'),
+        fetchAllRows('email_automation_envios', 'automation_id, status, scheduled_for, erro, enviado_em, entregue_em, bounced_em, reclamado_em, aberto_em'),
+        fetchAutomationRuns(),
+      ])
+      if (autosResult.error) throw new Error(`Erro ao carregar campanhas: ${autosResult.error.message}`)
+      if (stepsResult.error) throw new Error(`Erro ao carregar passos: ${stepsResult.error.message}`)
+      if (triggersResult.error) throw new Error(`Erro ao carregar gatilhos: ${triggersResult.error.message}`)
+
+      const autos = autosResult.data || []
+      const steps = stepsResult.data || []
+      const triggers = triggersResult.data || []
+      setTodosEnvios(envioCounts)
+      setRunsAvailable(runsResult.available)
+      setRunsError(runsResult.error)
+
+      const stepsByAuto = {}
+      steps.forEach(s => { (stepsByAuto[s.automation_id] = stepsByAuto[s.automation_id] || []).push(s) })
+      const triggersByAuto = {}
+      triggers.forEach(t => { (triggersByAuto[t.automation_id] = triggersByAuto[t.automation_id] || []).push(t) })
+      const countsByAuto = {}
+      enrollCounts.forEach(e => {
+        const c = countsByAuto[e.automation_id] || (countsByAuto[e.automation_id] = { total: 0, ativos: 0 })
+        c.total++
+        if (e.status === 'ativo') c.ativos++
+      })
+      const enviosByAuto = {}
+      envioCounts.forEach(e => { (enviosByAuto[e.automation_id] = enviosByAuto[e.automation_id] || []).push(e) })
+      const runByAuto = {}
+      let latestGlobalRun = null
+      runsResult.rows.forEach(run => {
+        if (run.automation_id && !runByAuto[run.automation_id]) runByAuto[run.automation_id] = run
+        else if (!run.automation_id && !latestGlobalRun) latestGlobalRun = run
+      })
+
+      setAutomacoes(autos.map(a => ({
+        ...a,
+        steps: stepsByAuto[a.id] || [],
+        triggers: triggersByAuto[a.id] || [],
+        counts: countsByAuto[a.id] || { total: 0, ativos: 0 },
+        envioRows: enviosByAuto[a.id] || [],
+        envioCounts: resumoFila(enviosByAuto[a.id] || []),
+        latestRun: runByAuto[a.id] || latestGlobalRun,
+      })))
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(mensagemErro(error))
+    } finally {
+      if (!silent) setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchAutomacoes() }, [fetchAutomacoes])
+
+  const automacoesComFilaAtualizada = useMemo(() => automacoes.map(a => ({
+    ...a,
+    envioCounts: resumoFila(a.envioRows || [], queueClock),
+  })), [automacoes, queueClock])
+
+  const hasPending = automacoesComFilaAtualizada.some(a => a.envioCounts.pendentes > 0 || a.envioCounts.processando > 0 || RUN_IN_PROGRESS.has(a.latestRun?.status))
+  useEffect(() => {
+    if (!hasPending || showForm || detalhe) return undefined
+    const timer = window.setInterval(() => setQueueClock(Date.now()), 30 * 1000)
+    return () => window.clearInterval(timer)
+  }, [detalhe, hasPending, showForm])
+
+  const shouldPoll = automacoesComFilaAtualizada.some(a => (
+    a.envioCounts.prontos > 0
+    || a.envioCounts.processando > 0
+    || RUN_IN_PROGRESS.has(a.latestRun?.status)
+  ))
+  useEffect(() => {
+    if (!shouldPoll || showForm || detalhe) return undefined
+    const timer = window.setInterval(() => fetchAutomacoes({ silent: true }), AUTOMATION_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [detalhe, fetchAutomacoes, shouldPoll, showForm])
 
   const PERIODO_DIAS = 15
   const chartData = useMemo(() => {
@@ -1048,24 +1409,41 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
   const [matriculando, setMatriculando] = useState(null) // id da automação rodando "iniciar agora"
 
   async function iniciarAgora(a) {
+    const vencidos = a.envioCounts?.vencidos || 0
+    const prontos = a.envioCounts?.prontos || 0
+    const prontosParaEnvio = vencidos + prontos
+    const avisoFila = prontosParaEnvio > 0
+      ? ` Há ${prontosParaEnvio} email(s) prontos ou atrasados; o envio poderá começar imediatamente após a confirmação.`
+      : ' Se houver emails já vencidos na fila, o envio poderá começar imediatamente.'
     const ok = await confirmDialog(
-      `Matricular agora os leads que já existem e batem com o público de "${a.nome}"? Quem já estiver matriculado não é duplicado.`,
-      { title: 'Iniciar campanha agora' }
+      `Matricular os leads existentes de "${a.nome}" e processar a fila agora?${avisoFila} Quem já estiver matriculado não será duplicado.`,
+      { title: 'Iniciar campanha agora', confirmLabel: 'Matricular e processar' }
     )
-    if (!ok) return
+    if (!ok) return false
     setMatriculando(a.id)
     try {
-      const { data: count, error } = await supabase.rpc('fn_matricular_leads_existentes', { p_automation_id: a.id })
-      if (error) throw error
-      if (count > 0) {
-        logAction?.('atualizar', 'email_automations', a.id, { nome: a.nome, acao_detalhe: 'iniciar_agora', matriculados: count })
-        notifySuccess(`${count} novo(s) lead(s) matriculado(s) agora na sequência.`)
-      } else {
-        notify(`Nenhum lead novo para matricular: todos os leads que batem com o público de "${a.nome}" já estavam matriculados (${a.counts?.total || 0} no total).`)
+      const result = await matricularESolicitarExecucao(a.id, 'manual')
+      const count = result.matriculados || 0
+      if (!result.matriculaError) {
+        logAction?.('atualizar', 'email_automations', a.id, { nome: a.nome, acao_detalhe: 'iniciar_agora', matriculados: count, run_id: result.runId })
       }
-      fetchAutomacoes()
+
+      if (result.matriculaError && result.requestError) {
+        notifyError(`Não foi possível matricular os leads nem solicitar o processamento. Matrícula: ${mensagemErro(result.matriculaError)} · Worker: ${mensagemErro(result.requestError)}`)
+      } else if (result.matriculaError) {
+        notifyError(`O processamento da fila existente foi solicitado, mas não foi possível matricular novos leads: ${mensagemErro(result.matriculaError)}`)
+      } else if (result.requestError) {
+        notifyError(`${count} novo(s) lead(s) matriculado(s), mas não foi possível solicitar o processamento: ${mensagemErro(result.requestError)}`)
+      } else if (count > 0) {
+        notifySuccess(`${count} novo(s) lead(s) matriculado(s). Processamento solicitado; acompanhe o status aqui nos próximos 2 min.`)
+      } else {
+        notifySuccess(`Nenhum lead novo para matricular. O processamento dos emails que já estavam na fila foi solicitado agora.`)
+      }
+      await fetchAutomacoes({ silent: true })
+      return !result.requestError
     } catch (e) {
-      notifyError('Erro ao matricular leads: ' + (e.message || e))
+      notifyError('Erro inesperado ao iniciar a campanha: ' + mensagemErro(e))
+      return false
     } finally {
       setMatriculando(null)
     }
@@ -1094,11 +1472,21 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
         cnaesDisponiveis={cnaesDisponiveis}
         logAction={logAction}
         onCancel={() => { setShowForm(false); setEditando(null) }}
-        onSaved={(matriculados) => {
+        onSaved={(inicioResultado) => {
           setShowForm(false); setEditando(null); fetchAutomacoes()
-          if (matriculados !== null) {
-            if (matriculados > 0) notifySuccess(`${matriculados} lead(s) já existente(s) matriculado(s) na sequência.`)
-            else notify('Nenhum lead existente bate com o público da campanha por enquanto. Novos leads que baterem com o filtro serão matriculados automaticamente.')
+          if (inicioResultado !== null) {
+            const count = inicioResultado.matriculados || 0
+            if (inicioResultado.matriculaError && inicioResultado.requestError) {
+              notifyError(`Campanha salva, mas a inicialização falhou. Matrícula: ${mensagemErro(inicioResultado.matriculaError)} · Worker: ${mensagemErro(inicioResultado.requestError)}`)
+            } else if (inicioResultado.matriculaError) {
+              notifyError(`Campanha salva e processamento solicitado, mas novos leads não foram matriculados: ${mensagemErro(inicioResultado.matriculaError)}`)
+            } else if (inicioResultado.requestError) {
+              notifyError(`Campanha salva com ${count} lead(s) matriculado(s), mas o processamento não pôde ser solicitado: ${mensagemErro(inicioResultado.requestError)}`)
+            } else if (count > 0) {
+              notifySuccess(`Campanha salva com ${count} lead(s) matriculado(s). Processamento imediato solicitado.`)
+            } else {
+              notifySuccess('Campanha salva. Nenhum lead novo foi matriculado; o processamento da fila existente foi solicitado.')
+            }
           }
         }}
       />
@@ -1106,7 +1494,16 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
   }
 
   if (detalhe) {
-    return <AutomacaoDetalhe automacao={detalhe} empresas={empresas} onBack={() => setDetalhe(null)} onOpenLead={onOpenLead} />
+    return (
+      <AutomacaoDetalhe
+        automacao={detalhe}
+        empresas={empresas}
+        onBack={() => setDetalhe(null)}
+        onOpenLead={onOpenLead}
+        requestBusy={matriculando === detalhe.id}
+        onRequestNow={async () => iniciarAgora(detalhe)}
+      />
+    )
   }
 
   return (
@@ -1128,10 +1525,17 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
         </button>
       </header>
 
+      {loadError && (
+        <div className="email-operations-alert is-danger" role="alert">
+          <div><strong>Não foi possível atualizar as campanhas.</strong><span>{loadError}</span></div>
+          <button type="button" onClick={() => fetchAutomacoes()}>Tentar novamente</button>
+        </div>
+      )}
+
       {!loading && automacoes.length > 0 && (
         <EmailMetricasChart
           chartData={chartData}
-          automacoes={automacoes}
+          automacoes={automacoesComFilaAtualizada}
           chartFiltro={chartFiltro}
           onChangeFiltro={setChartFiltro}
         />
@@ -1150,7 +1554,7 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
         </div>
       ) : (
         <div className="email-campaign-list">
-          {automacoes.map(a => (
+          {automacoesComFilaAtualizada.map(a => (
             <article key={a.id} className="card email-campaign-card" onClick={() => setDetalhe(a)}>
               <div className="email-campaign-accent" aria-hidden="true"><IconZap size={15} color="var(--accent)" /></div>
               <div className="email-campaign-content">
@@ -1183,9 +1587,29 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#10B981' }}>
                     <IconCheck size={11} color="#10B981" /> {a.envioCounts.enviados} enviado(s)
                   </span>
-                  {a.envioCounts.pendentes > 0 && (
+                  {a.envioCounts.futuros > 0 && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>
-                      <IconClock size={11} color="var(--text3)" /> {a.envioCounts.pendentes} agendado(s)
+                      <IconClock size={11} color="var(--text3)" /> {a.envioCounts.futuros} agendado(s) para depois
+                    </span>
+                  )}
+                  {a.envioCounts.prontos > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
+                      <IconClock size={11} color="var(--accent)" /> {a.envioCounts.prontos} entrando na fila
+                    </span>
+                  )}
+                  {a.envioCounts.processando > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#2563EB' }}>
+                      <IconZap size={11} color="#2563EB" /> {a.envioCounts.processando} processando
+                    </span>
+                  )}
+                  {a.envioCounts.confirmacaoPendente > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#D97706' }}>
+                      <IconClock size={11} color="#D97706" /> {a.envioCounts.confirmacaoPendente} aguardando confirmação no Resend
+                    </span>
+                  )}
+                  {a.envioCounts.vencidos > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#B91C1C' }}>
+                      <IconX size={11} color="#B91C1C" /> {a.envioCounts.vencidos} atrasado(s)
                     </span>
                   )}
                   {a.envioCounts.falhas > 0 && (
@@ -1194,15 +1618,24 @@ export default function EmailAutomacoes({ empresas = [], onOpenLead, logAction }
                     </span>
                   )}
                 </div>
+                <CampaignHealthBanner
+                  compact
+                  queue={a.envioCounts}
+                  run={a.latestRun}
+                  runsAvailable={runsAvailable}
+                  runsError={runsError}
+                  actionBusy={matriculando === a.id}
+                  onAction={() => iniciarAgora(a)}
+                />
               </div>
               <div className="email-campaign-actions" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={() => iniciarAgora(a)}
                   disabled={matriculando === a.id}
-                  title="Matricular agora os leads existentes que batem com o filtro"
+                  title="Matricular os leads existentes e solicitar processamento imediato"
                   className="email-outline-button is-accent"
                 >
-                  {matriculando === a.id ? 'Matriculando...' : 'Iniciar agora'}
+                  {matriculando === a.id ? 'Solicitando...' : 'Iniciar agora'}
                 </button>
                 <button onClick={() => toggleAtivo(a)} className="email-outline-button">
                   {a.ativo ? 'Pausar' : 'Ativar'}

@@ -1184,6 +1184,162 @@
   gap: 6px 13px;
 }
 
+.email-operations-alert {
+  display: flex;
+  margin-bottom: 16px;
+  padding: 13px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--red) 26%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--red-bg) 76%, var(--bg));
+  box-shadow: 0 10px 28px rgba(75, 24, 15, 0.06);
+}
+
+.email-operations-alert > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.email-operations-alert strong {
+  color: var(--red);
+  font-size: 12px;
+}
+
+.email-operations-alert span {
+  color: var(--text2);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.email-operations-alert button,
+.email-health-action {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid currentColor;
+  border-radius: 9px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  color: inherit;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.email-operations-alert button { color: var(--red); }
+
+.email-campaign-health {
+  --health-color: var(--green);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 0 0 18px;
+  padding: 13px 14px;
+  align-items: start;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--health-color) 22%, var(--border));
+  border-radius: 15px;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--health-color) 8%, var(--bg)) 0%, var(--bg) 72%);
+  color: var(--health-color);
+}
+
+.email-campaign-health.is-working { --health-color: #2563eb; }
+.email-campaign-health.is-warning { --health-color: #b45309; }
+.email-campaign-health.is-danger { --health-color: #b91c1c; }
+.email-campaign-health.is-neutral { --health-color: var(--text3); }
+
+.email-campaign-health__signal {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--health-color) 24%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--health-color) 10%, var(--bg));
+  color: var(--health-color);
+}
+
+.email-campaign-health.is-working .email-campaign-health__signal {
+  animation: communications-health-pulse 1.8s ease-in-out infinite;
+}
+
+.email-campaign-health__copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.email-campaign-health__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+}
+
+.email-campaign-health__title-row strong {
+  color: var(--health-color);
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+}
+
+.email-campaign-health__title-row span {
+  color: var(--text3);
+  font-size: 9px;
+}
+
+.email-campaign-health p,
+.email-campaign-health small {
+  margin: 0;
+  color: var(--text2);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.email-campaign-health small {
+  color: var(--text3);
+  font-size: 9px;
+}
+
+.email-health-action {
+  align-self: center;
+  color: var(--health-color);
+}
+
+.email-health-action:hover:not(:disabled),
+.email-operations-alert button:hover {
+  background: color-mix(in srgb, currentColor 13%, transparent);
+}
+
+.email-health-action:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.email-campaign-health.is-compact {
+  margin: 11px 0 0;
+  padding: 9px 10px;
+  border-radius: 12px;
+  gap: 8px;
+}
+
+.email-campaign-health.is-compact .email-campaign-health__signal {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+}
+
+@keyframes communications-health-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--health-color) 0%, transparent); }
+  45% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--health-color) 12%, transparent); }
+}
+
 .email-campaign-actions {
   display: flex;
   flex-shrink: 0;
@@ -1729,7 +1885,8 @@
 
   .email-campaign-trigger,
   .email-campaign-meta,
-  .email-campaign-stats {
+  .email-campaign-stats,
+  .email-campaign-health {
     margin-left: -51px;
   }
 
@@ -1747,6 +1904,22 @@
     min-width: 0;
     padding-inline: 8px;
   }
+
+  .email-campaign-health {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .email-campaign-health .email-health-action {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
+  .email-operations-alert {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .email-operations-alert button { width: 100%; }
 
   .email-form-heading h2,
   .email-detail-heading h2 { font-size: 30px; }
@@ -1854,6 +2027,11 @@
     width: 100%;
   }
 
+  .email-campaign-health__title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .email-metrics-grid { grid-template-columns: 1fr 1fr; }
   .email-form-actions { margin-left: 0; }
 }
@@ -1862,7 +2040,8 @@
   .inbox-message-row,
   .inbox-loading::before,
   .inbox-recording-dot,
-  .email-page-loading::after {
+  .email-page-loading::after,
+  .email-campaign-health.is-working .email-campaign-health__signal {
     animation: none;
   }
 }
