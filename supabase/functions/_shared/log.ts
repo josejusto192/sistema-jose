@@ -13,13 +13,14 @@ export async function registrarLog(
   }
 ) {
   try {
-    await db.from('logs').insert({
+    const { error } = await db.from('logs').insert({
       acao,
       tabela,
       registro_id: registroId ?? null,
       detalhes: detalhes ?? null,
       usuario_nome: usuarioNome,
     })
+    if (error) console.error('registrarLog: erro ao inserir log', error)
   } catch (err) {
     console.error('registrarLog: erro ao inserir log', err)
   }

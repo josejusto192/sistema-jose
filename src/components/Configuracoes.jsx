@@ -1243,6 +1243,30 @@ function EmailTab() {
               Crie essa caixa de email no painel da sua hospedagem (cPanel) — não precisa mudar nenhum registro de DNS. As respostas chegam aqui e aparecem na Caixa de Entrada (aba Email), separadas das mensagens normais do domínio.
             </div>
           </div>
+          <div style={{
+            padding: '12px 14px', borderRadius: 8, border: `1px solid ${cfg.imap_ultimo_erro ? 'rgba(220,38,38,.28)' : 'var(--border)'}`,
+            background: cfg.imap_ultimo_erro ? 'rgba(220,38,38,.06)' : 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 4,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: cfg.imap_ultimo_erro ? 'var(--red)' : 'var(--text1)' }}>
+              {cfg.imap_ultimo_erro ? 'Falha na última sincronização' : cfg.imap_ultimo_sync_em ? 'Sincronização IMAP ativa' : 'Aguardando a primeira sincronização'}
+            </div>
+            {cfg.imap_ultimo_sync_em && (
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                Último sucesso: {new Date(cfg.imap_ultimo_sync_em).toLocaleString('pt-BR')}
+                {Number.isFinite(Number(cfg.imap_ultimo_resultado?.importados)) && ` · ${Number(cfg.imap_ultimo_resultado.importados)} importado(s)`}
+                {Number(cfg.imap_ultimo_resultado?.pendentes) > 0 && ` · ${Number(cfg.imap_ultimo_resultado.pendentes)} pendente(s)`}
+                {Number(cfg.imap_ultimo_resultado?.conteudosParciais) > 0 && ` · ${Number(cfg.imap_ultimo_resultado.conteudosParciais)} com conteúdo parcial`}
+              </div>
+            )}
+            {cfg.imap_ultimo_erro && (
+              <div style={{ fontSize: 11, color: 'var(--red)', lineHeight: 1.45, overflowWrap: 'anywhere' }}>
+                {cfg.imap_ultimo_erro}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+              O CRM usa um cursor próprio: abrir ou marcar mensagens como lidas no Roundcube não interfere na importação.
+            </div>
+          </div>
         </div>
       </div>
 
