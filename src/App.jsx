@@ -87,6 +87,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('todos')
   const [tagFilter, setTagFilter] = useState('')
   const [cnaeFilter, setCnaeFilter] = useState([])
+  const [moreFilters, setMoreFilters] = useState({ capitalMin: '', capitalMax: '', porte: [], uf: [], natureza: [], aberturaDe: '', aberturaAte: '' })
   const ultimaBuscaLogada = useRef('')
   const [pendingContrato, setPendingContrato] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -105,9 +106,12 @@ export default function App() {
   // ajustar os filtros (debounce), e só se há algum filtro de fato ativo —
   // evita logar a tela em estado default e logar a cada tecla digitada.
   useEffect(() => {
-    const temFiltro = !!searchQuery || statusFilter !== 'todos' || !!tagFilter || cnaeFilter.length > 0
+    const temMoreFilter = moreFilters.capitalMin !== '' || moreFilters.capitalMax !== '' ||
+      moreFilters.porte.length > 0 || moreFilters.uf.length > 0 || moreFilters.natureza.length > 0 ||
+      !!moreFilters.aberturaDe || !!moreFilters.aberturaAte
+    const temFiltro = !!searchQuery || statusFilter !== 'todos' || !!tagFilter || cnaeFilter.length > 0 || temMoreFilter
     if (!temFiltro) return
-    const assinatura = JSON.stringify({ searchQuery, statusFilter, tagFilter, cnaeFilter })
+    const assinatura = JSON.stringify({ searchQuery, statusFilter, tagFilter, cnaeFilter, moreFilters })
     const timer = setTimeout(() => {
       if (assinatura === ultimaBuscaLogada.current) return
       ultimaBuscaLogada.current = assinatura
@@ -116,10 +120,11 @@ export default function App() {
         status: statusFilter !== 'todos' ? statusFilter : null,
         etiqueta: tagFilter || null,
         cnae: cnaeFilter.length ? cnaeFilter : null,
+        mais_filtros: temMoreFilter ? moreFilters : null,
       })
     }, 1500)
     return () => clearTimeout(timer)
-  }, [searchQuery, statusFilter, tagFilter, cnaeFilter])
+  }, [searchQuery, statusFilter, tagFilter, cnaeFilter, moreFilters])
 
   // Hash-based routing
   useEffect(() => {
@@ -495,6 +500,14 @@ export default function App() {
     empresas.map(e => e.cnae_principal_descricao).filter(Boolean)
   )).sort()
 
+  const allPortes = Array.from(new Set(
+    empresas.map(e => e.porte_descricao).filter(Boolean)
+  )).sort()
+
+  const allNaturezas = Array.from(new Set(
+    empresas.map(e => e.natureza_juridica_descricao).filter(Boolean)
+  )).sort()
+
   const filteredEmpresas = empresas.filter(e => {
     const q = searchQuery.toLowerCase()
     const matchSearch = !searchQuery ||
@@ -512,13 +525,22 @@ export default function App() {
     const matchTag  = !tagFilter || (e.tags || []).includes(tagFilter)
     const matchCnae = cnaeFilter.length === 0 || cnaeFilter.includes(e.cnae_principal_descricao)
 
+    const matchCapitalMin = moreFilters.capitalMin === '' || Number(e.capital_social || 0) >= Number(moreFilters.capitalMin)
+    const matchCapitalMax = moreFilters.capitalMax === '' || Number(e.capital_social || 0) <= Number(moreFilters.capitalMax)
+    const matchPorte = moreFilters.porte.length === 0 || moreFilters.porte.includes(e.porte_descricao)
+    const matchUf = moreFilters.uf.length === 0 || moreFilters.uf.includes(e.uf)
+    const matchNatureza = moreFilters.natureza.length === 0 || moreFilters.natureza.includes(e.natureza_juridica_descricao)
+    const matchAberturaDe = !moreFilters.aberturaDe || (e.data_abertura || '') >= moreFilters.aberturaDe
+    const matchAberturaAte = !moreFilters.aberturaAte || (e.data_abertura || '') <= moreFilters.aberturaAte
+    const matchMoreFilters = matchCapitalMin && matchCapitalMax && matchPorte && matchUf && matchNatureza && matchAberturaDe && matchAberturaAte
+
     if (statusFilter === 'followup') {
-      if (!matchSearch || !matchTag || !matchCnae) return false
+      if (!matchSearch || !matchTag || !matchCnae || !matchMoreFilters) return false
       const today = new Date().toISOString().slice(0, 10)
       return tasks.some(t => t.empresa_id === e.id && !t.completed && t.due_date <= today)
     }
     const matchStatus = statusFilter === 'todos' || e.status_prospeccao === statusFilter
-    return matchSearch && matchStatus && matchTag && matchCnae
+    return matchSearch && matchStatus && matchTag && matchCnae && matchMoreFilters
   })
 
   const isSuperAdmin = profile?.role === 'superadmin'
@@ -680,6 +702,10 @@ export default function App() {
               cnaeFilter={cnaeFilter}
               setCnaeFilter={setCnaeFilter}
               allCnaes={allCnaes}
+              moreFilters={moreFilters}
+              setMoreFilters={setMoreFilters}
+              allPortes={allPortes}
+              allNaturezas={allNaturezas}
               onOpenLead={openLead}
               onUpdateEmpresa={updateEmpresa}
               onBulkUpdate={bulkUpdateEmpresas}

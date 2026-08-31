@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns'
 import { IconSearch, IconClock, IconMail, IconPhone, IconInbox, IconList, IconKanban, IconX, IconDownload } from './Icons.jsx'
 import { exportLeads } from '../lib/exportLeads.js'
 import CnaeFilter from './CnaeFilter.jsx'
+import LeadsMoreFilters from './LeadsMoreFilters.jsx'
 import '../styles/sales.css'
 
 const PER_PAGE = 20
@@ -569,7 +570,9 @@ function NewLeadModal({ onClose, onSave }) {
 }
 
 /* ─── Main component ───────────────────────────────────────────────────────── */
-export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, cnaeFilter = [], setCnaeFilter, allCnaes = [], onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, onCreateLead, tasks = [], totalCount, profiles = [] }) {
+const EMPTY_MORE_FILTERS = { capitalMin: '', capitalMax: '', porte: [], uf: [], natureza: [], aberturaDe: '', aberturaAte: '' }
+
+export default function Leads({ empresas, loading, searchQuery, setSearchQuery, statusFilter, setStatusFilter, tagFilter, setTagFilter, allTags, cnaeFilter = [], setCnaeFilter, allCnaes = [], moreFilters = EMPTY_MORE_FILTERS, setMoreFilters, allPortes = [], allNaturezas = [], onOpenLead, onUpdateEmpresa, onBulkUpdate, onBulkDelete, onCreateLead, tasks = [], totalCount, profiles = [] }) {
   const isMobile = useIsMobile()
   const isSuperAdmin = useIsSuperAdmin()
   const [sortField, setSortField] = useState('criado_em')
@@ -621,10 +624,10 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
   const [showSaveInput, setShowSaveInput] = useState(false)
 
   // Reset para página 1 ao mudar filtro ou busca
-  useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter])
+  useEffect(() => { setPage(1) }, [statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter, moreFilters])
 
   // Limpa seleção ao trocar modo ou filtros
-  useEffect(() => { setSelectedIds([]) }, [viewMode, statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter])
+  useEffect(() => { setSelectedIds([]) }, [viewMode, statusFilter, searchQuery, tagFilter, vendorFilter, cnaeFilter, moreFilters])
 
   // Todos os vendedores do sistema (não só quem aparece nos leads já
   // carregados/filtrados — senão filtrar por "Não atribuídos" esvaziava
@@ -646,7 +649,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
     if (!name) return
     const entry = {
       name,
-      filters: { searchQuery, statusFilter, tagFilter, cnaeFilter, vendorFilter },
+      filters: { searchQuery, statusFilter, tagFilter, cnaeFilter, vendorFilter, moreFilters },
     }
     persistFilters([...savedFilters, entry])
     setSaveFilterName('')
@@ -659,6 +662,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
     setTagFilter(entry.filters.tagFilter || '')
     setCnaeFilter(entry.filters.cnaeFilter || [])
     setVendorFilter(entry.filters.vendorFilter || '')
+    setMoreFilters(entry.filters.moreFilters || EMPTY_MORE_FILTERS)
   }
 
   function handleDeleteFilter(idx) {
@@ -861,6 +865,7 @@ export default function Leads({ empresas, loading, searchQuery, setSearchQuery, 
           {allCnaes.length > 0 && (
             <CnaeFilter allCnaes={allCnaes} cnaeFilter={cnaeFilter} setCnaeFilter={setCnaeFilter} />
           )}
+          <LeadsMoreFilters filters={moreFilters} setFilters={setMoreFilters} allPortes={allPortes} allNaturezas={allNaturezas} />
           {isSuperAdmin && (
             <select
               value={vendorFilter}
